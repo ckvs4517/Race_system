@@ -67,6 +67,18 @@ assert.equal(changed.format, 'swiss');
 assert.equal(changed.totalRounds, 2);
 assert.match(manageView(changed), /option value="swiss" selected/);
 assert.match(manageView(), /瑞士制/);
+assert.match(manageView(), /name="arenaCount"/);
+
+const multiArena = createTournament('雙台瑞士賽', players, 'swiss', 2);
+assert.equal(multiArena.arenaCount, 2);
+const multiArenaView = scheduleView([multiArena], multiArena.id, true);
+assert.match(multiArenaView, /戰鬥台 1/);
+assert.match(multiArenaView, /戰鬥台 2/);
+assert.match(multiArenaView, /battle-stations/);
+
+let invalidArenaRejected = false;
+try { createTournament('錯誤台數', players, 'swiss', 9); } catch { invalidArenaRejected = true; }
+assert.equal(invalidArenaRejected, true);
 
 console.log('PASS Swiss format');
 

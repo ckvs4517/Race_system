@@ -11,7 +11,7 @@ export function dataManagementView(tournaments) {
   const overviewRows = tournaments.map((tournament) => {
     const matches = (tournament.rounds || []).flatMap((round) => round.matches || []);
     const completed = matches.filter((match) => match.status === '已完成').length;
-    return `<div class="data-overview-row"><strong>${escapeText(tournament.name)}</strong><span>${tournament.players?.length || 0} 人</span><span>${matches.length} 場</span><span>${completed} 場</span><span>${escapeText(tournament.status || '準備中')}</span><span class="${tournament.champion ? '' : 'data-muted'}">${escapeText(tournament.champion || '尚未產生')}</span></div>`;
+    return `<div class="data-overview-row"><strong>${escapeText(tournament.name)}</strong><span>${tournament.players?.length || 0} 人／${tournament.arenaCount || 1} 台</span><span>${matches.length} 場</span><span>${completed} 場</span><span>${escapeText(tournament.status || '準備中')}</span><span class="${tournament.champion ? '' : 'data-muted'}">${escapeText(tournament.champion || '尚未產生')}</span></div>`;
   }).join('');
 
   return `<section class="section-wrap page-section">
@@ -81,13 +81,13 @@ export function parseBackup(text) {
 }
 
 export function createCsv(tournaments) {
-  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '輪次', '比賽編號', '選手 A', '選手 B', '選手 A 比分', '選手 B 比分', '勝者', '比賽狀態']];
+  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '輪次', '比賽編號', '戰鬥台', '選手 A', '選手 B', '選手 A 比分', '選手 B 比分', '勝者', '比賽狀態']];
   tournaments.forEach((tournament) => {
     const rounds = tournament.rounds || [];
     const formatName = getTournamentFormat(tournament.format).name;
-    if (!rounds.length) rows.push([tournament.name, formatName, tournament.status, tournament.created, '', '', '', '', '', '', tournament.champion || '', '尚無賽程']);
+    if (!rounds.length) rows.push([tournament.name, formatName, tournament.status, tournament.created, '', '', '', '', '', '', '', tournament.champion || '', '尚無賽程']);
     rounds.forEach((round, roundIndex) => (round.matches || []).forEach((match, matchIndex) => rows.push([
-      tournament.name, formatName, tournament.status, tournament.created, round.name || `第 ${roundIndex + 1} 輪`, matchIndex + 1,
+      tournament.name, formatName, tournament.status, tournament.created, round.name || `第 ${roundIndex + 1} 輪`, matchIndex + 1, `戰鬥台 ${(matchIndex % (tournament.arenaCount || 1)) + 1}`,
       match.playerA, match.playerB, match.scoreA ?? '', match.scoreB ?? '', match.winner ?? '', match.status,
     ])));
   });
@@ -95,11 +95,11 @@ export function createCsv(tournaments) {
 }
 
 export function createOverviewCsv(tournaments) {
-  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '參賽者人數', '對戰總數', '已完成對戰', '冠軍／第一名', '參賽者名單']];
+  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '參賽者人數', '戰鬥台數', '對戰總數', '已完成對戰', '冠軍／第一名', '參賽者名單']];
   tournaments.forEach((tournament) => {
     const matches = (tournament.rounds || []).flatMap((round) => round.matches || []);
     rows.push([
-      tournament.name, getTournamentFormat(tournament.format).name, tournament.status, tournament.created, tournament.players?.length || 0, matches.length,
+      tournament.name, getTournamentFormat(tournament.format).name, tournament.status, tournament.created, tournament.players?.length || 0, tournament.arenaCount || 1, matches.length,
       matches.filter((match) => match.status === '已完成').length, tournament.champion || '', (tournament.players || []).join('、'),
     ]);
   });

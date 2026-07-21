@@ -14,9 +14,10 @@ export function requiredSeedCount(tournamentOrPlayers) {
   return getTournamentFormat(tournament.format).initialSeedCount(tournament.players);
 }
 
-export function createTournament(name, players, formatId = 'single_elimination') {
+export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1) {
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validatePlayers(cleanPlayers);
+  const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
   const seedCount = format.initialSeedCount(cleanPlayers);
   return {
@@ -25,6 +26,7 @@ export function createTournament(name, players, formatId = 'single_elimination')
     format: format.id,
     bracketVersion: 2,
     players: cleanPlayers,
+    arenaCount: cleanArenaCount,
     seedPlayerIndexes: [],
     created: new Date().toLocaleDateString('zh-TW'),
     status: '準備中',
@@ -35,13 +37,14 @@ export function createTournament(name, players, formatId = 'single_elimination')
 
 export function duplicateTournament(tournament) {
   const normalized = normalizeTournament(tournament);
-  return createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format);
+  return createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format, normalized.arenaCount);
 }
 
-export function updateDraftTournament(tournament, name, players, formatId = tournament.format) {
+export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1) {
   if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validatePlayers(cleanPlayers);
+  const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
   const seedCount = format.initialSeedCount(cleanPlayers);
   return {
@@ -50,6 +53,7 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
     bracketVersion: 2,
     format: format.id,
     players: cleanPlayers,
+    arenaCount: cleanArenaCount,
     seedPlayerIndexes: [],
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
     rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
@@ -123,6 +127,7 @@ export function normalizeTournament(tournament) {
     return {
       ...tournament,
       format: format.id,
+      arenaCount: normalizeStoredArenaCount(tournament.arenaCount),
       totalRounds: tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
     };
   }
@@ -135,6 +140,7 @@ export function normalizeTournament(tournament) {
     return {
       ...tournament,
       format: 'single_elimination',
+      arenaCount: 1,
       bracketVersion: 1,
       status: tournament.status === '已完成' ? '已完成' : '進行中',
       rounds: hasRounds ? advanceLegacyWins(tournament.rounds) : [],
@@ -226,6 +232,17 @@ function projectFutureRounds(sourceRounds) {
 function validatePlayers(players) {
   if (players.length < 2 || players.length > 32) throw new Error('參賽者人數需要介於 2 至 32 位。');
   if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
+}
+
+function validateArenaCount(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1 || count > 8) throw new Error('戰鬥台數需要介於 1 至 8 台。');
+  return count;
+}
+
+function normalizeStoredArenaCount(value) {
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 1 && count <= 8 ? count : 1;
 }
 
 function recordLegacyResult(tournament, roundIndex, matchIndex, scoreA, scoreB) {
