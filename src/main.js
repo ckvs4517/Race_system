@@ -1,23 +1,33 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
-import { getState, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
+import { getState, initializeStore, loginAdmin, logoutAdmin, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { drawRandomSeeds, duplicateTournament, normalizeTournament, recordMatchResult, resetCompletedMatch, startTournament } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
 import { manageView, bindManage } from './views/manage.js';
 import { scheduleView } from './views/schedule.js';
+import { bindControl, controlView } from './views/control.js';
 
 const app = document.querySelector('#app');
 
 function render() {
   const route = currentRoute();
   const state = getState();
-  let view = homeView(state.tournaments.length);
+  if (state.loading) {
+    app.innerHTML = shell(route, '<section class="section-wrap page-section"><div class="empty-state"><h2>正在載入雲端賽事…</h2><p>請稍候</p></div></section>', state);
+    return;
+  }
+  let view = homeView(state.tournaments.length, state.isAdmin);
   if (route === 'scoreboard') view = scoreboardView();
   if (route === 'manage') {
-    const editingTournament = state.tournaments.find((item) => item.id === state.editingTournamentId) || null;
-    view = manageView(editingTournament);
+    if (!state.isAdmin) {
+      view = controlView(false, '請先登入主辦方後台。');
+    } else {
+      const editingTournament = state.tournaments.find((item) => item.id === state.editingTournamentId) || null;
+      view = manageView(editingTournament);
+    }
   }
+  if (route === 'control') view = controlView(state.isAdmin, state.error);
   if (route === 'schedule') {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const matchSelection = state.selectedMatch;
@@ -31,15 +41,38 @@ function render() {
         playerB: match.playerB,
       });
     } else {
-      view = scheduleView(state.tournaments, state.selectedTournamentId);
+      view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);
     }
   }
-  app.innerHTML = shell(route, view);
+  app.innerHTML = shell(route, view, state);
   bindGlobalEvents();
   if (route === 'scoreboard') bindScoreboard(app);
-  if (route === 'manage') bindManageEvents(state);
+  if (route === 'manage' && state.isAdmin) bindManageEvents(state);
+  if (route === 'manage' && !state.isAdmin) bindControlEvents();
+  if (route === 'control') bindControlEvents();
   if (route === 'schedule') bindScheduleEvents(state);
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function bindControlEvents() {
+  bindControl(app, {
+    onLogin: async (pin) => {
+      try {
+        await loginAdmin(pin);
+        navigate('manage');
+      } catch (error) {
+        app.querySelector('.control-error')?.remove();
+        const form = app.querySelector('[data-control-login]');
+        form?.insertAdjacentHTML('afterbegin', `<div class="control-error">${escapeText(error.message)}</div>`);
+        const button = form?.querySelector('button[type="submit"]');
+        if (button) { button.disabled = false; button.textContent = '驗證並進入後台'; }
+      }
+    },
+    onLogout: () => {
+      logoutAdmin();
+      navigate('home');
+    },
+  });
 }
 
 function bindGlobalEvents() {
@@ -146,6 +179,10 @@ function bindScheduleEvents(state) {
   });
 }
 
+function escapeText(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
 function drawSeeds(tournamentId) {
   try {
     updateState((state) => ({
@@ -237,6 +274,7 @@ function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB) {
 }
 
 function migrateTournamentData() {
+  if (!getState().isAdmin) return;
   updateState((current) => ({
     ...current,
     tournaments: current.tournaments.map(normalizeTournament),
@@ -244,5 +282,7 @@ function migrateTournamentData() {
 }
 
 onRouteChange(render);
+subscribe(render);
+await initializeStore();
 migrateTournamentData();
 render();

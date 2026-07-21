@@ -1,13 +1,12 @@
 import { icons } from './icons.js';
 
-const navItems = [
-  ['home', '首頁'],
-  ['scoreboard', '記分板'],
-  ['schedule', '賽程表'],
-  ['manage', '賽事管理'],
-];
-
-export function shell(route, content) {
+export function shell(route, content, state = {}) {
+  const navItems = [
+    ['home', '首頁'],
+    ['scoreboard', '記分板'],
+    ['schedule', '賽程表'],
+    [state.isAdmin ? 'manage' : 'control', state.isAdmin ? '賽事管理' : '主辦方登入'],
+  ];
   return `
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>
@@ -19,10 +18,10 @@ export function shell(route, content) {
       <nav aria-label="主要導覽">
         ${navItems.map(([key, label]) => `<button class="nav-item ${route === key ? 'active' : ''}" data-route="${key}">${label}</button>`).join('')}
       </nav>
-      <div class="system-state"><span></span> 系統就緒</div>
+      <div class="system-state"><span></span> ${state.syncStatus === 'saving' ? '雲端儲存中' : state.isAdmin ? '控制模式' : '公開模式'}</div>
     </header>
     <main>${content}</main>
-    <footer><span>SPIN LEAGUE © 2026</span><span>LOCAL MVP · ${icons.bolt} READY</span></footer>
+    <footer><span>SPIN LEAGUE © 2026</span><span>CLOUD SYNC · ${icons.bolt} READY</span></footer>
   `;
 }
 
