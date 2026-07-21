@@ -76,6 +76,27 @@ export function drawRandomSeeds(tournament, random = Math.random) {
   };
 }
 
+export function randomizeDraftTournament(tournament, random = Math.random) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '準備中') throw new Error('賽事開始後不能重新隨機分組。');
+  const players = [...normalized.players];
+  for (let index = players.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [players[index], players[swapIndex]] = [players[swapIndex], players[index]];
+  }
+  const format = getTournamentFormat(normalized.format);
+  const seedCount = format.initialSeedCount(players);
+  return {
+    ...normalized,
+    players,
+    seedPlayerIndexes: [],
+    rounds: seedCount ? [] : [format.createOpeningRound(players)],
+    seedDrawnAt: null,
+    randomizedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function startTournament(tournament) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);

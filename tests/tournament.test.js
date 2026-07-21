@@ -1,4 +1,4 @@
-import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, getTournamentStandings, normalizeTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, updateDraftTournament } from '../src/domain/tournament.js';
+import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, updateDraftTournament } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
@@ -19,6 +19,13 @@ try {
   const waitingView = scheduleView([tournament], tournament.id, true);
   expect(waitingView.includes('data-action="draw-seeds"') && waitingView.includes('等待種子抽選'), '分支圖顯示隨機抽選種子入口');
   expect(waitingView.includes('data-action="start-tournament" disabled'), '尚未抽選種子時不能開始賽事');
+  expect(waitingView.includes('data-action="randomize-bracket"'), '準備中賽事提供重新隨機分組按鈕');
+
+  const originalOrder = ['甲', '乙', '丙', '丁'];
+  const randomized = randomizeDraftTournament(createTournament('隨機分組測試', originalOrder), () => 0);
+  expect(randomized.players.join(',') === '乙,丙,丁,甲', '隨機分組使用 Fisher-Yates 重新排列參賽者');
+  expect(new Set(randomized.players).size === originalOrder.length && originalOrder.every((player) => randomized.players.includes(player)), '隨機分組不會遺失或重複參賽者');
+  expect(randomized.rounds[0].matches[0].playerA === '乙' && randomized.rounds[0].matches[0].playerB === '丙', '第一輪對戰依隨機後順序建立');
 
   tournament = drawRandomSeeds(tournament, () => 0);
   expect(tournament.seedPlayerIndexes.length === 1, '首輪隨機抽出一位種子選手');
@@ -34,6 +41,9 @@ try {
   let seedLocked = false;
   try { drawRandomSeeds(tournament); } catch { seedLocked = true; }
   expect(seedLocked, '賽事開始後首輪種子鎖定');
+  let randomizeLocked = false;
+  try { randomizeDraftTournament(tournament); } catch { randomizeLocked = true; }
+  expect(randomizeLocked, '賽事開始後隨機分組鎖定');
 
   const openingPlayable = tournament.rounds[0].matches.filter((match) => match.status === '可開始');
   tournament = recordById(tournament, openingPlayable[0].id, 5, 0);

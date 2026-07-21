@@ -1,6 +1,6 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { getState, initializeStore, loginAdmin, logoutAdmin, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { drawRandomSeeds, duplicateTournament, normalizeTournament, recordMatchResult, resetCompletedMatch, startTournament } from './domain/tournament.js';
+import { drawRandomSeeds, duplicateTournament, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
@@ -109,6 +109,7 @@ function bindGlobalEvents() {
 }
 
 function addTournament(tournament) {
+  tournament = randomizeDraftTournament(tournament);
   updateState((state) => ({ ...state, tournaments: [tournament, ...state.tournaments], selectedTournamentId: tournament.id }));
   selectTournament(tournament.id);
   navigate('schedule');
@@ -198,6 +199,12 @@ function bindScheduleEvents(state) {
     if (isRedraw && !confirm('確定要重新隨機抽選種子選手嗎？\n目前的種子與預覽賽程會被重新產生。')) return;
     drawSeeds(tournament.id);
   });
+  app.querySelector('[data-action="randomize-bracket"]')?.addEventListener('click', () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const seedWarning = requiredSeedCount(tournament) ? '\n原本抽出的種子也會清除，需要重新抽選。' : '';
+    if (!confirm(`確定要重新隨機排列「${tournament.name}」的對戰分組嗎？${seedWarning}`)) return;
+    randomizeBracket(tournament.id);
+  });
   app.querySelector('[data-action="back-events"]')?.addEventListener('click', () => {
     selectTournament(null);
     render();
@@ -214,6 +221,20 @@ function drawSeeds(tournamentId) {
       ...state,
       tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
         ? drawRandomSeeds(tournament)
+        : tournament),
+    }));
+    render();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function randomizeBracket(tournamentId) {
+  try {
+    updateState((state) => ({
+      ...state,
+      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
+        ? randomizeDraftTournament(tournament)
         : tournament),
     }));
     render();
