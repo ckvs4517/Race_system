@@ -1,6 +1,7 @@
 import { singleElimination } from './single-elimination.js';
+import { swiss } from './swiss.js';
 
-const formats = new Map([[singleElimination.id, singleElimination]]);
+const formats = new Map([[singleElimination.id, singleElimination], [swiss.id, swiss]]);
 
 export function getTournamentFormat(formatId = singleElimination.id) {
   const format = formats.get(formatId);

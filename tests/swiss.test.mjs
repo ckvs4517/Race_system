@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict';
+import {
+  buildRounds,
+  createTournament,
+  getTournamentStandings,
+  randomizeDraftTournament,
+  recordMatchResult,
+  requiredSeedCount,
+  resetCompletedMatch,
+  startTournament,
+  updateDraftTournament,
+} from '../src/domain/tournament.js';
+import { manageView } from '../src/views/manage.js';
+import { scheduleView } from '../src/views/schedule.js';
+
+const players = Array.from({ length: 8 }, (_, index) => `選手 ${index + 1}`);
+let tournament = createTournament('八人瑞士賽', players, 'swiss');
+
+assert.equal(tournament.format, 'swiss');
+assert.equal(tournament.totalRounds, 3);
+assert.equal(requiredSeedCount(tournament), 0);
+assert.equal(tournament.rounds.length, 1);
+assert.equal(tournament.rounds[0].matches.length, 4);
+assert.equal(buildRounds(tournament).length, 1, '瑞士制不應投影尚未配對的輪次');
+
+tournament = randomizeDraftTournament(tournament, () => 0);
+assert.equal(new Set(tournament.players).size, players.length);
+tournament = startTournament(tournament);
+assert.match(scheduleView([tournament], tournament.id, true), /瑞士制/);
+assert.match(scheduleView([tournament], tournament.id, true), /LIVE STANDINGS/);
+
+while (tournament.status === '進行中') {
+  const roundIndex = tournament.rounds.length - 1;
+  const matchIds = tournament.rounds[roundIndex].matches.filter((match) => match.status === '可開始').map((match) => match.id);
+  for (const [index, matchId] of matchIds.entries()) {
+    const matchIndex = tournament.rounds[roundIndex].matches.findIndex((match) => match.id === matchId);
+    tournament = recordMatchResult(tournament, roundIndex, matchIndex, 10, index);
+  }
+}
+
+assert.equal(tournament.status, '已完成');
+assert.equal(tournament.rounds.length, 3);
+assert.ok(tournament.champion);
+assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
+assertNoRepeatedPairings(tournament.rounds);
+
+const reset = resetCompletedMatch(tournament, 0, 0);
+assert.equal(reset.status, '進行中');
+assert.equal(reset.rounds.length, 1);
+assert.equal(reset.rounds[0].matches[0].status, '可開始');
+
+let odd = startTournament(createTournament('五人瑞士賽', ['A', 'B', 'C', 'D', 'E'], 'swiss'));
+const firstBye = odd.rounds[0].seedPlayer;
+assert.ok(firstBye);
+assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
+odd = finishCurrentRound(odd);
+assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
+
+let changed = createTournament('切換賽制', ['A', 'B', 'C', 'D']);
+changed = updateDraftTournament(changed, changed.name, changed.players, 'swiss');
+assert.equal(changed.format, 'swiss');
+assert.equal(changed.totalRounds, 2);
+assert.match(manageView(changed), /option value="swiss" selected/);
+assert.match(manageView(), /瑞士制/);
+
+console.log('PASS Swiss format');
+
+function finishCurrentRound(source) {
+  let result = source;
+  const roundIndex = result.rounds.length - 1;
+  const matchIds = result.rounds[roundIndex].matches.filter((match) => match.status === '可開始').map((match) => match.id);
+  matchIds.forEach((id, index) => {
+    const matchIndex = result.rounds[roundIndex].matches.findIndex((match) => match.id === id);
+    result = recordMatchResult(result, roundIndex, matchIndex, 7, index);
+  });
+  return result;
+}
+
+function assertNoRepeatedPairings(rounds) {
+  const seen = new Set();
+  rounds.forEach((round) => round.matches.forEach((match) => {
+    if (match.playerB === '輪空') return;
+    const key = [match.playerA, match.playerB].sort().join('|');
+    assert.ok(!seen.has(key), `重複配對：${key}`);
+    seen.add(key);
+  }));
+}

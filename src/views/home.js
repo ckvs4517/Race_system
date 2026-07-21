@@ -8,7 +8,7 @@ const publicFeatureCards = [
 
 export function homeView(tournamentCount, isAdmin = false) {
   const featureCards = isAdmin
-    ? publicFeatureCards.map((item) => item[0] === 'control' ? ['manage', icons.trophy, 'NEW EVENT', '建立賽事', '輸入選手名單，自動建立單淘汰賽程。', '開始建立'] : item)
+    ? publicFeatureCards.map((item) => item[0] === 'control' ? ['manage', icons.trophy, 'NEW EVENT', '建立賽事', '輸入選手名單，建立單淘汰賽或瑞士制賽程。', '開始建立'] : item)
     : publicFeatureCards;
   return `
     <section class="hero section-wrap">
@@ -20,7 +20,7 @@ export function homeView(tournamentCount, isAdmin = false) {
           <button class="button button-primary" data-route="${isAdmin ? 'manage' : 'control'}">${isAdmin ? '建立新賽事' : '主辦方登入'} ${icons.arrow}</button>
           <button class="button button-secondary" data-route="scoreboard">開啟記分板</button>
         </div>
-        <div class="hero-stats"><div><b>${String(tournamentCount).padStart(2, '0')}</b><span>已建立賽事</span></div><div><b>01</b><span>支援賽制</span></div><div><b>∞</b><span>對戰熱情</span></div></div>
+        <div class="hero-stats"><div><b>${String(tournamentCount).padStart(2, '0')}</b><span>已建立賽事</span></div><div><b>02</b><span>支援賽制</span></div><div><b>∞</b><span>對戰熱情</span></div></div>
       </div>
       <div class="arena-visual" aria-hidden="true">
         <div class="arena-grid"></div><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>

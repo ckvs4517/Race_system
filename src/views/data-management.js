@@ -1,4 +1,5 @@
 import { pageHeader } from '../ui/shell.js';
+import { getTournamentFormat } from '../formats/registry.js';
 
 const BACKUP_FORMAT = 'spin-league-backup';
 const BACKUP_VERSION = 1;
@@ -80,12 +81,13 @@ export function parseBackup(text) {
 }
 
 export function createCsv(tournaments) {
-  const rows = [['賽事名稱', '賽事狀態', '建立日期', '輪次', '比賽編號', '選手 A', '選手 B', '選手 A 比分', '選手 B 比分', '勝者', '比賽狀態']];
+  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '輪次', '比賽編號', '選手 A', '選手 B', '選手 A 比分', '選手 B 比分', '勝者', '比賽狀態']];
   tournaments.forEach((tournament) => {
     const rounds = tournament.rounds || [];
-    if (!rounds.length) rows.push([tournament.name, tournament.status, tournament.created, '', '', '', '', '', '', tournament.champion || '', '尚無賽程']);
+    const formatName = getTournamentFormat(tournament.format).name;
+    if (!rounds.length) rows.push([tournament.name, formatName, tournament.status, tournament.created, '', '', '', '', '', '', tournament.champion || '', '尚無賽程']);
     rounds.forEach((round, roundIndex) => (round.matches || []).forEach((match, matchIndex) => rows.push([
-      tournament.name, tournament.status, tournament.created, round.name || `第 ${roundIndex + 1} 輪`, matchIndex + 1,
+      tournament.name, formatName, tournament.status, tournament.created, round.name || `第 ${roundIndex + 1} 輪`, matchIndex + 1,
       match.playerA, match.playerB, match.scoreA ?? '', match.scoreB ?? '', match.winner ?? '', match.status,
     ])));
   });
@@ -93,11 +95,11 @@ export function createCsv(tournaments) {
 }
 
 export function createOverviewCsv(tournaments) {
-  const rows = [['賽事名稱', '賽事狀態', '建立日期', '參賽者人數', '對戰總數', '已完成對戰', '冠軍', '參賽者名單']];
+  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '參賽者人數', '對戰總數', '已完成對戰', '冠軍／第一名', '參賽者名單']];
   tournaments.forEach((tournament) => {
     const matches = (tournament.rounds || []).flatMap((round) => round.matches || []);
     rows.push([
-      tournament.name, tournament.status, tournament.created, tournament.players?.length || 0, matches.length,
+      tournament.name, getTournamentFormat(tournament.format).name, tournament.status, tournament.created, tournament.players?.length || 0, matches.length,
       matches.filter((match) => match.status === '已完成').length, tournament.champion || '', (tournament.players || []).join('、'),
     ]);
   });

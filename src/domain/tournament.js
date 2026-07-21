@@ -28,6 +28,7 @@ export function createTournament(name, players, formatId = 'single_elimination')
     seedPlayerIndexes: [],
     created: new Date().toLocaleDateString('zh-TW'),
     status: '準備中',
+    totalRounds: format.totalRounds?.(cleanPlayers) || null,
     rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
   };
 }
@@ -37,18 +38,20 @@ export function duplicateTournament(tournament) {
   return createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format);
 }
 
-export function updateDraftTournament(tournament, name, players) {
+export function updateDraftTournament(tournament, name, players, formatId = tournament.format) {
   if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validatePlayers(cleanPlayers);
-  const format = getTournamentFormat(tournament.format);
+  const format = getTournamentFormat(formatId);
   const seedCount = format.initialSeedCount(cleanPlayers);
   return {
     ...tournament,
     name: name.trim() || '未命名賽事',
     bracketVersion: 2,
+    format: format.id,
     players: cleanPlayers,
     seedPlayerIndexes: [],
+    totalRounds: format.totalRounds?.(cleanPlayers) || null,
     rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
     seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
@@ -90,6 +93,7 @@ export function randomizeDraftTournament(tournament, random = Math.random) {
     ...normalized,
     players,
     seedPlayerIndexes: [],
+    totalRounds: format.totalRounds?.(players) || null,
     rounds: seedCount ? [] : [format.createOpeningRound(players)],
     seedDrawnAt: null,
     randomizedAt: new Date().toISOString(),
@@ -115,7 +119,12 @@ export function startTournament(tournament) {
 
 export function normalizeTournament(tournament) {
   if (tournament.bracketVersion === 2) {
-    return { ...tournament, format: tournament.format || 'single_elimination' };
+    const format = getTournamentFormat(tournament.format || 'single_elimination');
+    return {
+      ...tournament,
+      format: format.id,
+      totalRounds: tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
+    };
   }
 
   const players = tournament.players || [];
@@ -139,6 +148,7 @@ export function normalizeTournament(tournament) {
 export function buildRounds(tournament) {
   const normalized = normalizeTournament(tournament);
   if (normalized.bracketVersion === 1) return normalized.rounds;
+  if (normalized.format !== 'single_elimination') return structuredClone(normalized.rounds);
   return projectFutureRounds(normalized.rounds);
 }
 
