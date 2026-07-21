@@ -1,4 +1,5 @@
 import { createTournament, normalizeTournament, recordMatchResult } from '../src/domain/tournament.js';
+import { scheduleView } from '../src/views/schedule.js';
 
 const assertions = [];
 function expect(condition, message) {
@@ -26,6 +27,7 @@ try {
 
   const migrated = normalizeTournament({ id: 1, name: '舊賽事', players: ['甲', '乙', '丙'] });
   expect(migrated.rounds[0].matches[0].status === '輪空晉級', '舊資料可轉換並自動處理輪空');
+  expect(scheduleView([tournament], null).includes('data-delete-tournament'), '賽事列表提供獨立刪除按鈕');
 
   document.querySelector('#result').textContent = `PASS ${assertions.length}\n${assertions.join('\n')}`;
 } catch (error) {

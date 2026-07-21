@@ -69,6 +69,11 @@ function bindScheduleEvents(state) {
     selectTournament(card.dataset.tournamentId);
     render();
   }));
+  app.querySelectorAll('[data-delete-tournament]').forEach((button) => button.addEventListener('click', () => {
+    const tournamentName = button.dataset.tournamentName;
+    if (!confirm(`確定要刪除「${tournamentName}」嗎？\n此賽事的賽程與比分紀錄都會一併移除。`)) return;
+    deleteTournament(Number(button.dataset.deleteTournament));
+  }));
   app.querySelectorAll('.match-card.is-ready').forEach((card) => card.addEventListener('click', () => {
     selectMatch(card.dataset.roundIndex, card.dataset.matchIndex);
     render();
@@ -77,6 +82,17 @@ function bindScheduleEvents(state) {
     selectTournament(null);
     render();
   });
+}
+
+function deleteTournament(tournamentId) {
+  updateState((state) => ({
+    ...state,
+    tournaments: state.tournaments.filter((tournament) => tournament.id !== tournamentId),
+    selectedTournamentId: null,
+    selectedMatch: null,
+  }));
+  selectTournament(null);
+  render();
 }
 
 function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB) {

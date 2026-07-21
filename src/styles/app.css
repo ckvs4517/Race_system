@@ -144,12 +144,15 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .setup-aside li { margin: 13px 0; color: #c6cbd3; font-size: 12px; }.setup-aside li i { display: inline-block; width: 6px; height: 6px; margin-right: 9px; background: #35dc82; border-radius: 50%; box-shadow: 0 0 8px #35dc82; }
 
 .event-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.event-card { position: relative; min-height: 260px; padding: 28px; overflow: hidden; text-align: left; background: linear-gradient(145deg, #111720, #0b0f15); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; transition: .23s; }
+.event-card { position: relative; min-height: 260px; overflow: hidden; background: linear-gradient(145deg, #111720, #0b0f15); border: 1px solid var(--line); border-radius: 12px; transition: .23s; }
 .event-card:hover { transform: translateY(-4px); border-color: #465164; box-shadow: 0 20px 40px #0006; }
+.event-open { width: 100%; min-height: 260px; padding: 28px; background: transparent; color: var(--text); border: 0; text-align: left; cursor: pointer; }
 .event-status { position: absolute; top: 22px; right: 23px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 1px; }.event-status i { display: inline-block; width: 6px; height: 6px; margin-right: 6px; background: var(--yellow); border-radius: 50%; }
 .event-icon { width: 43px; height: 43px; display: grid; place-items: center; color: var(--red); background: #ff493d16; border: 1px solid #ff493d35; border-radius: 8px; font-size: 21px; }
 .event-card h2 { margin: 28px 0 7px; font-size: 19px; }.event-card p { margin: 0; color: var(--muted); font-size: 11px; }
 .event-action { position: absolute; bottom: 24px; display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; }.event-action svg { color: var(--red); }
+.event-delete { position: absolute; right: 20px; bottom: 17px; z-index: 2; padding: 7px 9px; background: transparent; color: #858e9d; border: 1px solid transparent; border-radius: 5px; font-size: 10px; font-weight: 700; cursor: pointer; }
+.event-delete:hover { background: #ff493d13; color: #ff7168; border-color: #ff493d45; }
 .empty-state { min-height: 390px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0c1016; border: 1px dashed #303949; border-radius: 13px; text-align: center; }
 .empty-state > div { color: #566175; font-size: 46px; }.empty-state h2 { margin: 16px 0 5px; font-size: 20px; }.empty-state p { margin: 0 0 22px; color: var(--muted); font-size: 12px; }
 .bracket-shell { padding: 28px; overflow-x: auto; background: #0a0d12; border: 1px solid var(--line); border-radius: 13px; }

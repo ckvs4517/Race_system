@@ -5,7 +5,7 @@ import { buildRounds } from '../domain/tournament.js';
 export function scheduleView(tournaments, selectedId) {
   const selected = tournaments.find((item) => item.id === selectedId);
   if (selected) return bracketView(selected);
-  const cards = tournaments.map((item) => `<button class="event-card" data-tournament-id="${item.id}"><span class="event-status"><i></i>${item.status || '準備中'}</span><div class="event-icon">${icons.trophy}</div><h2>${item.name}</h2><p>${item.players.length} 位選手 · ${item.created}</p><span class="event-action">查看完整賽程 ${icons.arrow}</span></button>`).join('');
+  const cards = tournaments.map((item) => `<article class="event-card"><button class="event-open" data-tournament-id="${item.id}"><span class="event-status"><i></i>${item.status || '準備中'}</span><div class="event-icon">${icons.trophy}</div><h2>${item.name}</h2><p>${item.players.length} 位選手 · ${item.created}</p><span class="event-action">查看完整賽程 ${icons.arrow}</span></button><button class="event-delete" data-delete-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}" aria-label="刪除 ${escapeAttribute(item.name)}">刪除賽事</button></article>`).join('');
   return `<section class="section-wrap page-section">${pageHeader('TOURNAMENTS', '賽程表', '查看已建立的賽事與完整淘汰賽對戰。', '<button class="button button-primary" data-route="manage">＋ 建立新賽事</button>')} ${cards ? `<div class="event-grid">${cards}</div>` : `<div class="empty-state"><div>${icons.bracket}</div><h2>還沒有任何賽事</h2><p>建立第一場賽事，對戰樹狀圖會顯示在這裡。</p><button class="button button-primary" data-route="manage">建立新賽事</button></div>`}</section>`;
 }
 
@@ -20,4 +20,8 @@ function matchCard(match, roundIndex, matchIndex) {
   const scoreA = match.scoreA ?? '—';
   const scoreB = match.scoreB ?? '—';
   return `<button class="match-card ${interactive ? 'is-ready' : ''} ${match.status === '已完成' ? 'is-complete' : ''}" data-round-index="${roundIndex}" data-match-index="${matchIndex}" ${interactive ? '' : 'disabled'}><div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${match.status}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${match.winner === match.playerA ? 'winner' : ''}"><span>${match.playerA}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${match.winner === match.playerB ? 'winner' : ''}"><span>${match.playerB}</span><b>${scoreB}</b></div></button>`;
+}
+
+function escapeAttribute(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
