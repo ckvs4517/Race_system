@@ -1,6 +1,6 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { getState, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { normalizeTournament, recordMatchResult, startTournament } from './domain/tournament.js';
+import { drawRandomSeeds, normalizeTournament, recordMatchResult, startTournament } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
@@ -116,10 +116,30 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定開始「${tournament.name}」嗎？\n開始後將鎖定 ${tournament.players.length} 位參賽者，無法再編輯名單。`)) return;
     beginTournament(tournament.id);
   });
+  app.querySelector('[data-action="draw-seeds"]')?.addEventListener('click', () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const isRedraw = tournament.seedPlayerIndexes?.length > 0;
+    if (isRedraw && !confirm('確定要重新隨機抽選種子選手嗎？\n目前的種子與預覽賽程會被重新產生。')) return;
+    drawSeeds(tournament.id);
+  });
   app.querySelector('[data-action="back-events"]')?.addEventListener('click', () => {
     selectTournament(null);
     render();
   });
+}
+
+function drawSeeds(tournamentId) {
+  try {
+    updateState((state) => ({
+      ...state,
+      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
+        ? drawRandomSeeds(tournament)
+        : tournament),
+    }));
+    render();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function beginTournament(tournamentId) {

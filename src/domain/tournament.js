@@ -5,18 +5,24 @@ export function nextPowerOfTwo(value) {
   return 2 ** Math.ceil(Math.log2(Math.max(2, value)));
 }
 
+export function requiredSeedCount(tournamentOrPlayers) {
+  const players = Array.isArray(tournamentOrPlayers) ? tournamentOrPlayers : tournamentOrPlayers.players;
+  return nextPowerOfTwo(players.length) - players.length;
+}
+
 export function createTournament(name, players) {
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validatePlayerCount(cleanPlayers);
-  const rounds = createRounds(cleanPlayers);
+  const needsSeedDraw = requiredSeedCount(cleanPlayers) > 0;
 
   return {
     id: Date.now(),
     name: name.trim() || '未命名賽事',
     players: cleanPlayers,
+    seedPlayerIndexes: [],
     created: new Date().toLocaleDateString('zh-TW'),
     status: '準備中',
-    rounds: advanceAutomaticWins(rounds),
+    rounds: needsSeedDraw ? [] : advanceAutomaticWins(createRounds(cleanPlayers, [])),
   };
 }
 
@@ -24,18 +30,44 @@ export function updateDraftTournament(tournament, name, players) {
   if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validatePlayerCount(cleanPlayers);
+  const needsSeedDraw = requiredSeedCount(cleanPlayers) > 0;
   return {
     ...tournament,
     name: name.trim() || '未命名賽事',
     players: cleanPlayers,
-    rounds: advanceAutomaticWins(createRounds(cleanPlayers)),
+    seedPlayerIndexes: [],
+    rounds: needsSeedDraw ? [] : advanceAutomaticWins(createRounds(cleanPlayers, [])),
+    seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export function drawRandomSeeds(tournament, random = Math.random) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '準備中') throw new Error('賽事開始後不能重新抽選種子。');
+  const seedCount = requiredSeedCount(normalized);
+  if (seedCount === 0) return normalized;
+
+  const indexes = normalized.players.map((_, index) => index);
+  for (let index = indexes.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
+  }
+  const seedPlayerIndexes = indexes.slice(0, seedCount).sort((a, b) => a - b);
+  return {
+    ...normalized,
+    seedPlayerIndexes,
+    rounds: advanceAutomaticWins(createRounds(normalized.players, seedPlayerIndexes)),
+    seedDrawnAt: new Date().toISOString(),
   };
 }
 
 export function startTournament(tournament) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '準備中') throw new Error('這場賽事已經開始或完成。');
+  if (normalized.seedPlayerIndexes.length !== requiredSeedCount(normalized)) {
+    throw new Error('請先完成種子選手抽選再開始賽事。');
+  }
   return {
     ...normalized,
     status: '進行中',
@@ -44,17 +76,29 @@ export function startTournament(tournament) {
 }
 
 export function normalizeTournament(tournament) {
-  if (Array.isArray(tournament.rounds) && tournament.rounds.length) {
-    const hasCompletedMatch = tournament.rounds.some((round) => round.matches.some((match) => match.status === '已完成'));
-    const status = tournament.status === '進行中' && !tournament.startedAt && !hasCompletedMatch
-      ? '準備中'
-      : tournament.status;
-    return { ...tournament, status, rounds: advanceAutomaticWins(tournament.rounds) };
+  const players = tournament.players || [];
+  const hasRounds = Array.isArray(tournament.rounds) && tournament.rounds.length > 0;
+  const hasCompletedMatch = hasRounds && tournament.rounds.some((round) => round.matches.some((match) => match.status === '已完成'));
+  const status = tournament.status === '已完成'
+    ? '已完成'
+    : tournament.status === '進行中' && (tournament.startedAt || hasCompletedMatch) ? '進行中' : '準備中';
+  const seedCount = requiredSeedCount(players);
+  const hasStoredSeedSelection = Array.isArray(tournament.seedPlayerIndexes);
+  const inferredIndexes = inferSeedIndexes(tournament.rounds, players);
+  const candidateIndexes = hasStoredSeedSelection ? tournament.seedPlayerIndexes : inferredIndexes;
+  const seedPlayerIndexes = candidateIndexes.filter((index) => Number.isInteger(index) && index >= 0 && index < players.length).slice(0, seedCount);
+  const resetLegacyDraftSeeds = status === '準備中' && seedCount > 0 && !hasStoredSeedSelection;
+
+  if (hasRounds) {
+    if (resetLegacyDraftSeeds) return { ...tournament, status, seedPlayerIndexes: [], rounds: [] };
+    return { ...tournament, status, seedPlayerIndexes, rounds: advanceAutomaticWins(tournament.rounds) };
   }
+  const canBuildRounds = seedCount === 0 || seedPlayerIndexes.length === seedCount;
   return {
     ...tournament,
-    status: tournament.status === '已完成' ? '已完成' : '準備中',
-    rounds: advanceAutomaticWins(createRounds(tournament.players || [])),
+    status,
+    seedPlayerIndexes,
+    rounds: canBuildRounds ? advanceAutomaticWins(createRounds(players, seedPlayerIndexes)) : [],
   };
 }
 
@@ -86,17 +130,13 @@ export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, sc
   };
 }
 
-function createRounds(players) {
+function createRounds(players, seedPlayerIndexes) {
   const size = nextPowerOfTwo(players.length);
-  const byeCount = size - players.length;
+  const seedSet = new Set(seedPlayerIndexes);
   const firstRoundSlots = [];
 
-  for (let index = 0; index < byeCount; index += 1) {
-    firstRoundSlots.push(players[index], BYE);
-  }
-  for (let index = byeCount; index < players.length; index += 1) {
-    firstRoundSlots.push(players[index]);
-  }
+  seedPlayerIndexes.forEach((playerIndex) => firstRoundSlots.push(players[playerIndex], BYE));
+  players.forEach((player, index) => { if (!seedSet.has(index)) firstRoundSlots.push(player); });
 
   const rounds = [];
   let matchCount = size / 2;
@@ -119,6 +159,16 @@ function createRounds(players) {
     roundNumber += 1;
   }
   return rounds;
+}
+
+function inferSeedIndexes(rounds, players) {
+  if (!Array.isArray(rounds) || !rounds[0]) return [];
+  return rounds[0].matches.flatMap((match) => {
+    const hasBye = match.playerA === BYE || match.playerB === BYE;
+    const player = match.playerA === BYE ? match.playerB : match.playerA;
+    const index = hasBye ? players.indexOf(player) : -1;
+    return index >= 0 ? [index] : [];
+  });
 }
 
 function validatePlayerCount(players) {

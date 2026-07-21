@@ -1,6 +1,6 @@
 import { icons } from '../ui/icons.js';
 import { pageHeader } from '../ui/shell.js';
-import { buildRounds } from '../domain/tournament.js';
+import { buildRounds, requiredSeedCount } from '../domain/tournament.js';
 
 export function scheduleView(tournaments, selectedId) {
   const selected = tournaments.find((item) => item.id === selectedId);
@@ -12,24 +12,35 @@ export function scheduleView(tournaments, selectedId) {
 function bracketView(tournament) {
   const rounds = buildRounds(tournament);
   const isDraft = tournament.status === '準備中';
+  const seedCount = requiredSeedCount(tournament);
+  const seedIndexes = tournament.seedPlayerIndexes || [];
+  const seedsReady = seedCount === 0 || seedIndexes.length === seedCount;
+  const seedNames = seedIndexes.map((index) => tournament.players[index]).filter(Boolean);
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>本屆冠軍</span><b>${tournament.champion}</b></div>` : '';
-  const headerActions = `<div class="header-actions">${isDraft ? '<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button><button class="button button-primary" data-action="start-tournament">賽事開始</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
+  const seedButton = isDraft && seedCount > 0 ? `<button class="button button-seed" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
+  const headerActions = `<div class="header-actions">${isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady ? '' : 'disabled'}>賽事開始</button>` : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
   const guide = isDraft
-    ? '<span><i class="draft-dot"></i>目前為預覽賽程，開始前仍可修改參賽名單</span><span>按下「賽事開始」後才會啟用記分</span>'
+    ? `<span><i class="draft-dot"></i>${seedsReady ? '目前為預覽賽程，開始前可重新抽選種子' : `需要先抽選 ${seedCount} 位種子選手`}</span><span>按下「賽事開始」後種子與名單都會鎖定</span>`
     : '<span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>輪空選手已自動晉級</span>';
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'BRACKET PREVIEW' : 'LIVE BRACKET', tournament.name, `${tournament.players.length} 位參賽者 · 單淘汰賽 · ${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}<div class="bracket-guide">${guide}</div><div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches">${round.matches.map((match, matchIndex) => matchCard(match, roundIndex, matchIndex, !isDraft)).join('')}</div></section>`).join('')}</div></div></section>`;
+  const seedPanel = seedCount > 0 ? `<div class="seed-panel ${seedsReady ? 'is-drawn' : ''}"><div class="seed-panel-copy"><span>SEED DRAW</span><b>${seedsReady ? `已抽出 ${seedCount} 位種子選手` : `本賽事需要 ${seedCount} 個輪空名額`}</b><p>${seedsReady ? '種子選手將在首輪輪空並直接晉級；賽事開始前仍可重新抽選。' : '請使用上方按鈕隨機抽選，完成後才會產生正式預覽賽程。'}</p></div><div class="seed-list">${seedsReady ? seedNames.map((name) => `<span>${escapeText(name)}<i>SEED</i></span>`).join('') : '<em>等待抽選</em>'}</div></div>` : '';
+  const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches">${round.matches.map((match, matchIndex) => matchCard(match, roundIndex, matchIndex, !isDraft, new Set(seedNames))).join('')}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>等待種子抽選</h2><p>抽選完成後，完整對戰分支圖會顯示在這裡。</p></div>`;
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'BRACKET PREVIEW' : 'LIVE BRACKET', tournament.name, `${tournament.players.length} 位參賽者 · 單淘汰賽 · ${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}</section>`;
 }
 
-function matchCard(match, roundIndex, matchIndex, scoringEnabled) {
+function matchCard(match, roundIndex, matchIndex, scoringEnabled, seedNames) {
   const interactive = scoringEnabled && match.status === '可開始';
   const scoreA = match.scoreA ?? '—';
   const scoreB = match.scoreB ?? '—';
   const displayStatus = !scoringEnabled && match.status === '輪空晉級'
     ? '預定輪空'
     : !scoringEnabled && match.status === '可開始' ? '等待賽事開始' : match.status;
-  return `<button class="match-card ${interactive ? 'is-ready' : ''} ${match.status === '已完成' ? 'is-complete' : ''}" data-round-index="${roundIndex}" data-match-index="${matchIndex}" ${interactive ? '' : 'disabled'}><div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''}"><span>${match.playerA}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''}"><span>${match.playerB}</span><b>${scoreB}</b></div></button>`;
+  return `<button class="match-card ${interactive ? 'is-ready' : ''} ${match.status === '已完成' ? 'is-complete' : ''}" data-round-index="${roundIndex}" data-match-index="${matchIndex}" ${interactive ? '' : 'disabled'}><div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''}"><span>${escapeText(match.playerA)}${seedNames.has(match.playerA) ? '<small>SEED</small>' : ''}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''}"><span>${escapeText(match.playerB)}${seedNames.has(match.playerB) ? '<small>SEED</small>' : ''}</span><b>${scoreB}</b></div></button>`;
 }
 
 function escapeAttribute(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function escapeText(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
