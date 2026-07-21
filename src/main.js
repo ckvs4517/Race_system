@@ -102,6 +102,10 @@ function bindGlobalEvents() {
     selectEditingTournament(null);
     navigate(button.dataset.route);
   }));
+  app.querySelector('[data-action="logout-admin"]')?.addEventListener('click', () => {
+    logoutAdmin();
+    navigate('home');
+  });
 }
 
 function addTournament(tournament) {

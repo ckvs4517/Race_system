@@ -1,4 +1,4 @@
-import { createBackup, createCsv, parseBackup } from '../src/views/data-management.js';
+import { createBackup, createCsv, createOverviewCsv, dataManagementView, parseBackup } from '../src/views/data-management.js';
 
 const tournaments = [{
   id: 1,
@@ -19,8 +19,12 @@ assertThrows(() => parseBackup(JSON.stringify({ tournaments })), '非 Spin Leagu
 const csv = createCsv(tournaments);
 assert(csv.includes('"夏季,「冠軍」賽"') && csv.includes('"冠軍賽"'), 'CSV 正確處理逗號並包含輪次');
 assert(csv.includes('"5","3","小明","已完成"'), 'CSV 包含比分、勝者與比賽狀態');
+const overviewCsv = createOverviewCsv(tournaments);
+assert(overviewCsv.split('\r\n').length === 2 && overviewCsv.includes('"2","1","1"'), '賽事總覽 CSV 每場賽事只使用一列');
+const view = dataManagementView(tournaments);
+assert(view.includes('一列代表一場賽事') && view.includes('下載對戰明細 CSV'), '資料頁清楚說明兩種 CSV 的列資料意義');
 
-console.log('PASS 6 data management tests');
+console.log('PASS 8 data management tests');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
