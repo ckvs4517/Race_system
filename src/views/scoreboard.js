@@ -7,7 +7,7 @@ export function scoreboardView(options = {}) {
     ? `${options.roundName} · 確認結果後將保存比分並自動更新晉級選手。`
     : '適合練習與臨時對戰；比分不會連動正式賽事。';
   const action = isMatch
-    ? '<button class="button button-secondary" data-action="back-bracket">← 返回賽程</button>'
+    ? '<div class="header-actions"><button class="button button-secondary" data-action="restart-match">重新比賽</button><button class="button button-secondary" data-action="back-bracket">← 返回賽程</button></div>'
     : '<button class="button button-secondary" data-action="reset-score">重設比分</button>';
 
   return `<section class="section-wrap page-section">
@@ -43,6 +43,11 @@ export function bindScoreboard(root, options = {}) {
   root.querySelector('[data-action="reset-score"]')?.addEventListener('click', () => {
     if (!confirm('確定要重設雙方比分嗎？')) return;
     snapshot(); score.a = 0; score.b = 0; render();
+  });
+
+  root.querySelector('[data-action="restart-match"]')?.addEventListener('click', () => {
+    if (!confirm('確定要重新開始這場比賽嗎？\n目前尚未送出的比分會歸零。')) return;
+    history.length = 0; score.a = 0; score.b = 0; render();
   });
 
   root.querySelector('[data-action="undo-score"]')?.addEventListener('click', () => {

@@ -116,6 +116,11 @@ export function buildRounds(tournament) {
   return projectFutureRounds(normalized.rounds);
 }
 
+export function getTournamentStandings(tournament) {
+  const normalized = normalizeTournament(tournament);
+  return getTournamentFormat(normalized.format).getStandings(normalized);
+}
+
 export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '進行中') throw new Error('賽事尚未開始或已經完成。');

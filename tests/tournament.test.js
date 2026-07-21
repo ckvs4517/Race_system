@@ -1,7 +1,8 @@
-import { buildRounds, createTournament, drawRandomSeeds, normalizeTournament, recordMatchResult, requiredSeedCount, startTournament, updateDraftTournament } from '../src/domain/tournament.js';
+import { buildRounds, createTournament, drawRandomSeeds, getTournamentStandings, normalizeTournament, recordMatchResult, requiredSeedCount, startTournament, updateDraftTournament } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
+import { bindScoreboard, scoreboardView } from '../src/views/scoreboard.js';
 
 const assertions = [];
 function expect(condition, message) {
@@ -49,6 +50,21 @@ try {
   const finalMatch = tournament.rounds[2].matches[0];
   tournament = recordById(tournament, finalMatch.id, 3, 1);
   expect(Boolean(tournament.champion) && tournament.status === '已完成', '冠軍與賽事完成狀態正確保存');
+  const standings = getTournamentStandings(tournament);
+  expect(standings[0].player === tournament.champion && standings[0].rank === 1, '排行榜將冠軍固定列為第一名');
+  expect(standings.every((row) => Number.isInteger(row.wins) && Number.isInteger(row.losses)), '排行榜提供每位選手的勝敗場次');
+  expect(standings.some((row) => row.totalPoints > 0), '排行榜累積每位選手的總得分');
+  expect(scheduleView([tournament], tournament.id).includes('賽事排行榜'), '賽事結束頁顯示排行榜');
+  expect(scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' }).includes('data-action="restart-match"'), '正式記分板提供重新比賽按鈕');
+  const scoreboardHost = document.createElement('div');
+  scoreboardHost.innerHTML = scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' });
+  const originalConfirm = window.confirm;
+  window.confirm = () => true;
+  bindScoreboard(scoreboardHost, { playerA: 'A', playerB: 'B' });
+  scoreboardHost.querySelector('[data-target="a"][data-value="1"]').click();
+  scoreboardHost.querySelector('[data-action="restart-match"]').click();
+  expect(scoreboardHost.querySelector('[data-score="a"]').textContent === '0', '重新比賽會將尚未送出的比分歸零');
+  window.confirm = originalConfirm;
 
   let evenTournament = createTournament('六人測試賽', ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   expect(requiredSeedCount(evenTournament) === 0, '偶數六人賽首輪不抽種子');

@@ -25,9 +25,31 @@ export const singleElimination = {
     return activatedStats;
   },
 
+  getStandings(tournament) {
+    const stats = tournament.playerStats || deriveStats(tournament.players, tournament.rounds);
+    return tournament.players.map((player) => {
+      const playerStats = { ...emptyStats(), ...(stats[player] || {}) };
+      return {
+        player,
+        wins: playerStats.wins,
+        losses: playerStats.losses,
+        totalPoints: playerStats.pointsFor,
+        pointsAgainst: playerStats.pointsAgainst,
+        difference: playerStats.pointsFor - playerStats.pointsAgainst,
+        isChampion: tournament.champion === player,
+      };
+    }).sort((a, b) => Number(b.isChampion) - Number(a.isChampion)
+      || b.wins - a.wins
+      || b.totalPoints - a.totalPoints
+      || b.difference - a.difference
+      || a.player.localeCompare(b.player, 'zh-Hant'))
+      .map((row, index) => ({ ...row, rank: index + 1 }));
+  },
+
   recordResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
     const rounds = structuredClone(tournament.rounds);
     const stats = structuredClone(tournament.playerStats);
+    Object.keys(stats).forEach((player) => { stats[player] = { ...emptyStats(), ...stats[player] }; });
     const match = rounds[roundIndex]?.matches[matchIndex];
     if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法記分。');
     if (roundIndex !== rounds.length - 1) throw new Error('只能記錄目前輪次的比賽。');
@@ -40,6 +62,9 @@ export const singleElimination = {
     match.completedAt = new Date().toISOString();
     updateStats(stats, match.playerA, scoreA, scoreB);
     updateStats(stats, match.playerB, scoreB, scoreA);
+    const loser = match.winner === match.playerA ? match.playerB : match.playerA;
+    stats[match.winner].wins += 1;
+    stats[loser].losses += 1;
 
     if (!rounds[roundIndex].matches.every((item) => Boolean(item.winner))) {
       return { rounds, playerStats: stats, champion: null };
@@ -92,7 +117,7 @@ function createMatch(id, playerA, playerB) {
 }
 
 function emptyStats() {
-  return { pointsFor: 0, pointsAgainst: 0, matchesPlayed: 0, byeCount: 0 };
+  return { pointsFor: 0, pointsAgainst: 0, matchesPlayed: 0, byeCount: 0, wins: 0, losses: 0 };
 }
 
 function updateStats(stats, player, pointsFor, pointsAgainst) {
@@ -118,4 +143,18 @@ function selectPerformanceSeed(players, stats, random) {
     || a.byeCount - b.byeCount
     || b.randomValue - a.randomValue);
   return ranked[0].player;
+}
+
+function deriveStats(players, rounds = []) {
+  const stats = Object.fromEntries(players.map((player) => [player, emptyStats()]));
+  rounds.forEach((round) => round.matches.forEach((match) => {
+    if (match.status !== '已完成' || match.scoreA == null || match.scoreB == null) return;
+    updateStats(stats, match.playerA, match.scoreA, match.scoreB);
+    updateStats(stats, match.playerB, match.scoreB, match.scoreA);
+    const winner = match.winner || (match.scoreA > match.scoreB ? match.playerA : match.playerB);
+    const loser = winner === match.playerA ? match.playerB : match.playerA;
+    stats[winner].wins += 1;
+    stats[loser].losses += 1;
+  }));
+  return stats;
 }

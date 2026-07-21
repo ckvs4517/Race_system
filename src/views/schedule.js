@@ -1,6 +1,6 @@
 import { icons } from '../ui/icons.js';
 import { pageHeader } from '../ui/shell.js';
-import { buildRounds, requiredSeedCount } from '../domain/tournament.js';
+import { buildRounds, getTournamentStandings, requiredSeedCount } from '../domain/tournament.js';
 
 export function scheduleView(tournaments, selectedId) {
   const selected = tournaments.find((item) => item.id === selectedId);
@@ -25,7 +25,12 @@ function bracketView(tournament) {
     : '<span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>輪空選手已自動晉級</span>';
   const seedPanel = seedCount > 0 ? `<div class="seed-panel ${seedsReady ? 'is-drawn' : ''}"><div class="seed-panel-copy"><span>INITIAL SEED</span><b>${seedsReady ? '已抽出首輪種子選手' : '本賽事首輪需要 1 位種子選手'}</b><p>${seedsReady ? (isDraft ? '種子選手首輪輪空；賽事開始前仍可重新抽選。' : '首輪種子與參賽名單已隨賽事開始鎖定。') : '請使用上方按鈕隨機抽選，完成後才會產生正式預覽賽程。'}</p></div><div class="seed-list">${seedsReady ? seedNames.map((name) => `<span>${escapeText(name)}<i>SEED</i></span>`).join('') : '<em>等待抽選</em>'}</div></div>` : '';
   const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches">${round.matches.map((match, matchIndex) => matchCard(match, roundIndex, matchIndex, !isDraft, allSeedNames, round.seedReason)).join('')}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>等待種子抽選</h2><p>抽選完成後，完整對戰分支圖會顯示在這裡。</p></div>`;
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'BRACKET PREVIEW' : 'LIVE BRACKET', tournament.name, `${tournament.players.length} 位參賽者 · 單淘汰賽 · ${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}</section>`;
+  const leaderboard = tournament.champion ? leaderboardView(getTournamentStandings(tournament)) : '';
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'BRACKET PREVIEW' : 'LIVE BRACKET', tournament.name, `${tournament.players.length} 位參賽者 · 單淘汰賽 · ${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}${leaderboard}</section>`;
+}
+
+function leaderboardView(rows) {
+  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">FINAL STANDINGS</p><h2>賽事排行榜</h2></div><span>依冠軍、勝場、總分與得失分差排序</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>總分</span></div>${rows.map((row) => `<div class="leaderboard-row ${row.isChampion ? 'is-champion' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${row.isChampion ? '<small>CHAMPION</small>' : ''}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></div>`).join('')}</div></section>`;
 }
 
 function matchCard(match, roundIndex, matchIndex, scoringEnabled, seedNames, seedReason) {
