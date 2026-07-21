@@ -120,6 +120,9 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .score-toolbar { display: flex; justify-content: center; align-items: center; gap: 28px; margin-top: 22px; color: var(--muted); font-size: 11px; }
 .score-toolbar button { padding: 8px; background: none; color: #bdc3ce; border: 0; font-weight: 700; cursor: pointer; }
 .score-toolbar button:hover { color: #fff; }
+.score-toolbar button:disabled { color: #555f6d; cursor: not-allowed; }
+.match-confirm { display: flex; align-items: center; justify-content: flex-end; gap: 22px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); }
+.match-confirm p { margin: 0; color: var(--muted); font-size: 12px; }
 
 .setup-layout { display: grid; grid-template-columns: 1fr 340px; gap: 18px; }
 .form-panel, .setup-aside { background: linear-gradient(145deg, #10151d, #0c1016); border: 1px solid var(--line); border-radius: 13px; }
@@ -150,15 +153,23 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .empty-state { min-height: 390px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0c1016; border: 1px dashed #303949; border-radius: 13px; text-align: center; }
 .empty-state > div { color: #566175; font-size: 46px; }.empty-state h2 { margin: 16px 0 5px; font-size: 20px; }.empty-state p { margin: 0 0 22px; color: var(--muted); font-size: 12px; }
 .bracket-shell { padding: 28px; overflow-x: auto; background: #0a0d12; border: 1px solid var(--line); border-radius: 13px; }
+.bracket-guide { display: flex; justify-content: space-between; margin: -18px 2px 16px; color: var(--muted); font-size: 10px; }
+.ready-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: #35dc82; border-radius: 50%; box-shadow: 0 0 8px #35dc82; }
+.champion-banner { display: flex; align-items: center; gap: 12px; margin: -18px 0 32px; padding: 18px 22px; background: linear-gradient(90deg, #2b2410, #12130f); color: var(--yellow); border: 1px solid #f2c94c55; border-radius: 10px; }
+.champion-banner svg { font-size: 24px; }.champion-banner span { color: #aaa37c; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; }.champion-banner b { color: #fff; font-size: 17px; }
 .bracket-flow { min-width: max-content; display: flex; gap: 46px; }
 .round-column { width: 245px; display: flex; flex-direction: column; }
 .round-heading { display: flex; justify-content: space-between; align-items: end; padding-bottom: 13px; border-bottom: 1px solid var(--line); }.round-heading span { color: var(--red); font: 800 9px var(--font-body); letter-spacing: 1.5px; }.round-heading b { font-size: 13px; }
 .round-matches { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 20px; padding-block: 20px; }
-.match-card { position: relative; background: #11161e; border: 1px solid #2b3341; border-radius: 8px; box-shadow: 0 9px 20px #0004; }
+.match-card { position: relative; width: 100%; padding: 0; background: #11161e; color: var(--text); border: 1px solid #2b3341; border-radius: 8px; box-shadow: 0 9px 20px #0004; text-align: left; }
+.match-card.is-ready { border-color: #35dc8266; cursor: pointer; }
+.match-card.is-ready:hover { transform: translateY(-2px); background: #151d25; border-color: #35dc82; box-shadow: 0 12px 25px #0006, 0 0 18px #35dc8214; }
+.match-card:disabled { opacity: 1; cursor: default; }
+.match-card.is-complete { border-color: #f2c94c4d; }
 .match-card::after { content: ''; position: absolute; top: 50%; right: -47px; width: 46px; border-top: 1px solid #323c4c; }
 .round-column:last-child .match-card::after { display: none; }
 .match-meta { display: flex; justify-content: space-between; padding: 8px 11px; color: #657084; border-bottom: 1px solid var(--line); font-size: 8px; font-weight: 700; letter-spacing: 1px; }.match-meta i { color: var(--yellow); font-style: normal; letter-spacing: 0; }
-.competitor { display: flex; justify-content: space-between; padding: 11px 12px; font-size: 11px; font-weight: 700; }.competitor + .competitor { border-top: 1px solid var(--line); }.competitor b { color: #5f6978; }.competitor.muted { color: #596373; font-weight: 500; }
+.competitor { display: flex; justify-content: space-between; padding: 11px 12px; font-size: 11px; font-weight: 700; }.competitor + .competitor { border-top: 1px solid var(--line); }.competitor b { min-width: 18px; color: #7c8798; text-align: right; }.competitor.muted { color: #596373; font-weight: 500; }.competitor.winner { color: #fff; background: #f2c94c0b; }.competitor.winner span::after { content: ' WIN'; margin-left: 6px; color: var(--yellow); font: 800 7px var(--font-body); letter-spacing: 1px; }
 
 footer { min-height: 62px; display: flex; justify-content: space-between; align-items: center; padding: 0 max(4vw, 28px); color: #555f6f; border-top: 1px solid var(--line); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; }
 footer span { display: flex; align-items: center; gap: 5px; }footer svg { color: var(--red); }
@@ -176,7 +187,7 @@ footer span { display: flex; align-items: center; gap: 5px; }footer svg { color:
   .section-title, .page-header { align-items: flex-start; flex-direction: column; }.section-title > span { display: none; }.feature-grid, .event-grid { grid-template-columns: 1fr; }.feature-card { min-height: 265px; }
   .page-section { padding-block: 45px 70px; }.page-header { margin-bottom: 28px; }.page-header .button { width: 100%; }
   .scoreboard { grid-template-columns: 1fr; gap: 13px; }.score-side { min-height: 330px; }.versus { height: 0; }.versus span { width: 44px; height: 44px; }.score-actions { flex-direction: row; }.score-value { font-size: 100px; }.score-toolbar { flex-wrap: wrap; gap: 8px 20px; }.score-toolbar span { order: 3; width: 100%; text-align: center; }
-  .form-panel { padding: 22px; }.form-footer { align-items: stretch; flex-direction: column; gap: 16px; }.bracket-shell { margin-inline: -15px; border-radius: 0; border-right: 0; border-left: 0; }
+  .form-panel { padding: 22px; }.form-footer { align-items: stretch; flex-direction: column; gap: 16px; }.bracket-guide { align-items: flex-start; flex-direction: column; gap: 7px; }.bracket-shell { margin-inline: -15px; border-radius: 0; border-right: 0; border-left: 0; }.match-confirm { align-items: stretch; flex-direction: column; }.match-confirm .button { width: 100%; }
   footer { flex-direction: column; justify-content: center; gap: 8px; }
 }
 

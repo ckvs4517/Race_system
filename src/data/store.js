@@ -12,6 +12,7 @@ function readTournaments() {
 let state = {
   tournaments: readTournaments(),
   selectedTournamentId: null,
+  selectedMatch: null,
 };
 
 const listeners = new Set();
@@ -32,5 +33,12 @@ export function subscribe(listener) {
 }
 
 export function selectTournament(id) {
-  state.selectedTournamentId = Number(id);
+  state.selectedTournamentId = id == null ? null : Number(id);
+  state.selectedMatch = null;
+}
+
+export function selectMatch(roundIndex, matchIndex) {
+  state.selectedMatch = roundIndex == null || matchIndex == null
+    ? null
+    : { roundIndex: Number(roundIndex), matchIndex: Number(matchIndex) };
 }

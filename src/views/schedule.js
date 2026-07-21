@@ -11,9 +11,13 @@ export function scheduleView(tournaments, selectedId) {
 
 function bracketView(tournament) {
   const rounds = buildRounds(tournament);
-  return `<section class="section-wrap page-section">${pageHeader('LIVE BRACKET', tournament.name, `${tournament.players.length} 位參賽者 · 單淘汰賽 · 建立於 ${tournament.created}`, '<button class="button button-secondary" data-action="back-events">← 返回賽事列表</button>')}<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches">${round.matches.map((match, matchIndex) => matchCard(match, matchIndex)).join('')}</div></section>`).join('')}</div></div></section>`;
+  const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>本屆冠軍</span><b>${tournament.champion}</b></div>` : '';
+  return `<section class="section-wrap page-section">${pageHeader('LIVE BRACKET', tournament.name, `${tournament.players.length} 位參賽者 · 單淘汰賽 · 建立於 ${tournament.created}`, '<button class="button button-secondary" data-action="back-events">← 返回賽事列表</button>')}${champion}<div class="bracket-guide"><span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>輪空選手已自動晉級</span></div><div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches">${round.matches.map((match, matchIndex) => matchCard(match, roundIndex, matchIndex)).join('')}</div></section>`).join('')}</div></div></section>`;
 }
 
-function matchCard(match, index) {
-  return `<article class="match-card"><div class="match-meta"><span>MATCH ${String(index + 1).padStart(2, '0')}</span><i>${match.status}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''}"><span>${match.playerA}</span><b>—</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''}"><span>${match.playerB}</span><b>—</b></div></article>`;
+function matchCard(match, roundIndex, matchIndex) {
+  const interactive = match.status === '可開始';
+  const scoreA = match.scoreA ?? '—';
+  const scoreB = match.scoreB ?? '—';
+  return `<button class="match-card ${interactive ? 'is-ready' : ''} ${match.status === '已完成' ? 'is-complete' : ''}" data-round-index="${roundIndex}" data-match-index="${matchIndex}" ${interactive ? '' : 'disabled'}><div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${match.status}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${match.winner === match.playerA ? 'winner' : ''}"><span>${match.playerA}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${match.winner === match.playerB ? 'winner' : ''}"><span>${match.playerB}</span><b>${scoreB}</b></div></button>`;
 }
