@@ -5,7 +5,7 @@ export function shell(route, content, state = {}) {
     ['home', '首頁'],
     ['scoreboard', '記分板'],
     ['schedule', '賽程表'],
-    [state.isAdmin ? 'manage' : 'control', state.isAdmin ? '賽事管理' : '主辦方登入'],
+    ...(state.isAdmin ? [['manage', '賽事管理'], ['data', '資料管理']] : [['control', '主辦方登入']]),
   ];
   return `
     <div class="ambient ambient-one"></div>

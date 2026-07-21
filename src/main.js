@@ -80,7 +80,7 @@ function bindControlEvents() {
     onLogin: async (pin) => {
       try {
         await loginAdmin(pin);
-        navigate('manage');
+        navigate('control');
       } catch (error) {
         app.querySelector('.control-error')?.remove();
         const form = app.querySelector('[data-control-login]');
