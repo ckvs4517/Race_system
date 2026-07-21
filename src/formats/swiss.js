@@ -76,7 +76,10 @@ function createRound(orderedPlayers, roundNumber, history, stats = null) {
   const pairs = [];
   while (players.length) {
     const playerA = players.shift();
-    let opponentIndex = players.findIndex((player) => !history.has(pairKey(playerA, player)));
+    const playerWins = stats?.[playerA]?.wins || 0;
+    let opponentIndex = players.findIndex((player) => (stats?.[player]?.wins || 0) === playerWins && !history.has(pairKey(playerA, player)));
+    if (opponentIndex < 0) opponentIndex = players.findIndex((player) => (stats?.[player]?.wins || 0) === playerWins);
+    if (opponentIndex < 0) opponentIndex = players.findIndex((player) => !history.has(pairKey(playerA, player)));
     if (opponentIndex < 0) opponentIndex = 0;
     const playerB = players.splice(opponentIndex, 1)[0];
     pairs.push([playerA, playerB]);

@@ -29,9 +29,9 @@ function bracketView(tournament, canManage) {
     ? isSwiss
       ? `<span><i class="draft-dot"></i>目前為第 1 輪預覽，共進行 ${tournament.totalRounds} 輪</span><span>開始後會依每輪排名自動安排下一輪</span>`
       : `<span><i class="draft-dot"></i>${seedsReady ? '目前為預覽賽程，開始前可重新抽選種子' : `需要先抽選 ${seedCount} 位種子選手`}</span><span>按下「賽事開始」後種子與名單都會鎖定</span>`
-    : `<span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>${isSwiss ? `完成本輪後自動安排下一輪，共 ${tournament.totalRounds} 輪` : '輪空選手已自動晉級'}</span>`;
+    : `<span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>${isSwiss ? `完成本輪後自動依戰績分組配對，共 ${tournament.totalRounds} 輪` : '輪空選手已自動晉級'}</span>`;
   const seedPanel = seedCount > 0 ? `<div class="seed-panel ${seedsReady ? 'is-drawn' : ''}"><div class="seed-panel-copy"><span>INITIAL SEED</span><b>${seedsReady ? '已抽出首輪種子選手' : '本賽事首輪需要 1 位種子選手'}</b><p>${seedsReady ? (isDraft ? '種子選手首輪輪空；賽事開始前仍可重新抽選。' : '首輪種子與參賽名單已隨賽事開始鎖定。') : '請使用上方按鈕隨機抽選，完成後才會產生正式預覽賽程。'}</p></div><div class="seed-list">${seedsReady ? seedNames.map((name) => `<span>${escapeText(name)}<i>SEED</i></span>`).join('') : '<em>等待抽選</em>'}</div></div>` : '';
-  const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches">${round.matches.map((match, matchIndex) => matchCard(match, roundIndex, matchIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, allSeedNames, round.seedReason, isSwiss)).join('')}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>等待種子抽選</h2><p>主辦方完成抽選後，完整對戰分支圖會顯示在這裡。</p></div>`;
+  const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, allSeedNames, isSwiss)}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>等待種子抽選</h2><p>主辦方完成抽選後，完整對戰分支圖會顯示在這裡。</p></div>`;
   const leaderboard = (isSwiss && !isDraft) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
   return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位參賽者 · ${format.name} · ${isSwiss ? `${rounds.length}/${tournament.totalRounds} 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}${leaderboard}</section>`;
 }
@@ -40,6 +40,33 @@ function leaderboardView(rows, isSwiss) {
   const metric = isSwiss ? '對手分' : '總分';
   const description = isSwiss ? '依勝場、對手分、得失分差與總分排序' : '依冠軍、勝場、總分與得失分差排序';
   return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'FINAL STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => `<div class="leaderboard-row ${row.isChampion ? 'is-champion' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${row.isChampion ? '<small>CHAMPION</small>' : ''}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${isSwiss ? row.buchholz : row.totalPoints}</b></div>`).join('')}</div></section>`;
+}
+
+function roundMatchesView(tournament, round, roundIndex, scoringEnabled, replayEnabled, seedNames, isSwiss) {
+  const entries = round.matches.map((match, matchIndex) => ({ match, matchIndex }));
+  if (!isSwiss || roundIndex === 0) {
+    return entries.map(({ match, matchIndex }) => matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss)).join('');
+  }
+
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const label = swissGroupLabel(tournament, roundIndex, entry.match);
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(entry);
+  });
+  return [...groups].map(([label, matches]) => `<section class="swiss-score-group"><div class="swiss-score-group-title"><span>${escapeText(label)}</span><i>${matches.length} 場對戰</i></div><div class="swiss-score-group-matches">${matches.map(({ match, matchIndex }) => matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss)).join('')}</div></section>`).join('');
+}
+
+function swissGroupLabel(tournament, roundIndex, match) {
+  const wins = Object.fromEntries((tournament.players || []).map((player) => [player, 0]));
+  (tournament.rounds || []).slice(0, roundIndex).forEach((round) => round.matches.forEach((previousMatch) => {
+    if (previousMatch.winner && previousMatch.winner !== '輪空') wins[previousMatch.winner] = (wins[previousMatch.winner] || 0) + 1;
+  }));
+  const winsA = wins[match.playerA] || 0;
+  const winsB = match.playerB === '輪空' ? winsA : wins[match.playerB] || 0;
+  if (roundIndex === 1 && winsA === winsB) return winsA === 1 ? '勝者組' : '敗者組';
+  if (winsA === winsB) return `${winsA} 勝組`;
+  return `${Math.max(winsA, winsB)} 勝／${Math.min(winsA, winsB)} 勝跨組配對`;
 }
 
 function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, seedReason, isSwiss) {

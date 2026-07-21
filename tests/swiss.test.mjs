@@ -43,6 +43,11 @@ assert.equal(tournament.rounds.length, 3);
 assert.ok(tournament.champion);
 assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
 assertNoRepeatedPairings(tournament.rounds);
+const completedView = scheduleView([tournament], tournament.id, true);
+assert.match(completedView, /勝者組/);
+assert.match(completedView, /敗者組/);
+assert.match(completedView, /2 勝組/);
+assert.match(completedView, /swiss-score-group/);
 
 const reset = resetCompletedMatch(tournament, 0, 0);
 assert.equal(reset.status, '進行中');
