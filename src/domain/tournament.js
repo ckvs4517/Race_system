@@ -1,3 +1,5 @@
+import { getTournamentFormat } from '../formats/registry.js';
+
 const BYE = '輪空';
 const PENDING = '待定';
 
@@ -6,37 +8,43 @@ export function nextPowerOfTwo(value) {
 }
 
 export function requiredSeedCount(tournamentOrPlayers) {
-  const players = Array.isArray(tournamentOrPlayers) ? tournamentOrPlayers : tournamentOrPlayers.players;
-  return nextPowerOfTwo(players.length) - players.length;
+  const tournament = Array.isArray(tournamentOrPlayers)
+    ? { players: tournamentOrPlayers, format: 'single_elimination' }
+    : tournamentOrPlayers;
+  return getTournamentFormat(tournament.format).initialSeedCount(tournament.players);
 }
 
-export function createTournament(name, players) {
+export function createTournament(name, players, formatId = 'single_elimination') {
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
-  validatePlayerCount(cleanPlayers);
-  const needsSeedDraw = requiredSeedCount(cleanPlayers) > 0;
-
+  validatePlayers(cleanPlayers);
+  const format = getTournamentFormat(formatId);
+  const seedCount = format.initialSeedCount(cleanPlayers);
   return {
     id: Date.now(),
     name: name.trim() || '未命名賽事',
+    format: format.id,
+    bracketVersion: 2,
     players: cleanPlayers,
     seedPlayerIndexes: [],
     created: new Date().toLocaleDateString('zh-TW'),
     status: '準備中',
-    rounds: needsSeedDraw ? [] : advanceAutomaticWins(createRounds(cleanPlayers, [])),
+    rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
   };
 }
 
 export function updateDraftTournament(tournament, name, players) {
   if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
-  validatePlayerCount(cleanPlayers);
-  const needsSeedDraw = requiredSeedCount(cleanPlayers) > 0;
+  validatePlayers(cleanPlayers);
+  const format = getTournamentFormat(tournament.format);
+  const seedCount = format.initialSeedCount(cleanPlayers);
   return {
     ...tournament,
     name: name.trim() || '未命名賽事',
+    bracketVersion: 2,
     players: cleanPlayers,
     seedPlayerIndexes: [],
-    rounds: needsSeedDraw ? [] : advanceAutomaticWins(createRounds(cleanPlayers, [])),
+    rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
     seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
   };
@@ -45,7 +53,8 @@ export function updateDraftTournament(tournament, name, players) {
 export function drawRandomSeeds(tournament, random = Math.random) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '準備中') throw new Error('賽事開始後不能重新抽選種子。');
-  const seedCount = requiredSeedCount(normalized);
+  const format = getTournamentFormat(normalized.format);
+  const seedCount = format.initialSeedCount(normalized.players);
   if (seedCount === 0) return normalized;
 
   const indexes = normalized.players.map((_, index) => index);
@@ -53,145 +62,123 @@ export function drawRandomSeeds(tournament, random = Math.random) {
     const swapIndex = Math.floor(random() * (index + 1));
     [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
   }
-  const seedPlayerIndexes = indexes.slice(0, seedCount).sort((a, b) => a - b);
+  const seedPlayerIndexes = indexes.slice(0, seedCount);
   return {
     ...normalized,
     seedPlayerIndexes,
-    rounds: advanceAutomaticWins(createRounds(normalized.players, seedPlayerIndexes)),
+    rounds: [format.createOpeningRound(normalized.players, seedPlayerIndexes)],
     seedDrawnAt: new Date().toISOString(),
   };
 }
 
 export function startTournament(tournament) {
   const normalized = normalizeTournament(tournament);
+  const format = getTournamentFormat(normalized.format);
   if (normalized.status !== '準備中') throw new Error('這場賽事已經開始或完成。');
-  if (normalized.seedPlayerIndexes.length !== requiredSeedCount(normalized)) {
+  if (normalized.seedPlayerIndexes.length !== format.initialSeedCount(normalized.players)) {
     throw new Error('請先完成種子選手抽選再開始賽事。');
   }
+  const stats = format.initializeStats(normalized.players);
   return {
     ...normalized,
     status: '進行中',
+    playerStats: format.activateOpeningRound(normalized.rounds[0], stats),
     startedAt: new Date().toISOString(),
   };
 }
 
 export function normalizeTournament(tournament) {
+  if (tournament.bracketVersion === 2) {
+    return { ...tournament, format: tournament.format || 'single_elimination' };
+  }
+
   const players = tournament.players || [];
   const hasRounds = Array.isArray(tournament.rounds) && tournament.rounds.length > 0;
   const hasCompletedMatch = hasRounds && tournament.rounds.some((round) => round.matches.some((match) => match.status === '已完成'));
-  const status = tournament.status === '已完成'
-    ? '已完成'
-    : tournament.status === '進行中' && (tournament.startedAt || hasCompletedMatch) ? '進行中' : '準備中';
-  const seedCount = requiredSeedCount(players);
-  const hasStoredSeedSelection = Array.isArray(tournament.seedPlayerIndexes);
-  const inferredIndexes = inferSeedIndexes(tournament.rounds, players);
-  const candidateIndexes = hasStoredSeedSelection ? tournament.seedPlayerIndexes : inferredIndexes;
-  const seedPlayerIndexes = candidateIndexes.filter((index) => Number.isInteger(index) && index >= 0 && index < players.length).slice(0, seedCount);
-  const resetLegacyDraftSeeds = status === '準備中' && seedCount > 0 && !hasStoredSeedSelection;
-
-  if (hasRounds) {
-    if (resetLegacyDraftSeeds) return { ...tournament, status, seedPlayerIndexes: [], rounds: [] };
-    return { ...tournament, status, seedPlayerIndexes, rounds: advanceAutomaticWins(tournament.rounds) };
+  const isActiveLegacy = tournament.status === '已完成' || tournament.startedAt || hasCompletedMatch;
+  if (isActiveLegacy) {
+    return {
+      ...tournament,
+      format: 'single_elimination',
+      bracketVersion: 1,
+      status: tournament.status === '已完成' ? '已完成' : '進行中',
+      rounds: hasRounds ? advanceLegacyWins(tournament.rounds) : [],
+    };
   }
-  const canBuildRounds = seedCount === 0 || seedPlayerIndexes.length === seedCount;
-  return {
-    ...tournament,
-    status,
-    seedPlayerIndexes,
-    rounds: canBuildRounds ? advanceAutomaticWins(createRounds(players, seedPlayerIndexes)) : [],
-  };
+
+  const migrated = createTournament(tournament.name, players, 'single_elimination');
+  return { ...migrated, id: tournament.id, created: tournament.created || migrated.created };
 }
 
 export function buildRounds(tournament) {
-  return normalizeTournament(tournament).rounds;
+  const normalized = normalizeTournament(tournament);
+  if (normalized.bracketVersion === 1) return normalized.rounds;
+  return projectFutureRounds(normalized.rounds);
 }
 
-export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB) {
+export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '進行中') throw new Error('賽事尚未開始或已經完成。');
-  const rounds = structuredClone(normalized.rounds);
-  const match = rounds[roundIndex]?.matches[matchIndex];
-  if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法記分。');
-  if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');
+  if (normalized.bracketVersion === 1) return recordLegacyResult(normalized, roundIndex, matchIndex, scoreA, scoreB);
 
-  match.scoreA = scoreA;
-  match.scoreB = scoreB;
-  match.winner = scoreA > scoreB ? match.playerA : match.playerB;
-  match.status = '已完成';
-  match.completedAt = new Date().toISOString();
-
-  const updatedRounds = advanceAutomaticWins(rounds);
-  const champion = updatedRounds.at(-1).matches[0].winner;
+  const format = getTournamentFormat(normalized.format);
+  const result = format.recordResult(normalized, roundIndex, matchIndex, scoreA, scoreB, random);
   return {
     ...normalized,
-    rounds: updatedRounds,
-    status: champion ? '已完成' : '進行中',
-    champion: champion || null,
+    ...result,
+    status: result.champion ? '已完成' : '進行中',
   };
 }
 
-function createRounds(players, seedPlayerIndexes) {
-  const size = nextPowerOfTwo(players.length);
-  const seedSet = new Set(seedPlayerIndexes);
-  const firstRoundSlots = [];
-
-  seedPlayerIndexes.forEach((playerIndex) => firstRoundSlots.push(players[playerIndex], BYE));
-  players.forEach((player, index) => { if (!seedSet.has(index)) firstRoundSlots.push(player); });
-
-  const rounds = [];
-  let matchCount = size / 2;
-  rounds.push({
-    name: roundName(size, matchCount),
-    matches: Array.from({ length: matchCount }, (_, index) => createMatch(
-      `r1m${index + 1}`,
-      firstRoundSlots[index * 2] || BYE,
-      firstRoundSlots[index * 2 + 1] || BYE,
-    )),
-  });
-
-  let roundNumber = 2;
-  while (matchCount > 1) {
-    matchCount /= 2;
+function projectFutureRounds(sourceRounds) {
+  const rounds = structuredClone(sourceRounds);
+  if (!rounds.length) return rounds;
+  let entrantCount = rounds.at(-1).matches.length;
+  let roundNumber = rounds.length + 1;
+  while (entrantCount > 1) {
+    const matchCount = Math.ceil(entrantCount / 2);
     rounds.push({
-      name: roundName(size, matchCount),
-      matches: Array.from({ length: matchCount }, (_, index) => createMatch(`r${roundNumber}m${index + 1}`)),
+      name: entrantCount === 2 ? '冠軍賽' : `${entrantCount} 強`,
+      projected: true,
+      seedPlayer: null,
+      seedReason: null,
+      matches: Array.from({ length: matchCount }, (_, index) => ({
+        id: `projected-r${roundNumber}m${index + 1}`,
+        playerA: PENDING,
+        playerB: PENDING,
+        scoreA: null,
+        scoreB: null,
+        winner: null,
+        status: '等待晉級',
+      })),
     });
+    entrantCount = matchCount;
     roundNumber += 1;
   }
   return rounds;
 }
 
-function inferSeedIndexes(rounds, players) {
-  if (!Array.isArray(rounds) || !rounds[0]) return [];
-  return rounds[0].matches.flatMap((match) => {
-    const hasBye = match.playerA === BYE || match.playerB === BYE;
-    const player = match.playerA === BYE ? match.playerB : match.playerA;
-    const index = hasBye ? players.indexOf(player) : -1;
-    return index >= 0 ? [index] : [];
-  });
-}
-
-function validatePlayerCount(players) {
+function validatePlayers(players) {
   if (players.length < 2 || players.length > 32) throw new Error('參賽者人數需要介於 2 至 32 位。');
+  if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
 }
 
-function createMatch(id, playerA = PENDING, playerB = PENDING) {
-  return { id, playerA, playerB, scoreA: null, scoreB: null, winner: null, status: matchStatus(playerA, playerB) };
+function recordLegacyResult(tournament, roundIndex, matchIndex, scoreA, scoreB) {
+  const rounds = structuredClone(tournament.rounds);
+  const match = rounds[roundIndex]?.matches[matchIndex];
+  if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法記分。');
+  if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');
+  match.scoreA = scoreA;
+  match.scoreB = scoreB;
+  match.winner = scoreA > scoreB ? match.playerA : match.playerB;
+  match.status = '已完成';
+  match.completedAt = new Date().toISOString();
+  const updatedRounds = advanceLegacyWins(rounds);
+  const champion = updatedRounds.at(-1).matches[0].winner;
+  return { ...tournament, rounds: updatedRounds, champion: champion || null, status: champion ? '已完成' : '進行中' };
 }
 
-function roundName(size, matchCount) {
-  if (matchCount === 1) return '冠軍賽';
-  if (matchCount === 2) return '準決賽';
-  return `${size} 強`;
-}
-
-function matchStatus(playerA, playerB) {
-  if (playerA === PENDING || playerB === PENDING) return '等待晉級';
-  if (playerA === BYE || playerB === BYE) return '輪空晉級';
-  return '可開始';
-}
-
-function advanceAutomaticWins(sourceRounds) {
+function advanceLegacyWins(sourceRounds) {
   const rounds = structuredClone(sourceRounds);
   rounds.forEach((round, roundIndex) => {
     round.matches.forEach((match, matchIndex) => {
@@ -200,16 +187,13 @@ function advanceAutomaticWins(sourceRounds) {
         if (realPlayers.length === 1 && [match.playerA, match.playerB].includes(BYE)) {
           match.winner = realPlayers[0];
           match.status = '輪空晉級';
-        } else {
-          match.status = matchStatus(match.playerA, match.playerB);
         }
       }
-
       if (!match.winner || roundIndex === rounds.length - 1) return;
       const nextMatch = rounds[roundIndex + 1].matches[Math.floor(matchIndex / 2)];
       if (matchIndex % 2 === 0) nextMatch.playerA = match.winner;
       else nextMatch.playerB = match.winner;
-      if (!nextMatch.winner) nextMatch.status = matchStatus(nextMatch.playerA, nextMatch.playerB);
+      if (!nextMatch.winner && nextMatch.playerA !== PENDING && nextMatch.playerB !== PENDING) nextMatch.status = '可開始';
     });
   });
   return rounds;

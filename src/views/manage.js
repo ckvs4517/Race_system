@@ -22,7 +22,7 @@ export function manageView(tournament = null) {
         <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼" required>${escapeText(playerText)}</textarea></label>
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立預覽賽程'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>單淘汰賽</h2><p>輸掉一場即淘汰，勝者持續晉級，直到產生最終冠軍。</p><ul><li><i></i>自動處理輪空</li><li><i></i>2 至 32 位選手</li><li><i></i>開始前可編輯名單</li><li><i></i>開始後鎖定賽程</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>單淘汰賽</h2><p>輸掉一場即淘汰，勝者持續晉級，直到產生最終冠軍。</p><ul><li><i></i>奇數首輪隨機抽 1 位種子</li><li><i></i>後續奇數輪依比賽表現選種子</li><li><i></i>2 至 32 位選手</li><li><i></i>開始前可編輯名單</li><li><i></i>開始後鎖定賽程</li></ul></aside>
     </form>
   </section>`;
 }
