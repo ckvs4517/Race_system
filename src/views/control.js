@@ -8,7 +8,7 @@ export function controlView(isAdmin, error = '') {
         <span class="control-status"><i></i> 後台權限已啟用</span>
         <h2>賽事控制中心</h2>
         <p>所有修改會儲存至雲端，公開頁面重新整理後即可看到最新賽程。</p>
-        <div class="control-actions"><button class="button button-primary" data-route="manage">建立新賽事</button><button class="button button-secondary" data-route="schedule">管理現有賽事</button><button class="button button-secondary" data-action="logout-admin">登出後台</button></div>
+        <div class="control-actions"><button class="button button-primary" data-route="manage">建立新賽事</button><button class="button button-secondary" data-route="schedule">管理現有賽事</button><button class="button button-secondary" data-route="data">資料管理</button><button class="button button-secondary" data-action="logout-admin">登出後台</button></div>
       </div>
     </section>`;
   }

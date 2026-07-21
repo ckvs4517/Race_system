@@ -7,6 +7,7 @@ import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
 import { manageView, bindManage } from './views/manage.js';
 import { scheduleView } from './views/schedule.js';
 import { bindControl, controlView } from './views/control.js';
+import { bindDataManagement, dataManagementView } from './views/data-management.js';
 
 const app = document.querySelector('#app');
 
@@ -28,6 +29,7 @@ function render() {
     }
   }
   if (route === 'control') view = controlView(state.isAdmin, state.error);
+  if (route === 'data') view = state.isAdmin ? dataManagementView(state.tournaments) : controlView(false, '請先登入主辦方後台。');
   if (route === 'schedule') {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const matchSelection = state.selectedMatch;
@@ -50,8 +52,27 @@ function render() {
   if (route === 'manage' && state.isAdmin) bindManageEvents(state);
   if (route === 'manage' && !state.isAdmin) bindControlEvents();
   if (route === 'control') bindControlEvents();
+  if (route === 'data' && state.isAdmin) bindDataManagementEvents(state);
+  if (route === 'data' && !state.isAdmin) bindControlEvents();
   if (route === 'schedule') bindScheduleEvents(state);
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function bindDataManagementEvents(state) {
+  bindDataManagement(app, state.tournaments, {
+    onImport: (tournaments) => {
+      const normalized = tournaments.map(normalizeTournament);
+      updateState((current) => ({
+        ...current,
+        tournaments: normalized,
+        selectedTournamentId: null,
+        selectedMatch: null,
+        editingTournamentId: null,
+      }));
+      alert(`已匯入 ${normalized.length} 場賽事，正在同步至雲端。`);
+      render();
+    },
+  });
 }
 
 function bindControlEvents() {
