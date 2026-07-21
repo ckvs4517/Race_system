@@ -12,6 +12,7 @@ let state = {
 };
 
 const listeners = new Set();
+let refreshInFlight = false;
 
 function notify() {
   listeners.forEach((listener) => listener(getState()));
@@ -27,7 +28,12 @@ async function api(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(path, { ...options, headers });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || '伺服器暫時無法處理要求。');
+  if (!response.ok) {
+    const error = new Error(payload.error || '伺服器暫時無法處理要求。');
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
   return payload;
 }
 
@@ -51,36 +57,129 @@ export async function initializeStore() {
   }
 }
 
+export async function refreshTournaments() {
+  if (refreshInFlight) return false;
+  refreshInFlight = true;
+  try {
+    const data = await api('/api/tournaments');
+    const incoming = Array.isArray(data.tournaments) ? data.tournaments : [];
+    if (sameTournamentVersions(state.tournaments, incoming)) return false;
+    state.tournaments = incoming;
+    reconcileSelections();
+    state.syncStatus = 'updated';
+    state.error = null;
+    notify();
+    return true;
+  } catch (error) {
+    state.error = error.message;
+    return false;
+  } finally {
+    refreshInFlight = false;
+  }
+}
+
 export function getState() {
   return structuredClone(state);
 }
 
 export function updateState(updater) {
-  const previousTournaments = state.tournaments;
   state = updater(getState());
   notify();
-  if (state.tournaments !== previousTournaments) persistTournaments();
 }
 
-async function persistTournaments() {
-  if (!state.isAdmin) {
-    state.error = '只有登入後台才能修改正式賽事。';
-    notify();
-    await initializeStore();
-    return;
-  }
-  state.syncStatus = 'saving';
-  state.error = null;
-  notify();
+export async function createTournamentRecord(tournament) {
+  requireAdmin();
+  setSaving();
   try {
-    await api('/api/tournaments', { method: 'PUT', body: JSON.stringify({ tournaments: state.tournaments }) });
+    const result = await api('/api/tournaments', { method: 'POST', body: JSON.stringify({ tournament }) });
+    state.tournaments = [result.tournament, ...state.tournaments.filter((item) => item.id !== result.tournament.id)];
     state.syncStatus = 'saved';
+    state.error = null;
+    notify();
+    return structuredClone(result.tournament);
   } catch (error) {
-    state.syncStatus = 'error';
-    state.error = error.message;
-    await initializeStore();
+    handleSaveError(error);
+    throw error;
   }
-  notify();
+}
+
+export async function mutateTournament(tournamentId, updater, { retryOnConflict = false } = {}) {
+  requireAdmin();
+  let base = state.tournaments.find((item) => item.id === tournamentId);
+  if (!base) throw new Error('找不到這場賽事。');
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let updated;
+    try {
+      updated = updater(structuredClone(base));
+    } catch (error) {
+      if (attempt > 0) throw new Error('這場比賽已由其他裁判更新，已載入最新賽果。');
+      throw error;
+    }
+    setSaving();
+    try {
+      const result = await api(`/api/tournaments/${encodeURIComponent(tournamentId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ tournament: updated, expectedRevision: Number(base.revision) || 0 }),
+      });
+      replaceTournament(result.tournament);
+      state.syncStatus = 'saved';
+      state.error = null;
+      notify();
+      return structuredClone(result.tournament);
+    } catch (error) {
+      if (error.status === 409) {
+        const latest = error.payload?.tournament;
+        if (latest) replaceTournament(latest);
+        else await refreshTournaments();
+        base = state.tournaments.find((item) => item.id === tournamentId);
+        if (retryOnConflict && attempt === 0 && base) continue;
+        const conflict = new Error('資料已由其他裁判更新，已載入最新內容，請確認後再操作。');
+        state.syncStatus = 'conflict';
+        state.error = conflict.message;
+        notify();
+        throw conflict;
+      }
+      handleSaveError(error);
+      throw error;
+    }
+  }
+  throw new Error('同步賽事資料時發生衝突。');
+}
+
+export async function deleteTournamentRecord(tournamentId) {
+  requireAdmin();
+  const tournament = state.tournaments.find((item) => item.id === tournamentId);
+  if (!tournament) throw new Error('找不到這場賽事。');
+  setSaving();
+  try {
+    await api(`/api/tournaments/${encodeURIComponent(tournamentId)}?revision=${Number(tournament.revision) || 0}`, { method: 'DELETE' });
+    state.tournaments = state.tournaments.filter((item) => item.id !== tournamentId);
+    reconcileSelections();
+    state.syncStatus = 'saved';
+    state.error = null;
+    notify();
+  } catch (error) {
+    if (error.status === 409) await refreshTournaments();
+    handleSaveError(error);
+    throw error;
+  }
+}
+
+export async function replaceTournamentRecords(tournaments) {
+  requireAdmin();
+  setSaving();
+  try {
+    const result = await api('/api/tournaments', { method: 'PUT', body: JSON.stringify({ tournaments }) });
+    state.tournaments = Array.isArray(result.tournaments) ? result.tournaments : [];
+    reconcileSelections();
+    state.syncStatus = 'saved';
+    state.error = null;
+    notify();
+  } catch (error) {
+    handleSaveError(error);
+    throw error;
+  }
 }
 
 export async function loginAdmin(pin) {
@@ -116,4 +215,44 @@ export function selectMatch(roundIndex, matchIndex) {
 
 export function selectEditingTournament(id) {
   state.editingTournamentId = id == null ? null : Number(id);
+}
+
+function setSaving() {
+  state.syncStatus = 'saving';
+  state.error = null;
+}
+
+function handleSaveError(error) {
+  state.syncStatus = error.status === 409 ? 'conflict' : 'error';
+  state.error = error.message;
+  notify();
+}
+
+function requireAdmin() {
+  if (!state.isAdmin) throw new Error('只有登入後台才能修改正式賽事。');
+}
+
+function replaceTournament(tournament) {
+  state.tournaments = state.tournaments.map((item) => item.id === tournament.id ? tournament : item);
+  if (!state.tournaments.some((item) => item.id === tournament.id)) state.tournaments.unshift(tournament);
+  reconcileSelections();
+}
+
+function reconcileSelections() {
+  if (state.selectedTournamentId != null && !state.tournaments.some((item) => item.id === state.selectedTournamentId)) {
+    state.selectedTournamentId = null;
+    state.selectedMatch = null;
+  }
+  if (state.selectedMatch && state.selectedTournamentId != null) {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const match = tournament?.rounds?.[state.selectedMatch.roundIndex]?.matches?.[state.selectedMatch.matchIndex];
+    if (!match || match.status !== '可開始') state.selectedMatch = null;
+  }
+  if (state.editingTournamentId != null && !state.tournaments.some((item) => item.id === state.editingTournamentId)) state.editingTournamentId = null;
+}
+
+function sameTournamentVersions(current, incoming) {
+  if (current.length !== incoming.length) return false;
+  const currentVersions = new Map(current.map((item) => [String(item.id), Number(item.revision) || 0]));
+  return incoming.every((item) => currentVersions.get(String(item.id)) === (Number(item.revision) || 0));
 }

@@ -1,6 +1,13 @@
 import { icons } from './icons.js';
 
 export function shell(route, content, state = {}) {
+  const syncLabel = state.syncStatus === 'updated'
+    ? '已取得最新賽果'
+    : state.syncStatus === 'conflict'
+      ? '已載入最新資料'
+      : state.syncStatus === 'error'
+        ? '同步暫時異常'
+        : state.isAdmin ? '控制模式' : '公開模式';
   const navItems = [
     ['home', '首頁'],
     ['scoreboard', '記分板'],
@@ -18,7 +25,7 @@ export function shell(route, content, state = {}) {
       <nav aria-label="主要導覽">
         ${navItems.map(([key, label]) => `<button class="nav-item ${route === key ? 'active' : ''}" data-route="${key}">${label}</button>`).join('')}
       </nav>
-      <div class="topbar-actions"><div class="system-state"><span></span> ${state.syncStatus === 'saving' ? '雲端儲存中' : state.isAdmin ? '控制模式' : '公開模式'}</div>${state.isAdmin ? '<button class="topbar-logout" data-action="logout-admin">登出</button>' : ''}</div>
+      <div class="topbar-actions"><div class="system-state"><span></span> ${syncLabel}</div>${state.isAdmin ? '<button class="topbar-logout" data-action="logout-admin">登出</button>' : ''}</div>
     </header>
     <main>${content}</main>
     <footer><span>SPIN LEAGUE © 2026</span><span>CLOUD SYNC · ${icons.bolt} READY</span></footer>

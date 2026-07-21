@@ -1,5 +1,5 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
-import { getState, initializeStore, loginAdmin, logoutAdmin, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
+import { createTournamentRecord, deleteTournamentRecord, getState, initializeStore, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { drawRandomSeeds, duplicateTournament, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
@@ -60,17 +60,17 @@ function render() {
 
 function bindDataManagementEvents(state) {
   bindDataManagement(app, state.tournaments, {
-    onImport: (tournaments) => {
+    onImport: async (tournaments) => {
       const normalized = tournaments.map(normalizeTournament);
-      updateState((current) => ({
-        ...current,
-        tournaments: normalized,
-        selectedTournamentId: null,
-        selectedMatch: null,
-        editingTournamentId: null,
-      }));
-      alert(`已匯入 ${normalized.length} 場賽事，正在同步至雲端。`);
-      render();
+      try {
+        await replaceTournamentRecords(normalized);
+        selectTournament(null);
+        selectEditingTournament(null);
+        alert(`已匯入 ${normalized.length} 場賽事並完成雲端同步。`);
+        render();
+      } catch (error) {
+        alert(error.message);
+      }
     },
   });
 }
@@ -108,11 +108,15 @@ function bindGlobalEvents() {
   });
 }
 
-function addTournament(tournament) {
+async function addTournament(tournament) {
   tournament = randomizeDraftTournament(tournament);
-  updateState((state) => ({ ...state, tournaments: [tournament, ...state.tournaments], selectedTournamentId: tournament.id }));
-  selectTournament(tournament.id);
-  navigate('schedule');
+  try {
+    const saved = await createTournamentRecord(tournament);
+    selectTournament(saved.id);
+    navigate('schedule');
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function bindManageEvents(state) {
@@ -128,16 +132,15 @@ function bindManageEvents(state) {
   });
 }
 
-function saveTournamentChanges(updatedTournament) {
-  updateState((state) => ({
-    ...state,
-    tournaments: state.tournaments.map((tournament) => tournament.id === updatedTournament.id ? updatedTournament : tournament),
-    editingTournamentId: null,
-    selectedTournamentId: updatedTournament.id,
-  }));
-  selectEditingTournament(null);
-  selectTournament(updatedTournament.id);
-  navigate('schedule');
+async function saveTournamentChanges(updatedTournament) {
+  try {
+    const saved = await mutateTournament(updatedTournament.id, (current) => ({ ...updatedTournament, revision: current.revision }));
+    selectEditingTournament(null);
+    selectTournament(saved.id);
+    navigate('schedule');
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function bindScheduleEvents(state) {
@@ -215,88 +218,59 @@ function escapeText(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-function drawSeeds(tournamentId) {
+async function drawSeeds(tournamentId) {
   try {
-    updateState((state) => ({
-      ...state,
-      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
-        ? drawRandomSeeds(tournament)
-        : tournament),
-    }));
+    await mutateTournament(tournamentId, drawRandomSeeds);
     render();
   } catch (error) {
     alert(error.message);
   }
 }
 
-function randomizeBracket(tournamentId) {
+async function randomizeBracket(tournamentId) {
   try {
-    updateState((state) => ({
-      ...state,
-      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
-        ? randomizeDraftTournament(tournament)
-        : tournament),
-    }));
+    await mutateTournament(tournamentId, randomizeDraftTournament);
     render();
   } catch (error) {
     alert(error.message);
   }
 }
 
-function beginTournament(tournamentId) {
+async function beginTournament(tournamentId) {
   try {
-    updateState((state) => ({
-      ...state,
-      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
-        ? startTournament(tournament)
-        : tournament),
-    }));
+    await mutateTournament(tournamentId, startTournament);
     render();
   } catch (error) {
     alert(error.message);
   }
 }
 
-function deleteTournament(tournamentId) {
-  updateState((state) => ({
-    ...state,
-    tournaments: state.tournaments.filter((tournament) => tournament.id !== tournamentId),
-    selectedTournamentId: null,
-    selectedMatch: null,
-    editingTournamentId: null,
-  }));
-  selectTournament(null);
-  render();
+async function deleteTournament(tournamentId) {
+  try {
+    await deleteTournamentRecord(tournamentId);
+    selectTournament(null);
+    render();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
-function copyTournament(tournamentId) {
+async function copyTournament(tournamentId) {
   try {
     const source = getState().tournaments.find((tournament) => tournament.id === tournamentId);
     if (!source) throw new Error('找不到要複製的賽事。');
     const copy = duplicateTournament(source);
-    updateState((state) => ({
-      ...state,
-      tournaments: [copy, ...state.tournaments],
-      selectedTournamentId: copy.id,
-      selectedMatch: null,
-      editingTournamentId: null,
-    }));
-    selectTournament(copy.id);
+    const saved = await createTournamentRecord(copy);
+    selectTournament(saved.id);
     render();
   } catch (error) {
     alert(error.message);
   }
 }
 
-function replayMatch(tournamentId, roundIndex, matchIndex) {
+async function replayMatch(tournamentId, roundIndex, matchIndex) {
   try {
-    updateState((state) => ({
-      ...state,
-      selectedMatch: null,
-      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
-        ? resetCompletedMatch(tournament, roundIndex, matchIndex)
-        : tournament),
-    }));
+    await mutateTournament(tournamentId, (tournament) => resetCompletedMatch(tournament, roundIndex, matchIndex));
     selectMatch(null, null);
     render();
   } catch (error) {
@@ -304,17 +278,18 @@ function replayMatch(tournamentId, roundIndex, matchIndex) {
   }
 }
 
-function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB) {
+async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB) {
   try {
-    updateState((state) => ({
-      ...state,
-      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
-        ? recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB)
-        : tournament),
-    }));
+    await mutateTournament(
+      tournamentId,
+      (tournament) => recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB),
+      { retryOnConflict: true },
+    );
     selectMatch(null, null);
     render();
   } catch (error) {
+    selectMatch(null, null);
+    render();
     alert(error.message);
   }
 }
@@ -332,3 +307,10 @@ subscribe(render);
 await initializeStore();
 migrateTournamentData();
 render();
+
+setInterval(() => {
+  const route = currentRoute();
+  const current = getState();
+  if (document.visibilityState !== 'visible' || route === 'scoreboard' || route === 'manage' || current.selectedMatch) return;
+  refreshTournaments();
+}, 3000);

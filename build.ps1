@@ -13,6 +13,6 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'worker\index.js') -Destination (
 Copy-Item -LiteralPath (Join-Path $projectRoot 'index.html') -Destination (Join-Path $dist 'client\index.html')
 Copy-Item -LiteralPath (Join-Path $projectRoot 'src') -Destination (Join-Path $dist 'client\src') -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot '.openai\hosting.json') -Destination (Join-Path $dist '.openai\hosting.json')
-Copy-Item -LiteralPath (Join-Path $projectRoot '.openai\drizzle\0000_create_tournaments.sql') -Destination (Join-Path $dist '.openai\drizzle\0000_create_tournaments.sql')
+Copy-Item -Path (Join-Path $projectRoot '.openai\drizzle\*.sql') -Destination (Join-Path $dist '.openai\drizzle') -Force
 
 Write-Output 'Build completed.'

@@ -56,11 +56,14 @@ export function bindScoreboard(root, options = {}) {
   });
 
   root.querySelector('[data-action="back-bracket"]')?.addEventListener('click', () => options.onBack?.());
-  root.querySelector('[data-action="complete-match"]')?.addEventListener('click', () => {
+  root.querySelector('[data-action="complete-match"]')?.addEventListener('click', async (event) => {
     if (score.a === score.b) return alert('目前比分相同，請完成決勝後再確認結果。');
     const winner = score.a > score.b ? options.playerA : options.playerB;
     if (!confirm(`確定由「${winner}」獲勝並晉級嗎？`)) return;
-    options.onComplete?.(score.a, score.b);
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = '正在同步賽果…';
+    await options.onComplete?.(score.a, score.b);
   });
 }
 
