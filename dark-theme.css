@@ -57,6 +57,33 @@ nav button:hover {
   border-color: var(--line);
 }
 
+.score-box .btn {
+  min-width: 92px;
+  padding: 15px 20px;
+  border: 2px solid transparent;
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow: 0 6px 14px #0003;
+}
+
+.score-box .btn[data-add="1"] {
+  background: #0b0d12;
+  color: #fff;
+}
+
+.score-box .btn[data-add="-1"] {
+  background: #ffffff18;
+  color: #fff;
+  border-color: #ffffffb8;
+}
+
+.score-box .btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.12);
+}
+
+.score-box .btn:active { transform: translateY(0); }
+
 .gyro-art { box-shadow: 20px 22px 0 #151922; }
 .gyro-art::after { background: #080a0f; }
 
