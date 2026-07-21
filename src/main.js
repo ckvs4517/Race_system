@@ -1,6 +1,6 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
-import { getState, updateState, selectTournament, selectMatch } from './data/store.js';
-import { normalizeTournament, recordMatchResult } from './domain/tournament.js';
+import { getState, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
+import { normalizeTournament, recordMatchResult, startTournament } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
@@ -14,7 +14,10 @@ function render() {
   const state = getState();
   let view = homeView(state.tournaments.length);
   if (route === 'scoreboard') view = scoreboardView();
-  if (route === 'manage') view = manageView();
+  if (route === 'manage') {
+    const editingTournament = state.tournaments.find((item) => item.id === state.editingTournamentId) || null;
+    view = manageView(editingTournament);
+  }
   if (route === 'schedule') {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const matchSelection = state.selectedMatch;
@@ -34,7 +37,7 @@ function render() {
   app.innerHTML = shell(route, view);
   bindGlobalEvents();
   if (route === 'scoreboard') bindScoreboard(app);
-  if (route === 'manage') bindManage(app, addTournament);
+  if (route === 'manage') bindManageEvents(state);
   if (route === 'schedule') bindScheduleEvents(state);
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -42,6 +45,7 @@ function render() {
 function bindGlobalEvents() {
   app.querySelectorAll('[data-route]').forEach((button) => button.addEventListener('click', () => {
     selectTournament(null);
+    selectEditingTournament(null);
     navigate(button.dataset.route);
   }));
 }
@@ -49,6 +53,31 @@ function bindGlobalEvents() {
 function addTournament(tournament) {
   updateState((state) => ({ ...state, tournaments: [tournament, ...state.tournaments], selectedTournamentId: tournament.id }));
   selectTournament(tournament.id);
+  navigate('schedule');
+}
+
+function bindManageEvents(state) {
+  const editingTournament = state.tournaments.find((item) => item.id === state.editingTournamentId) || null;
+  bindManage(app, {
+    tournament: editingTournament,
+    onSubmit: (tournament) => editingTournament ? saveTournamentChanges(tournament) : addTournament(tournament),
+    onCancel: () => {
+      selectEditingTournament(null);
+      selectTournament(editingTournament?.id || null);
+      navigate('schedule');
+    },
+  });
+}
+
+function saveTournamentChanges(updatedTournament) {
+  updateState((state) => ({
+    ...state,
+    tournaments: state.tournaments.map((tournament) => tournament.id === updatedTournament.id ? updatedTournament : tournament),
+    editingTournamentId: null,
+    selectedTournamentId: updatedTournament.id,
+  }));
+  selectEditingTournament(null);
+  selectTournament(updatedTournament.id);
   navigate('schedule');
 }
 
@@ -78,10 +107,33 @@ function bindScheduleEvents(state) {
     selectMatch(card.dataset.roundIndex, card.dataset.matchIndex);
     render();
   }));
+  app.querySelector('[data-action="edit-tournament"]')?.addEventListener('click', () => {
+    selectEditingTournament(state.selectedTournamentId);
+    navigate('manage');
+  });
+  app.querySelector('[data-action="start-tournament"]')?.addEventListener('click', () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    if (!confirm(`確定開始「${tournament.name}」嗎？\n開始後將鎖定 ${tournament.players.length} 位參賽者，無法再編輯名單。`)) return;
+    beginTournament(tournament.id);
+  });
   app.querySelector('[data-action="back-events"]')?.addEventListener('click', () => {
     selectTournament(null);
     render();
   });
+}
+
+function beginTournament(tournamentId) {
+  try {
+    updateState((state) => ({
+      ...state,
+      tournaments: state.tournaments.map((tournament) => tournament.id === tournamentId
+        ? startTournament(tournament)
+        : tournament),
+    }));
+    render();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function deleteTournament(tournamentId) {
@@ -90,6 +142,7 @@ function deleteTournament(tournamentId) {
     tournaments: state.tournaments.filter((tournament) => tournament.id !== tournamentId),
     selectedTournamentId: null,
     selectedMatch: null,
+    editingTournamentId: null,
   }));
   selectTournament(null);
   render();
@@ -111,8 +164,6 @@ function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB) {
 }
 
 function migrateTournamentData() {
-  const state = getState();
-  if (!state.tournaments.some((tournament) => !Array.isArray(tournament.rounds))) return;
   updateState((current) => ({
     ...current,
     tournaments: current.tournaments.map(normalizeTournament),

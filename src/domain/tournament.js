@@ -7,6 +7,7 @@ export function nextPowerOfTwo(value) {
 
 export function createTournament(name, players) {
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
+  validatePlayerCount(cleanPlayers);
   const rounds = createRounds(cleanPlayers);
 
   return {
@@ -14,18 +15,45 @@ export function createTournament(name, players) {
     name: name.trim() || '未命名賽事',
     players: cleanPlayers,
     created: new Date().toLocaleDateString('zh-TW'),
-    status: '進行中',
+    status: '準備中',
     rounds: advanceAutomaticWins(rounds),
+  };
+}
+
+export function updateDraftTournament(tournament, name, players) {
+  if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
+  const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
+  validatePlayerCount(cleanPlayers);
+  return {
+    ...tournament,
+    name: name.trim() || '未命名賽事',
+    players: cleanPlayers,
+    rounds: advanceAutomaticWins(createRounds(cleanPlayers)),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function startTournament(tournament) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '準備中') throw new Error('這場賽事已經開始或完成。');
+  return {
+    ...normalized,
+    status: '進行中',
+    startedAt: new Date().toISOString(),
   };
 }
 
 export function normalizeTournament(tournament) {
   if (Array.isArray(tournament.rounds) && tournament.rounds.length) {
-    return { ...tournament, rounds: advanceAutomaticWins(tournament.rounds) };
+    const hasCompletedMatch = tournament.rounds.some((round) => round.matches.some((match) => match.status === '已完成'));
+    const status = tournament.status === '進行中' && !tournament.startedAt && !hasCompletedMatch
+      ? '準備中'
+      : tournament.status;
+    return { ...tournament, status, rounds: advanceAutomaticWins(tournament.rounds) };
   }
   return {
     ...tournament,
-    status: tournament.status === '準備中' ? '進行中' : tournament.status,
+    status: tournament.status === '已完成' ? '已完成' : '準備中',
     rounds: advanceAutomaticWins(createRounds(tournament.players || [])),
   };
 }
@@ -36,6 +64,7 @@ export function buildRounds(tournament) {
 
 export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB) {
   const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '進行中') throw new Error('賽事尚未開始或已經完成。');
   const rounds = structuredClone(normalized.rounds);
   const match = rounds[roundIndex]?.matches[matchIndex];
   if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法記分。');
@@ -90,6 +119,10 @@ function createRounds(players) {
     roundNumber += 1;
   }
   return rounds;
+}
+
+function validatePlayerCount(players) {
+  if (players.length < 2 || players.length > 32) throw new Error('參賽者人數需要介於 2 至 32 位。');
 }
 
 function createMatch(id, playerA = PENDING, playerB = PENDING) {

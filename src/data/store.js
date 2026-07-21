@@ -13,6 +13,7 @@ let state = {
   tournaments: readTournaments(),
   selectedTournamentId: null,
   selectedMatch: null,
+  editingTournamentId: null,
 };
 
 const listeners = new Set();
@@ -41,4 +42,8 @@ export function selectMatch(roundIndex, matchIndex) {
   state.selectedMatch = roundIndex == null || matchIndex == null
     ? null
     : { roundIndex: Number(roundIndex), matchIndex: Number(matchIndex) };
+}
+
+export function selectEditingTournament(id) {
+  state.editingTournamentId = id == null ? null : Number(id);
 }
