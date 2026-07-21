@@ -46,6 +46,10 @@ export const singleElimination = {
       .map((row, index) => ({ ...row, rank: index + 1 }));
   },
 
+  rebuildStats(players, rounds) {
+    return deriveStats(players, rounds);
+  },
+
   recordResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
     const rounds = structuredClone(tournament.rounds);
     const stats = structuredClone(tournament.playerStats);
@@ -147,14 +151,17 @@ function selectPerformanceSeed(players, stats, random) {
 
 function deriveStats(players, rounds = []) {
   const stats = Object.fromEntries(players.map((player) => [player, emptyStats()]));
-  rounds.forEach((round) => round.matches.forEach((match) => {
-    if (match.status !== '已完成' || match.scoreA == null || match.scoreB == null) return;
-    updateStats(stats, match.playerA, match.scoreA, match.scoreB);
-    updateStats(stats, match.playerB, match.scoreB, match.scoreA);
-    const winner = match.winner || (match.scoreA > match.scoreB ? match.playerA : match.playerB);
-    const loser = winner === match.playerA ? match.playerB : match.playerA;
-    stats[winner].wins += 1;
-    stats[loser].losses += 1;
-  }));
+  rounds.forEach((round) => {
+    if (round.seedPlayer && stats[round.seedPlayer]) stats[round.seedPlayer].byeCount += 1;
+    round.matches.forEach((match) => {
+      if (match.status !== '已完成' || match.scoreA == null || match.scoreB == null) return;
+      updateStats(stats, match.playerA, match.scoreA, match.scoreB);
+      updateStats(stats, match.playerB, match.scoreB, match.scoreA);
+      const winner = match.winner || (match.scoreA > match.scoreB ? match.playerA : match.playerB);
+      const loser = winner === match.playerA ? match.playerB : match.playerA;
+      stats[winner].wins += 1;
+      stats[loser].losses += 1;
+    });
+  });
   return stats;
 }

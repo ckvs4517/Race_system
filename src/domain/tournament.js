@@ -32,6 +32,11 @@ export function createTournament(name, players, formatId = 'single_elimination')
   };
 }
 
+export function duplicateTournament(tournament) {
+  const normalized = normalizeTournament(tournament);
+  return createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format);
+}
+
 export function updateDraftTournament(tournament, name, players) {
   if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
@@ -119,6 +124,30 @@ export function buildRounds(tournament) {
 export function getTournamentStandings(tournament) {
   const normalized = normalizeTournament(tournament);
   return getTournamentFormat(normalized.format).getStandings(normalized);
+}
+
+export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.bracketVersion !== 2) throw new Error('舊版進行中賽事不支援回退比賽。');
+  if (normalized.status !== '進行中' && normalized.status !== '已完成') throw new Error('這場賽事目前不能重新比賽。');
+  const rounds = structuredClone(normalized.rounds.slice(0, roundIndex + 1));
+  const match = rounds[roundIndex]?.matches[matchIndex];
+  if (!match || match.status !== '已完成') throw new Error('只有已完成的比賽可以重新開始。');
+
+  match.scoreA = null;
+  match.scoreB = null;
+  match.winner = null;
+  match.status = '可開始';
+  delete match.completedAt;
+  const format = getTournamentFormat(normalized.format);
+  return {
+    ...normalized,
+    rounds,
+    playerStats: format.rebuildStats(normalized.players, rounds),
+    champion: null,
+    status: '進行中',
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {

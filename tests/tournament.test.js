@@ -1,8 +1,8 @@
-import { buildRounds, createTournament, drawRandomSeeds, getTournamentStandings, normalizeTournament, recordMatchResult, requiredSeedCount, startTournament, updateDraftTournament } from '../src/domain/tournament.js';
+import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, getTournamentStandings, normalizeTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, updateDraftTournament } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
-import { bindScoreboard, scoreboardView } from '../src/views/scoreboard.js';
+import { scoreboardView } from '../src/views/scoreboard.js';
 
 const assertions = [];
 function expect(condition, message) {
@@ -54,17 +54,24 @@ try {
   expect(standings[0].player === tournament.champion && standings[0].rank === 1, '排行榜將冠軍固定列為第一名');
   expect(standings.every((row) => Number.isInteger(row.wins) && Number.isInteger(row.losses)), '排行榜提供每位選手的勝敗場次');
   expect(standings.some((row) => row.totalPoints > 0), '排行榜累積每位選手的總得分');
-  expect(scheduleView([tournament], tournament.id).includes('賽事排行榜'), '賽事結束頁顯示排行榜');
-  expect(scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' }).includes('data-action="restart-match"'), '正式記分板提供重新比賽按鈕');
-  const scoreboardHost = document.createElement('div');
-  scoreboardHost.innerHTML = scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' });
-  const originalConfirm = window.confirm;
-  window.confirm = () => true;
-  bindScoreboard(scoreboardHost, { playerA: 'A', playerB: 'B' });
-  scoreboardHost.querySelector('[data-target="a"][data-value="1"]').click();
-  scoreboardHost.querySelector('[data-action="restart-match"]').click();
-  expect(scoreboardHost.querySelector('[data-score="a"]').textContent === '0', '重新比賽會將尚未送出的比分歸零');
-  window.confirm = originalConfirm;
+  const completedView = scheduleView([tournament], tournament.id);
+  expect(completedView.includes('賽事排行榜'), '賽事結束頁顯示排行榜');
+  expect(completedView.includes('data-replay-round'), '已完成的對戰節點提供重新比賽按鈕');
+  expect(!scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' }).includes('data-action="restart-match"'), '尚未送出結果的記分板不顯示重新比賽按鈕');
+
+  const openingMatchIndex = tournament.rounds[0].matches.findIndex((match) => match.id === openingPlayable[0].id);
+  const replayedTournament = resetCompletedMatch(tournament, 0, openingMatchIndex);
+  const replayedMatch = replayedTournament.rounds[0].matches[openingMatchIndex];
+  expect(replayedTournament.status === '進行中' && !replayedTournament.champion, '重開已完成比賽會讓賽事回到進行中並清除冠軍');
+  expect(replayedTournament.rounds.length === 1 && replayedMatch.status === '可開始', '重開前段比賽會清除後續輪次並讓該場回到可開始');
+  expect(replayedMatch.scoreA === null && replayedMatch.scoreB === null && replayedMatch.winner === null, '重開比賽會清除該場比分與勝者');
+  expect(replayedTournament.playerStats[replayedMatch.playerA].matchesPlayed === 0, '重開後會依保留結果重新計算選手統計');
+
+  const copiedTournament = duplicateTournament(tournament);
+  expect(copiedTournament.id !== tournament.id && copiedTournament.name === '五人測試賽（副本）', '複製賽事會建立不同識別碼的新副本');
+  expect(copiedTournament.status === '準備中' && copiedTournament.players.join(',') === tournament.players.join(','), '賽事副本保留選手名單並回到準備中');
+  expect(copiedTournament.rounds.length === 0 && copiedTournament.seedPlayerIndexes.length === 0 && !copiedTournament.champion, '賽事副本不保留種子、比分與冠軍');
+  expect(completedView.includes('data-action="copy-current-tournament"'), '賽事內容頁提供複製賽事按鈕');
 
   let evenTournament = createTournament('六人測試賽', ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   expect(requiredSeedCount(evenTournament) === 0, '偶數六人賽首輪不抽種子');
@@ -86,7 +93,9 @@ try {
 
   const migrated = normalizeTournament({ id: 1, name: '舊賽事', players: ['甲', '乙', '丙'] });
   expect(migrated.bracketVersion === 2 && migrated.rounds.length === 0, '未比賽的舊資料轉為新版單淘汰規則並等待抽選');
-  expect(scheduleView([tournament], null).includes('data-delete-tournament'), '賽事列表提供獨立刪除按鈕');
+  const tournamentListView = scheduleView([tournament], null);
+  expect(tournamentListView.includes('data-delete-tournament'), '賽事列表提供獨立刪除按鈕');
+  expect(tournamentListView.includes('data-copy-tournament'), '賽事列表提供獨立複製按鈕');
 
   document.querySelector('#result').textContent = `PASS ${assertions.length}\n${assertions.join('\n')}`;
 } catch (error) {
