@@ -1,4 +1,4 @@
-import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, restoreWithdrawnPlayer, startTournament, updateDraftTournament, withdrawPlayer } from '../src/domain/tournament.js';
+import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, updateDraftTournament, withdrawPlayer } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
@@ -100,9 +100,7 @@ try {
   expect(administrativeTournament.participantStates[absentPlayer].status === 'no_show', '開賽後可將未到選手標記為未出席');
   expect(administrativeTournament.rounds[0].matches[1].outcome === 'withdrawal' && administrativeTournament.rounds.length === 2, '未出席選手的對手不戰勝並正常產生下一輪');
   const administrativeView = scheduleView([administrativeTournament], administrativeTournament.id, true);
-  expect(administrativeView.includes('退賽判定 4：0') && administrativeView.includes('data-restore-player'), '賽程顯示退賽判定並提供恢復入口');
-  administrativeTournament = restoreWithdrawnPlayer(administrativeTournament, absentPlayer);
-  expect(administrativeTournament.participantStates[absentPlayer].status === 'active' && administrativeTournament.rounds.length === 1, '恢復誤標選手會回退受影響的後續賽程');
+  expect(administrativeView.includes('退賽判定 4：0') && !administrativeView.includes('data-restore-player'), '賽程顯示退賽判定且不提供恢復入口');
 
   let swissWithdrawal = startTournament(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss'));
   const swissWithdrawnPlayer = swissWithdrawal.rounds[0].matches[0].playerA;

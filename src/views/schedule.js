@@ -47,7 +47,7 @@ function participantManagementView(tournament, canManage) {
     const statusLabel = state.status === 'no_show' ? '未出席' : state.status === 'withdrawn' ? '已退賽' : eliminated ? '已淘汰' : '參賽中';
     const actions = canChange && !inactive && !eliminated
       ? `<div><button data-no-show-player="${escapeAttribute(player)}">未出席</button><button data-withdraw-player="${escapeAttribute(player)}">中途退賽</button></div>`
-      : canManage && inactive ? `<div><button data-restore-player="${escapeAttribute(player)}">恢復參賽</button></div>` : '';
+      : '';
     return `<div class="participant-row ${inactive || eliminated ? 'is-inactive' : ''}"><span>${escapeText(player)}</span><i>${statusLabel}</i>${actions}</div>`;
   }).join('');
   const activeCount = tournament.players.filter((player) => (tournament.participantStates?.[player]?.status || 'active') === 'active'

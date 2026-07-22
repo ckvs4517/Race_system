@@ -1,0 +1,63 @@
+name: Test and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test tournament formats and cloud logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/swiss.test.mjs
+          node tests/api.test.mjs
+          node tests/data-management.test.mjs
+          node tests/navigation.test.mjs
+          node tests/sync.test.mjs
+
+      - name: Test browser tournament flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(google-chrome --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files --dump-dom "file://${GITHUB_WORKSPACE}/tests/tournament.test.html")"
+          echo "$output"
+          echo "$output" | grep -q 'PASS '
+
+      - name: Build Sites artifact
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Validate build structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/server/index.js
+          test -f dist/client/index.html
+          test -f dist/client/src/main.js
+          test -f dist/.openai/hosting.json
+          tar -cf spin-league-sites.tar dist
+
+      - name: Save deployable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spin-league-sites-${{ github.sha }}
+          path: spin-league-sites.tar
+          if-no-files-found: error
+          retention-days: 14

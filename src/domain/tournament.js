@@ -234,20 +234,6 @@ export function withdrawPlayer(tournament, player, status = 'withdrawn') {
   return settleAdministrativeMatch(marked, pending.roundIndex, pending.matchIndex, player, 'withdrawal', reason);
 }
 
-export function restoreWithdrawnPlayer(tournament, player) {
-  const normalized = normalizeTournament(tournament);
-  if (normalized.status !== '進行中' && normalized.status !== '已完成') throw new Error('這場賽事目前不能恢復選手。');
-  if (normalized.participantStates[player]?.status === 'active') throw new Error('這位選手目前仍在參賽。');
-  const participantStates = {
-    ...normalized.participantStates,
-    [player]: { status: 'active', updatedAt: new Date().toISOString() },
-  };
-  const withdrawalMatch = findAdministrativeMatch(normalized, player, 'withdrawal');
-  if (!withdrawalMatch) return { ...normalized, participantStates, updatedAt: new Date().toISOString() };
-  const replayed = resetCompletedMatch({ ...normalized, participantStates }, withdrawalMatch.roundIndex, withdrawalMatch.matchIndex);
-  return { ...replayed, participantStates, updatedAt: new Date().toISOString() };
-}
-
 function settleAdministrativeMatch(tournament, roundIndex, matchIndex, forfeitingPlayer, outcome, reason) {
   const match = tournament.rounds[roundIndex]?.matches[matchIndex];
   if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法判定棄賽。');
@@ -265,14 +251,6 @@ function settleAdministrativeMatch(tournament, roundIndex, matchIndex, forfeitin
 function findPendingMatch(tournament, player) {
   for (let roundIndex = tournament.rounds.length - 1; roundIndex >= 0; roundIndex -= 1) {
     const matchIndex = tournament.rounds[roundIndex].matches.findIndex((match) => match.status === '可開始' && [match.playerA, match.playerB].includes(player));
-    if (matchIndex >= 0) return { roundIndex, matchIndex };
-  }
-  return null;
-}
-
-function findAdministrativeMatch(tournament, player, outcome) {
-  for (let roundIndex = tournament.rounds.length - 1; roundIndex >= 0; roundIndex -= 1) {
-    const matchIndex = tournament.rounds[roundIndex].matches.findIndex((match) => match.outcome === outcome && match.forfeitPlayer === player);
     if (matchIndex >= 0) return { roundIndex, matchIndex };
   }
   return null;

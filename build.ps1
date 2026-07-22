@@ -5,14 +5,21 @@ if (-not $dist.StartsWith($projectRoot + [System.IO.Path]::DirectorySeparatorCha
 }
 if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
 
-New-Item -ItemType Directory -Path (Join-Path $dist 'server') -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $dist 'client') -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $dist '.openai\drizzle') -Force | Out-Null
+$serverDir = Join-Path $dist 'server'
+$clientDir = Join-Path $dist 'client'
+$openAiDir = Join-Path $dist '.openai'
+$drizzleDir = Join-Path $openAiDir 'drizzle'
+$sourceOpenAiDir = Join-Path $projectRoot '.openai'
+$sourceDrizzleDir = Join-Path $sourceOpenAiDir 'drizzle'
 
-Copy-Item -LiteralPath (Join-Path $projectRoot 'worker\index.js') -Destination (Join-Path $dist 'server\index.js')
-Copy-Item -LiteralPath (Join-Path $projectRoot 'index.html') -Destination (Join-Path $dist 'client\index.html')
-Copy-Item -LiteralPath (Join-Path $projectRoot 'src') -Destination (Join-Path $dist 'client\src') -Recurse -Force
-Copy-Item -LiteralPath (Join-Path $projectRoot '.openai\hosting.json') -Destination (Join-Path $dist '.openai\hosting.json')
-Copy-Item -Path (Join-Path $projectRoot '.openai\drizzle\*.sql') -Destination (Join-Path $dist '.openai\drizzle') -Force
+New-Item -ItemType Directory -Path $serverDir -Force | Out-Null
+New-Item -ItemType Directory -Path $clientDir -Force | Out-Null
+New-Item -ItemType Directory -Path $drizzleDir -Force | Out-Null
+
+Copy-Item -LiteralPath (Join-Path (Join-Path $projectRoot 'worker') 'index.js') -Destination (Join-Path $serverDir 'index.js')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'index.html') -Destination (Join-Path $clientDir 'index.html')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'src') -Destination (Join-Path $clientDir 'src') -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $sourceOpenAiDir 'hosting.json') -Destination (Join-Path $openAiDir 'hosting.json')
+Get-ChildItem -LiteralPath $sourceDrizzleDir -Filter '*.sql' | Copy-Item -Destination $drizzleDir -Force
 
 Write-Output 'Build completed.'

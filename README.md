@@ -27,7 +27,7 @@
 - 正常賽果的勝方必須至少取得 4 分，允許 4 分以上的最終比分。
 - 單場棄賽以 4：0 判定；節點會保留棄賽原因並可重新比賽。
 - 開賽後可將選手標記為未出席或中途退賽；目前對手不戰勝，瑞士制後續配對會排除退賽者。
-- 選手狀態與排行榜會標示未出席或已退賽，誤操作時可恢復並回退受影響賽程。
+- 選手狀態與排行榜會標示未出席或已退賽；判定成立後不可恢復，以免影響後續賽程公平性。
 - 1 至 8 台戰鬥台，每輪對戰平均分配到各台顯示。
 - 雲端 D1 資料庫保存正式賽事。
 - 單一賽事更新、版本衝突保護與不同場賽果自動合併。
@@ -141,6 +141,16 @@ node tests\navigation.test.mjs
 ```
 
 瀏覽器版賽制測試位於 `tests/tournament.test.html`。
+
+每次推送或提出 Pull Request 時，GitHub Actions 會自動執行全部 Node.js 測試、瀏覽器賽制測試與跨平台建置，並保存可供 Sites 部署的 `spin-league-sites.tar` 產物 14 天。
+
+部署完成後可執行以下指令，確認公開首頁、賽事 API、4 分勝負驗證與棄賽入口均已上線：
+
+```powershell
+node scripts\verify-deployment.mjs https://spin-league-tournament.ckvs4517.chatgpt.site
+```
+
+`Production smoke check` workflow 也會每日自動檢查一次，並可從 GitHub Actions 手動觸發。
 
 ## 下一階段優先順序
 

@@ -1,6 +1,6 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { createTournamentRecord, deleteTournamentRecord, getState, initializeStore, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, restoreWithdrawnPlayer, startTournament, withdrawPlayer } from './domain/tournament.js';
+import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, withdrawPlayer } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
@@ -200,12 +200,6 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定將「${player}」標記為${label}嗎？\n若已有尚未進行的對戰，對手將以 4：0 不戰勝。`)) return;
     updateParticipantStatus(tournament.id, player, status);
   }));
-  app.querySelectorAll('[data-restore-player]').forEach((button) => button.addEventListener('click', () => {
-    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
-    const player = button.dataset.restorePlayer;
-    if (!confirm(`確定恢復「${player}」參賽嗎？\n若退賽判定已影響賽程，後續輪次與結果會回退並重新產生。`)) return;
-    restoreParticipant(tournament.id, player);
-  }));
   app.querySelector('[data-action="start-tournament"]')?.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     if (!confirm(`確定開始「${tournament.name}」嗎？\n開始後將鎖定 ${tournament.players.length} 位參賽者，無法再編輯名單。`)) return;
@@ -328,16 +322,6 @@ async function completeForfeit(tournamentId, roundIndex, matchIndex, player) {
 async function updateParticipantStatus(tournamentId, player, status) {
   try {
     await mutateTournament(tournamentId, (tournament) => withdrawPlayer(tournament, player, status), { retryOnConflict: true });
-    render();
-  } catch (error) {
-    render();
-    alert(error.message);
-  }
-}
-
-async function restoreParticipant(tournamentId, player) {
-  try {
-    await mutateTournament(tournamentId, (tournament) => restoreWithdrawnPlayer(tournament, player));
     render();
   } catch (error) {
     render();
