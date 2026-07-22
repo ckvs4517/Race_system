@@ -53,7 +53,8 @@ export const swiss = {
     const totalRounds = tournament.totalRounds || this.totalRounds(tournament.players);
     const activePlayers = tournament.players.filter((player) => isPlayerActive(tournament, player));
     if (rounds.length >= totalRounds || activePlayers.length <= 1) {
-      const champion = activePlayers[0] || rankPlayers(tournament.players, stats)[0].player;
+      const rankedPlayers = activePlayers.length ? activePlayers : tournament.players;
+      const champion = rankPlayers(rankedPlayers, stats)[0].player;
       return { rounds, playerStats: stats, champion };
     }
 
