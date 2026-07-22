@@ -31,7 +31,18 @@ jobs:
           node tests/data-management.test.mjs
           node tests/navigation.test.mjs
           node tests/sync.test.mjs
-          node tests/format-matrix.test.mjs
+
+      - name: Test all formats from 2 to 32 players
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! matrix_output="$(node tests/format-matrix.test.mjs 2>&1)"; then
+            echo "$matrix_output"
+            annotation="${matrix_output//$'\n'/' | '}"
+            echo "::error title=Format matrix failed::$annotation"
+            exit 1
+          fi
+          echo "$matrix_output"
 
       - name: Test browser tournament flows
         shell: bash
