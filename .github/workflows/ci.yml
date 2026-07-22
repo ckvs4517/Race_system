@@ -31,14 +31,21 @@ jobs:
           node tests/data-management.test.mjs
           node tests/navigation.test.mjs
           node tests/sync.test.mjs
+          node tests/format-matrix.test.mjs
 
-      - name: Test browser tournament flow
+      - name: Test browser tournament flows
         shell: bash
         run: |
           set -euo pipefail
-          output="$(google-chrome --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files --dump-dom "file://${GITHUB_WORKSPACE}/tests/tournament.test.html")"
-          echo "$output"
-          echo "$output" | grep -q 'PASS '
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/spin-league-test-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          sleep 1
+          for test_page in tournament.test.html full-flow.test.html; do
+            output="$(google-chrome --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "http://127.0.0.1:8765/tests/${test_page}")"
+            echo "$output"
+            echo "$output" | grep -q 'PASS '
+          done
 
       - name: Build Sites artifact
         shell: pwsh
