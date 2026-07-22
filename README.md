@@ -21,6 +21,10 @@
 
 前端使用原生 HTML、CSS 與 JavaScript ES Modules，後端使用 Cloudflare Worker 與 D1。專案不依賴前端框架，適合下載後閱讀、修改或延伸新的賽制。
 
+## 賽事規則
+
+專案內附 [Beyblade X 賽事規則 v12（2026）](beyblade-x-rules-v12-2026.pdf)，可供主辦方與後續功能開發參考。網站目前的判定仍以系統內已實作的規則為準，並不代表 PDF 中的所有計分細節都已自動套用。
+
 ## 開始修改
 
 ```bash

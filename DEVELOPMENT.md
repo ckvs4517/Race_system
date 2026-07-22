@@ -156,21 +156,21 @@ Cloudflare D1
 
 公開端點：
 
-| 方法 | 路徑 | 用途 |
-|---|---|---|
-| `GET` | `/api/tournaments` | 取得全部賽事 |
+| 方法    | 路徑                     | 用途         |
+| ------- | ------------------------ | ------------ |
+| `GET` | `/api/tournaments`     | 取得全部賽事 |
 | `GET` | `/api/tournaments/:id` | 取得單一賽事 |
 
 管理端點需要 `Authorization: Bearer <token>`：
 
-| 方法 | 路徑 | 用途 |
-|---|---|---|
-| `POST` | `/api/admin/login` | 使用 PIN 取得 12 小時權杖 |
-| `GET` | `/api/admin/session` | 驗證目前權杖 |
-| `POST` | `/api/tournaments` | 建立賽事 |
-| `PUT` | `/api/tournaments/:id` | 以 revision 更新單一賽事 |
-| `DELETE` | `/api/tournaments/:id?revision=N` | 刪除單一賽事 |
-| `PUT` | `/api/tournaments` | 備份還原時取代全部資料 |
+| 方法       | 路徑                                | 用途                      |
+| ---------- | ----------------------------------- | ------------------------- |
+| `POST`   | `/api/admin/login`                | 使用 PIN 取得 12 小時權杖 |
+| `GET`    | `/api/admin/session`              | 驗證目前權杖              |
+| `POST`   | `/api/tournaments`                | 建立賽事                  |
+| `PUT`    | `/api/tournaments/:id`            | 以 revision 更新單一賽事  |
+| `DELETE` | `/api/tournaments/:id?revision=N` | 刪除單一賽事              |
+| `PUT`    | `/api/tournaments`                | 備份還原時取代全部資料    |
 
 後端需要下列環境資源：
 
