@@ -1,3 +1,4 @@
+/** Worker API 測試：登入、權限、CRUD、revision 衝突與工作階段。 */
 import worker from '../worker/index.js';
 
 class MockStatement {

@@ -1,3 +1,4 @@
+/** 備份格式、損壞資料拒絕與兩種 CSV 匯出的測試。 */
 import { createBackup, createCsv, createOverviewCsv, dataManagementView, parseBackup } from '../src/views/data-management.js';
 
 const tournaments = [{

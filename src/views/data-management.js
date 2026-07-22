@@ -1,3 +1,4 @@
+/** 資料管理頁，以及可獨立測試的 JSON 備份與 CSV 轉換函式。 */
 import { pageHeader } from '../ui/shell.js';
 import { getTournamentFormat } from '../formats/registry.js';
 

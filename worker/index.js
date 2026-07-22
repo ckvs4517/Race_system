@@ -1,3 +1,7 @@
+/**
+ * Cloudflare Worker 進入點。
+ * `/api/*` 由此處理，其餘要求交給靜態資源服務；D1 revision 提供樂觀鎖保護。
+ */
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 
 export default {
@@ -30,6 +34,7 @@ export default {
       }
 
       if (url.pathname === '/api/tournaments' && request.method === 'PUT') {
+        // 全量取代只供 JSON 備份還原；一般操作都使用單場賽事 API。
         if (!(await isAuthorized(request, env))) return json({ error: '後台登入已失效，請重新登入。' }, 401);
         const payload = await request.json();
         if (!Array.isArray(payload.tournaments) || payload.tournaments.length > 200) return json({ error: '賽事資料格式不正確。' }, 400);
@@ -61,6 +66,7 @@ export default {
         const tournament = validateTournament(payload.tournament);
         if (String(tournament.id) !== tournamentId) return json({ error: '賽事識別碼不一致。' }, 400);
         const nextTournament = withRevision(tournament, expectedRevision + 1);
+        // revision 不相符就不更新，避免過期裁判畫面覆蓋較新的賽果。
         const result = await env.DB.prepare('UPDATE tournaments SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND revision = ?')
           .bind(JSON.stringify(withoutRevision(nextTournament)), nextTournament.revision, tournamentId, expectedRevision).run();
         if (!changedRows(result)) {
@@ -123,6 +129,7 @@ function changedRows(result) {
 }
 
 async function isAuthorized(request, env) {
+  // 權杖是短期 HMAC 簽章，不需在資料庫保存工作階段。
   if (!env.TOKEN_SECRET) return false;
   const authorization = request.headers.get('authorization') || '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -150,6 +157,7 @@ async function sign(value, secret) {
 }
 
 async function safeEqual(left, right) {
+  // 先雜湊為固定長度再逐位比較，降低字串比較時間差洩漏資訊。
   const [a, b] = await Promise.all([left, right].map((value) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
   const aa = new Uint8Array(a); const bb = new Uint8Array(b);
   let mismatch = 0;

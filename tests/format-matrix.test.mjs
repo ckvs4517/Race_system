@@ -1,3 +1,4 @@
+/** 2～32 人 × 單淘汰／瑞士制的完整賽程矩陣，確保每種人數都能產生冠軍。 */
 import assert from 'node:assert/strict';
 import {
   buildRounds,

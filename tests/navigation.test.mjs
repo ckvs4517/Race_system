@@ -1,3 +1,4 @@
+/** 公開／管理模式導覽與登出入口的顯示測試。 */
 import { shell } from '../src/ui/shell.js';
 import { controlView } from '../src/views/control.js';
 

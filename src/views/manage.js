@@ -1,3 +1,4 @@
+/** 建立／編輯準備中賽事的表單；送出前驗證名單與戰鬥台數。 */
 import { pageHeader } from '../ui/shell.js';
 import { icons } from '../ui/icons.js';
 import { createTournament, updateDraftTournament } from '../domain/tournament.js';

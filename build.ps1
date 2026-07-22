@@ -1,8 +1,10 @@
+# 將原始碼整理成 ChatGPT Sites 接受的 server、client 與 migration 結構。
 $projectRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $dist = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'dist'))
 if (-not $dist.StartsWith($projectRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
   throw 'Invalid build output path.'
 }
+# dist 是可重建產物；先確認輸出路徑位於專案內，再移除舊建置。
 if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
 
 $serverDir = Join-Path $dist 'server'

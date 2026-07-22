@@ -1,3 +1,4 @@
+/** 瑞士制策略：每輪依戰績配對、避開重複對手，並在指定輪數後決定排名。 */
 const BYE = '輪空';
 
 export const swiss = {
@@ -25,6 +26,7 @@ export const swiss = {
   },
 
   getStandings(tournament) {
+    // Buchholz（對手分）會隨其他選手戰績改變，因此每次顯示時重新計算。
     const stats = tournament.playerStats || deriveStats(tournament.players, tournament.rounds);
     return rankPlayers(tournament.players, stats).map((row, index) => ({
       ...row,
@@ -72,6 +74,7 @@ function createRound(orderedPlayers, roundNumber, history, stats = null) {
   const players = [...orderedPlayers];
   let byePlayer = null;
   if (players.length % 2) {
+    // 從排名後方選擇尚未輪空者，避免同一位選手重複取得輪空勝。
     const reversed = [...players].reverse();
     byePlayer = reversed.find((player) => !(stats?.[player]?.byeCount)) || reversed[0];
     players.splice(players.indexOf(byePlayer), 1);
@@ -81,6 +84,7 @@ function createRound(orderedPlayers, roundNumber, history, stats = null) {
   while (players.length) {
     const playerA = players.shift();
     const playerWins = stats?.[playerA]?.wins || 0;
+    // 配對優先級：同勝場未交手 → 同勝場 → 跨組未交手 → 最後可用選手。
     let opponentIndex = players.findIndex((player) => (stats?.[player]?.wins || 0) === playerWins && !history.has(pairKey(playerA, player)));
     if (opponentIndex < 0) opponentIndex = players.findIndex((player) => (stats?.[player]?.wins || 0) === playerWins);
     if (opponentIndex < 0) opponentIndex = players.findIndex((player) => !history.has(pairKey(playerA, player)));
@@ -139,6 +143,7 @@ function deriveStats(players, rounds = []) {
 }
 
 function rankPlayers(players, stats) {
+  // 排名規則：勝場 → 對手分 → 得失分差 → 總得分 → 姓名。
   return players.map((player) => {
     const playerStats = { ...emptyStats(), ...(stats[player] || {}) };
     const buchholz = (playerStats.opponents || []).reduce((sum, opponent) => sum + (stats[opponent]?.wins || 0), 0);

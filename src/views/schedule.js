@@ -1,3 +1,4 @@
+/** 賽事列表、分支圖、戰鬥台、選手狀態與排行榜的純 HTML 畫面產生器。 */
 import { icons } from '../ui/icons.js';
 import { pageHeader } from '../ui/shell.js';
 import { buildRounds, getTournamentStandings, requiredSeedCount } from '../domain/tournament.js';
@@ -66,6 +67,7 @@ function roundMatchesView(tournament, round, roundIndex, scoringEnabled, replayE
   const arenaCount = tournament.arenaCount || 1;
   if (arenaCount === 1) return scoreGroupedMatchesView(tournament, round, roundIndex, entries, scoringEnabled, replayEnabled, seedNames, isSwiss);
 
+  // 依比賽順序輪流分配戰鬥台，讓各台場數最多只差一場。
   const stations = Array.from({ length: arenaCount }, () => []);
   entries.forEach((entry, index) => stations[index % arenaCount].push(entry));
   return `<div class="battle-stations">${stations.map((stationEntries, stationIndex) => `<section class="battle-station"><div class="battle-station-title"><span>戰鬥台 ${stationIndex + 1}</span><i>${stationEntries.length ? `${stationEntries.length} 場對戰` : '本輪待命'}</i></div>${stationEntries.length ? scoreGroupedMatchesView(tournament, round, roundIndex, stationEntries, scoringEnabled, replayEnabled, seedNames, isSwiss) : '<div class="battle-station-empty">本輪沒有分配對戰</div>'}</section>`).join('')}</div>`;

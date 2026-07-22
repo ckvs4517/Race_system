@@ -1,3 +1,4 @@
+/** 獨立／正式比賽共用記分板；正式模式把結果交回 main.js 保存。 */
 import { pageHeader } from '../ui/shell.js';
 
 export function scoreboardView(options = {}) {
@@ -28,6 +29,7 @@ function scoreSide(id, label, name, color, readonly) {
 }
 
 export function bindScoreboard(root, options = {}) {
+  // history 保存每次按鍵前的快照，讓復原功能不必判斷上一個操作類型。
   const score = { a: options.scoreA || 0, b: options.scoreB || 0 };
   const history = [];
   const render = () => Object.entries(score).forEach(([key, value]) => { root.querySelector(`[data-score="${key}"]`).textContent = value; });

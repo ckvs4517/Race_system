@@ -1,3 +1,4 @@
+/** 部署後 smoke test：確認公開網站、關鍵記分規則與賽事 API 可讀取。 */
 const siteUrl = process.argv[2] || process.env.SITE_URL;
 
 if (!siteUrl) throw new Error('請提供公開網站網址，例如：node scripts/verify-deployment.mjs https://example.com');

@@ -1,3 +1,7 @@
+/**
+ * 賽事領域服務。
+ * 定義共用生命週期；實際配對、統計與排名交給 formats 內的賽制策略。
+ */
 import { getTournamentFormat } from '../formats/registry.js';
 
 const BYE = '輪空';
@@ -15,6 +19,7 @@ export function requiredSeedCount(tournamentOrPlayers) {
 }
 
 export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1) {
+  // 奇數單淘汰需先抽種子，因此建立時暫不產生首輪；其他情況可立即預覽。
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validatePlayers(cleanPlayers);
   const cleanArenaCount = validateArenaCount(arenaCount);
@@ -124,6 +129,7 @@ export function startTournament(tournament) {
 }
 
 export function normalizeTournament(tournament) {
+  // 讀取前補齊新版欄位，讓舊備份仍可在新版程式中使用。
   if (tournament.bracketVersion === 2) {
     const format = getTournamentFormat(tournament.format || 'single_elimination');
     return {
@@ -168,6 +174,7 @@ export function getTournamentStandings(tournament) {
 }
 
 export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
+  // 回退前段比賽時捨棄後續輪次，避免舊勝者污染新的晉級路線。
   const normalized = normalizeTournament(tournament);
   if (normalized.bracketVersion !== 2) throw new Error('舊版進行中賽事不支援回退比賽。');
   if (normalized.status !== '進行中' && normalized.status !== '已完成') throw new Error('這場賽事目前不能重新比賽。');
@@ -215,6 +222,7 @@ export function forfeitMatch(tournament, roundIndex, matchIndex, forfeitingPlaye
 }
 
 export function withdrawPlayer(tournament, player, status = 'withdrawn') {
+  // 退賽不可逆；若目前有待比賽對手，立即以 4：0 行政判定。
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '進行中') throw new Error('只有進行中的賽事可以標記選手退賽。');
   if (normalized.bracketVersion !== 2) throw new Error('舊版進行中賽事不支援選手退賽。');
@@ -235,6 +243,7 @@ export function withdrawPlayer(tournament, player, status = 'withdrawn') {
 }
 
 function settleAdministrativeMatch(tournament, roundIndex, matchIndex, forfeitingPlayer, outcome, reason) {
+  // 行政判定仍走一般記分流程，確保晉級、統計與下一輪只維護一套邏輯。
   const match = tournament.rounds[roundIndex]?.matches[matchIndex];
   if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法判定棄賽。');
   if (![match.playerA, match.playerB].includes(forfeitingPlayer)) throw new Error('棄賽選手不在這場比賽中。');
@@ -257,6 +266,7 @@ function findPendingMatch(tournament, player) {
 }
 
 function projectFutureRounds(sourceRounds) {
+  // 「待定」節點只供預覽，不寫回正式賽事資料。
   const rounds = structuredClone(sourceRounds);
   if (!rounds.length) return rounds;
   let entrantCount = rounds.at(-1).matches.length;

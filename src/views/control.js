@@ -1,3 +1,4 @@
+/** 主辦方登入與已登入控制中心畫面。 */
 import { pageHeader } from '../ui/shell.js';
 
 export function controlView(isAdmin, error = '') {

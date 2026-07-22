@@ -1,3 +1,7 @@
+/**
+ * 前端唯一狀態來源與雲端 API 存取層。
+ * UI 不直接呼叫 fetch；回傳值使用 structuredClone，避免畫面直接修改 store。
+ */
 const AUTH_KEY = 'spin-admin-token';
 
 let state = {
@@ -23,6 +27,7 @@ function authToken() {
 }
 
 async function api(path, options = {}) {
+  // 管理權杖只存在 sessionStorage，關閉分頁後瀏覽器會自動清除。
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const token = authToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -58,6 +63,7 @@ export async function initializeStore() {
 }
 
 export async function refreshTournaments() {
+  // 防止 3 秒輪詢尚未完成時又建立第二個相同要求。
   if (refreshInFlight) return false;
   refreshInFlight = true;
   try {
@@ -104,6 +110,7 @@ export async function createTournamentRecord(tournament) {
 }
 
 export async function mutateTournament(tournamentId, updater, { retryOnConflict = false } = {}) {
+  // 樂觀鎖：送出操作所依據的 revision，後端只接受最新版本。
   requireAdmin();
   let base = state.tournaments.find((item) => item.id === tournamentId);
   if (!base) throw new Error('找不到這場賽事。');
@@ -129,6 +136,7 @@ export async function mutateTournament(tournamentId, updater, { retryOnConflict 
       return structuredClone(result.tournament);
     } catch (error) {
       if (error.status === 409) {
+        // 先套用伺服器最新版；可安全合併的操作最多自動重試一次。
         const latest = error.payload?.tournament;
         if (latest) replaceTournament(latest);
         else await refreshTournaments();
@@ -239,6 +247,7 @@ function replaceTournament(tournament) {
 }
 
 function reconcileSelections() {
+  // 雲端刷新後，清除已刪除賽事或已被其他裁判完成的目前選取項目。
   if (state.selectedTournamentId != null && !state.tournaments.some((item) => item.id === state.selectedTournamentId)) {
     state.selectedTournamentId = null;
     state.selectedMatch = null;

@@ -1,3 +1,4 @@
+/** 瑞士制專項測試：配對、輪空、分組、排名、退賽與多戰鬥台。 */
 import assert from 'node:assert/strict';
 import {
   buildRounds,

@@ -1,3 +1,4 @@
+# 每日及手動檢查正式網站的首頁、API 與關鍵比賽規則是否仍可使用。
 name: Production smoke check
 
 on:

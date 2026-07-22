@@ -1,3 +1,4 @@
+/** 瀏覽器領域測試：涵蓋單淘汰、種子、重賽、棄賽、退賽與畫面輸出。 */
 import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, updateDraftTournament, withdrawPlayer } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';

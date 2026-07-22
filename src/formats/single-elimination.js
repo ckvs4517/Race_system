@@ -1,3 +1,4 @@
+/** 單淘汰賽策略：建立輪次、更新統計、選擇表現種子並產生排行榜。 */
 const BYE = '輪空';
 const PENDING = '待定';
 
@@ -52,6 +53,7 @@ export const singleElimination = {
   },
 
   recordResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
+    // 只允許目前最後一輪記分，避免回頭修改後讓既有晉級資料失去一致性。
     const rounds = structuredClone(tournament.rounds);
     const stats = structuredClone(tournament.playerStats);
     Object.keys(stats).forEach((player) => { stats[player] = { ...emptyStats(), ...stats[player] }; });
@@ -138,6 +140,7 @@ function isPlayerActive(tournament, player) {
 }
 
 function selectPerformanceSeed(players, stats, random) {
+  // 優先順序：平均得分、得失分差、較少輪空，最後用隨機值打破平手。
   const ranked = players.map((player) => {
     const playerStats = stats[player] || emptyStats();
     return {

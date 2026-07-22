@@ -1,3 +1,4 @@
+/** 使用 URL hash 的極簡前端路由；不依賴任何框架或伺服器 rewrite。 */
 const routes = new Set(['home', 'scoreboard', 'schedule', 'manage', 'control', 'data']);
 
 export function currentRoute() {

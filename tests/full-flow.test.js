@@ -1,3 +1,4 @@
+/** 完整 UI 流程測試：使用記憶體 API 模擬主辦方從登入到登出的實際操作。 */
 const result = document.querySelector('#result');
 const records = new Map();
 const alerts = [];

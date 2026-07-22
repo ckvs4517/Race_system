@@ -1,3 +1,4 @@
+/** 公開首頁與主要功能入口。 */
 import { icons } from '../ui/icons.js';
 
 const publicFeatureCards = [

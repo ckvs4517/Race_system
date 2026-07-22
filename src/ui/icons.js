@@ -1,3 +1,4 @@
+/** 內嵌 SVG 圖示，避免第三方圖示服務失效影響操作。 */
 export const icons = {
   bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4.5 13H11l-1 9 8.5-12H12l1-8Z"/></svg>',
   bracket: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h5v4H5V4Zm0 12h5v4H5v-4Zm9-6h5v4h-5v-4ZM10 6h2v5h2v2h-2v5h-2V6Z"/></svg>',

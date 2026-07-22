@@ -1,3 +1,4 @@
+/** 所有頁面共用的導覽、同步狀態、主內容與頁尾框架。 */
 import { icons } from './icons.js';
 
 export function shell(route, content, state = {}) {

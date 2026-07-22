@@ -1,3 +1,4 @@
+/** 多裁判 revision 衝突測試：確認最新版資料保留且目前操作可安全重試。 */
 const storage = new Map([['spin-admin-token', 'token']]);
 globalThis.sessionStorage = {
   getItem: (key) => storage.get(key) || null,

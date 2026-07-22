@@ -1,3 +1,7 @@
+/**
+ * 前端應用程式進入點。
+ * 協調路由、狀態、畫面與事件；賽制規則放在 domain/formats，雲端存取放在 data/store。
+ */
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { createTournamentRecord, deleteTournamentRecord, getState, initializeStore, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, withdrawPlayer } from './domain/tournament.js';
@@ -12,6 +16,7 @@ import { bindDataManagement, dataManagementView } from './views/data-management.
 const app = document.querySelector('#app');
 
 function render() {
+  // 每次狀態或網址改變都重新產生畫面，再綁定該頁需要的事件。
   const route = currentRoute();
   const state = getState();
   if (state.loading) {
@@ -144,6 +149,7 @@ async function saveTournamentChanges(updatedTournament) {
 }
 
 function bindScheduleEvents(state) {
+  // selectedMatch 存在時，schedule 路由會暫時顯示正式比賽記分板。
   if (state.selectedMatch) {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const { roundIndex, matchIndex } = state.selectedMatch;
@@ -344,6 +350,7 @@ migrateTournamentData();
 render();
 
 setInterval(() => {
+  // 記分與編輯期間不輪詢，避免裁判尚未送出的內容被畫面更新蓋掉。
   const route = currentRoute();
   const current = getState();
   if (document.visibilityState !== 'visible' || route === 'scoreboard' || route === 'manage' || current.selectedMatch) return;
