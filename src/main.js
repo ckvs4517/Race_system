@@ -1,6 +1,6 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { createTournamentRecord, deleteTournamentRecord, getState, initializeStore, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { drawRandomSeeds, duplicateTournament, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament } from './domain/tournament.js';
+import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, restoreWithdrawnPlayer, startTournament, withdrawPlayer } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
@@ -153,6 +153,7 @@ function bindScheduleEvents(state) {
       playerB: match.playerB,
       onBack: () => { selectMatch(null, null); render(); },
       onComplete: (scoreA, scoreB) => completeMatch(tournament.id, roundIndex, matchIndex, scoreA, scoreB),
+      onForfeit: (player) => completeForfeit(tournament.id, roundIndex, matchIndex, player),
     });
     return;
   }
@@ -190,6 +191,20 @@ function bindScheduleEvents(state) {
       : '';
     if (!confirm(`確定要讓「${match.playerA} vs ${match.playerB}」重新比賽嗎？\n該場比分與勝負會清除。${warning}`)) return;
     replayMatch(tournament.id, roundIndex, matchIndex);
+  }));
+  app.querySelectorAll('[data-withdraw-player], [data-no-show-player]').forEach((button) => button.addEventListener('click', () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const player = button.dataset.withdrawPlayer || button.dataset.noShowPlayer;
+    const status = button.dataset.noShowPlayer ? 'no_show' : 'withdrawn';
+    const label = status === 'no_show' ? '未出席' : '中途退賽';
+    if (!confirm(`確定將「${player}」標記為${label}嗎？\n若已有尚未進行的對戰，對手將以 4：0 不戰勝。`)) return;
+    updateParticipantStatus(tournament.id, player, status);
+  }));
+  app.querySelectorAll('[data-restore-player]').forEach((button) => button.addEventListener('click', () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const player = button.dataset.restorePlayer;
+    if (!confirm(`確定恢復「${player}」參賽嗎？\n若退賽判定已影響賽程，後續輪次與結果會回退並重新產生。`)) return;
+    restoreParticipant(tournament.id, player);
   }));
   app.querySelector('[data-action="start-tournament"]')?.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
@@ -289,6 +304,42 @@ async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, score
     render();
   } catch (error) {
     selectMatch(null, null);
+    render();
+    alert(error.message);
+  }
+}
+
+async function completeForfeit(tournamentId, roundIndex, matchIndex, player) {
+  try {
+    await mutateTournament(
+      tournamentId,
+      (tournament) => forfeitMatch(tournament, roundIndex, matchIndex, player),
+      { retryOnConflict: true },
+    );
+    selectMatch(null, null);
+    render();
+  } catch (error) {
+    selectMatch(null, null);
+    render();
+    alert(error.message);
+  }
+}
+
+async function updateParticipantStatus(tournamentId, player, status) {
+  try {
+    await mutateTournament(tournamentId, (tournament) => withdrawPlayer(tournament, player, status), { retryOnConflict: true });
+    render();
+  } catch (error) {
+    render();
+    alert(error.message);
+  }
+}
+
+async function restoreParticipant(tournamentId, player) {
+  try {
+    await mutateTournament(tournamentId, (tournament) => restoreWithdrawnPlayer(tournament, player));
+    render();
+  } catch (error) {
     render();
     alert(error.message);
   }

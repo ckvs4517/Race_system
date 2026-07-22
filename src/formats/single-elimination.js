@@ -37,6 +37,7 @@ export const singleElimination = {
         pointsAgainst: playerStats.pointsAgainst,
         difference: playerStats.pointsFor - playerStats.pointsAgainst,
         isChampion: tournament.champion === player,
+        participantStatus: tournament.participantStates?.[player]?.status || 'active',
       };
     }).sort((a, b) => Number(b.isChampion) - Number(a.isChampion)
       || b.wins - a.wins
@@ -74,7 +75,8 @@ export const singleElimination = {
       return { rounds, playerStats: stats, champion: null };
     }
 
-    const advancingPlayers = rounds[roundIndex].matches.map((item) => item.winner);
+    const advancingPlayers = rounds[roundIndex].matches.map((item) => item.winner)
+      .filter((player) => isPlayerActive(tournament, player));
     if (advancingPlayers.length === 1) {
       return { rounds, playerStats: stats, champion: advancingPlayers[0] };
     }
@@ -129,6 +131,10 @@ function updateStats(stats, player, pointsFor, pointsAgainst) {
   stats[player].pointsFor += pointsFor;
   stats[player].pointsAgainst += pointsAgainst;
   stats[player].matchesPlayed += 1;
+}
+
+function isPlayerActive(tournament, player) {
+  return (tournament.participantStates?.[player]?.status || 'active') === 'active';
 }
 
 function selectPerformanceSeed(players, stats, random) {

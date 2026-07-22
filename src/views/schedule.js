@@ -23,6 +23,7 @@ function bracketView(tournament, canManage) {
   const seedNames = seedIndexes.map((index) => tournament.players[index]).filter(Boolean);
   const allSeedNames = new Set(isSwiss ? [] : rounds.map((round) => round.seedPlayer).filter(Boolean));
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? '瑞士制第一名' : '本屆冠軍'}</span><b>${tournament.champion}</b></div>` : '';
+  const participantPanel = !isDraft ? participantManagementView(tournament, canManage) : '';
   const seedButton = isDraft && seedCount > 0 ? `<button class="button button-seed" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
   const randomizeButton = isDraft ? '<button class="button button-secondary" data-action="randomize-bracket">重新隨機分組</button>' : '';
   const headerActions = `<div class="header-actions">${canManage && isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady ? '' : 'disabled'}>賽事開始</button>` : ''}${canManage ? '<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
@@ -34,13 +35,30 @@ function bracketView(tournament, canManage) {
   const seedPanel = seedCount > 0 ? `<div class="seed-panel ${seedsReady ? 'is-drawn' : ''}"><div class="seed-panel-copy"><span>INITIAL SEED</span><b>${seedsReady ? '已抽出首輪種子選手' : '本賽事首輪需要 1 位種子選手'}</b><p>${seedsReady ? (isDraft ? '種子選手首輪輪空；賽事開始前仍可重新抽選。' : '首輪種子與參賽名單已隨賽事開始鎖定。') : '請使用上方按鈕隨機抽選，完成後才會產生正式預覽賽程。'}</p></div><div class="seed-list">${seedsReady ? seedNames.map((name) => `<span>${escapeText(name)}<i>SEED</i></span>`).join('') : '<em>等待抽選</em>'}</div></div>` : '';
   const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, allSeedNames, isSwiss)}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>等待種子抽選</h2><p>主辦方完成抽選後，完整對戰分支圖會顯示在這裡。</p></div>`;
   const leaderboard = (isSwiss && !isDraft) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位參賽者 · ${format.name} · ${arenaCount} 台戰鬥台 · ${isSwiss ? `${rounds.length}/${tournament.totalRounds} 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}${leaderboard}</section>`;
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位參賽者 · ${format.name} · ${arenaCount} 台戰鬥台 · ${isSwiss ? `${rounds.length}/${tournament.totalRounds} 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}${leaderboard}</section>`;
+}
+
+function participantManagementView(tournament, canManage) {
+  const canChange = canManage && tournament.status === '進行中';
+  const rows = tournament.players.map((player) => {
+    const state = tournament.participantStates?.[player] || { status: 'active' };
+    const inactive = state.status !== 'active';
+    const eliminated = tournament.format === 'single_elimination' && (tournament.playerStats?.[player]?.losses || 0) > 0;
+    const statusLabel = state.status === 'no_show' ? '未出席' : state.status === 'withdrawn' ? '已退賽' : eliminated ? '已淘汰' : '參賽中';
+    const actions = canChange && !inactive && !eliminated
+      ? `<div><button data-no-show-player="${escapeAttribute(player)}">未出席</button><button data-withdraw-player="${escapeAttribute(player)}">中途退賽</button></div>`
+      : canManage && inactive ? `<div><button data-restore-player="${escapeAttribute(player)}">恢復參賽</button></div>` : '';
+    return `<div class="participant-row ${inactive || eliminated ? 'is-inactive' : ''}"><span>${escapeText(player)}</span><i>${statusLabel}</i>${actions}</div>`;
+  }).join('');
+  const activeCount = tournament.players.filter((player) => (tournament.participantStates?.[player]?.status || 'active') === 'active'
+    && !(tournament.format === 'single_elimination' && (tournament.playerStats?.[player]?.losses || 0) > 0)).length;
+  return `<details class="participant-management"><summary><span>選手狀態</span><b>${activeCount} 位參賽中</b></summary><div class="participant-list">${rows}</div></details>`;
 }
 
 function leaderboardView(rows, isSwiss) {
   const metric = isSwiss ? '對手分' : '總分';
   const description = isSwiss ? '依勝場、對手分、得失分差與總分排序' : '依冠軍、勝場、總分與得失分差排序';
-  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'FINAL STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => `<div class="leaderboard-row ${row.isChampion ? 'is-champion' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${row.isChampion ? '<small>CHAMPION</small>' : ''}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${isSwiss ? row.buchholz : row.totalPoints}</b></div>`).join('')}</div></section>`;
+  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'FINAL STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => `<div class="leaderboard-row ${row.isChampion ? 'is-champion' : ''} ${row.participantStatus !== 'active' ? 'is-inactive' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${row.isChampion ? '<small>CHAMPION</small>' : ''}${row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : ''}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${isSwiss ? row.buchholz : row.totalPoints}</b></div>`).join('')}</div></section>`;
 }
 
 function roundMatchesView(tournament, round, roundIndex, scoringEnabled, replayEnabled, seedNames, isSwiss) {
@@ -81,7 +99,11 @@ function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled,
   const interactive = scoringEnabled && match.status === '可開始';
   const scoreA = match.scoreA ?? '—';
   const scoreB = match.scoreB ?? '—';
-  const displayStatus = match.status === '輪空晉級' && isSwiss
+  const displayStatus = match.outcome === 'withdrawal'
+    ? '退賽判定 4：0'
+    : match.outcome === 'forfeit'
+      ? '棄賽判定 4：0'
+      : match.status === '輪空晉級' && isSwiss
     ? (scoringEnabled ? '輪空得勝' : '預定輪空')
     : scoringEnabled && match.status === '輪空晉級' && seedReason === 'performance'
     ? '表現種子晉級'
@@ -90,9 +112,9 @@ function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled,
       : !scoringEnabled && match.status === '輪空晉級'
     ? '預定輪空'
     : !scoringEnabled && match.status === '可開始' ? '等待賽事開始' : match.status;
-  const content = `<div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''}"><span>${escapeText(match.playerA)}${seedNames.has(match.playerA) ? '<small>SEED</small>' : ''}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''}"><span>${escapeText(match.playerB)}${seedNames.has(match.playerB) ? '<small>SEED</small>' : ''}</span><b>${scoreB}</b></div>`;
+  const content = `<div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''} ${match.forfeitPlayer === match.playerA ? 'administrative-loser' : ''}"><span>${escapeText(match.playerA)}${seedNames.has(match.playerA) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerA ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''} ${match.forfeitPlayer === match.playerB ? 'administrative-loser' : ''}"><span>${escapeText(match.playerB)}${seedNames.has(match.playerB) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerB ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreB}</b></div>`;
   if (interactive) return `<button class="match-card is-ready" data-round-index="${roundIndex}" data-match-index="${matchIndex}">${content}</button>`;
-  if (scoringEnabled && match.status === '已完成') return `<article class="match-card is-complete">${content}${replayEnabled ? `<button class="match-replay" data-replay-round="${roundIndex}" data-replay-match="${matchIndex}">重新比賽</button>` : ''}</article>`;
+  if (scoringEnabled && match.status === '已完成') return `<article class="match-card is-complete">${content}${replayEnabled && match.outcome !== 'withdrawal' ? `<button class="match-replay" data-replay-round="${roundIndex}" data-replay-match="${matchIndex}">重新比賽</button>` : ''}</article>`;
   return `<article class="match-card">${content}</article>`;
 }
 

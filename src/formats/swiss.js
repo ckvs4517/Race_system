@@ -30,6 +30,7 @@ export const swiss = {
       ...row,
       rank: index + 1,
       isChampion: tournament.champion === row.player,
+      participantStatus: tournament.participantStates?.[row.player]?.status || 'active',
     }));
   },
 
@@ -50,13 +51,15 @@ export const swiss = {
     if (!rounds[roundIndex].matches.every((item) => Boolean(item.winner))) return { rounds, playerStats: stats, champion: null };
 
     const totalRounds = tournament.totalRounds || this.totalRounds(tournament.players);
-    if (rounds.length >= totalRounds) {
-      const champion = rankPlayers(tournament.players, stats)[0].player;
+    const activePlayers = tournament.players.filter((player) => isPlayerActive(tournament, player));
+    if (rounds.length >= totalRounds || activePlayers.length <= 1) {
+      const champion = activePlayers[0] || rankPlayers(tournament.players, stats)[0].player;
       return { rounds, playerStats: stats, champion };
     }
 
     const history = pairingHistory(rounds);
-    const orderedPlayers = rankPlayers(tournament.players, stats).map((row) => row.player);
+    const orderedPlayers = rankPlayers(tournament.players, stats).map((row) => row.player)
+      .filter((player) => isPlayerActive(tournament, player));
     const nextRound = createRound(orderedPlayers, rounds.length + 1, history, stats);
     applyBye(nextRound, stats);
     rounds.push(nextRound);
@@ -176,4 +179,8 @@ function updateStats(stats, player, pointsFor, pointsAgainst) {
   stats[player].pointsFor += pointsFor;
   stats[player].pointsAgainst += pointsAgainst;
   stats[player].matchesPlayed += 1;
+}
+
+function isPlayerActive(tournament, player) {
+  return (tournament.participantStates?.[player]?.status || 'active') === 'active';
 }

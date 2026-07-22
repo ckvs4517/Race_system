@@ -18,7 +18,8 @@ export function scoreboardView(options = {}) {
       ${scoreSide('b', 'RED SIDE', options.playerB || '選手 B', 'red', isMatch)}
     </div>
     <div class="score-toolbar"><button data-action="undo-score">↶ 復原上一步</button><span>${isMatch ? '確認前仍可調整比分' : '點擊按鈕記分，最低為 0 分'}</span><button data-action="swap-sides" ${isMatch ? 'disabled' : ''}>⇄ 交換選手</button></div>
-    ${isMatch ? '<div class="match-confirm"><p>請確認最終比分正確，送出後勝者會自動晉級。</p><button class="button button-primary" data-action="complete-match">確認結果並完成比賽</button></div>' : ''}
+    ${isMatch ? `<div class="match-confirm"><p>勝方必須至少取得 4 分；送出後會自動更新晉級與排名。</p><button class="button button-primary" data-action="complete-match">確認結果並完成比賽</button></div>
+    <div class="match-administrative"><div><b>棄賽判定</b><span>裁判判定後，對手將以 4：0 獲勝。</span></div><div><button class="button button-secondary" data-forfeit-player="${escapeAttribute(options.playerA || '')}">${escapeText(options.playerA || '選手 A')} 棄賽</button><button class="button button-secondary" data-forfeit-player="${escapeAttribute(options.playerB || '')}">${escapeText(options.playerB || '選手 B')} 棄賽</button></div></div>` : ''}
   </section>`;
 }
 
@@ -58,6 +59,7 @@ export function bindScoreboard(root, options = {}) {
   root.querySelector('[data-action="back-bracket"]')?.addEventListener('click', () => options.onBack?.());
   root.querySelector('[data-action="complete-match"]')?.addEventListener('click', async (event) => {
     if (score.a === score.b) return alert('目前比分相同，請完成決勝後再確認結果。');
+    if (Math.max(score.a, score.b) < 4) return alert('勝方最終比分必須至少為 4 分。');
     const winner = score.a > score.b ? options.playerA : options.playerB;
     if (!confirm(`確定由「${winner}」獲勝並晉級嗎？`)) return;
     const button = event.currentTarget;
@@ -65,8 +67,21 @@ export function bindScoreboard(root, options = {}) {
     button.textContent = '正在同步賽果…';
     await options.onComplete?.(score.a, score.b);
   });
+
+  root.querySelectorAll('[data-forfeit-player]').forEach((button) => button.addEventListener('click', async () => {
+    const player = button.dataset.forfeitPlayer;
+    const opponent = player === options.playerA ? options.playerB : options.playerA;
+    if (!confirm(`確定判定「${player}」棄賽嗎？\n「${opponent}」將以 4：0 獲勝。`)) return;
+    root.querySelectorAll('[data-forfeit-player], [data-action="complete-match"]').forEach((item) => { item.disabled = true; });
+    button.textContent = '正在同步判定…';
+    await options.onForfeit?.(player);
+  }));
 }
 
 function escapeAttribute(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function escapeText(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }

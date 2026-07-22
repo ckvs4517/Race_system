@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildRounds,
   createTournament,
+  forfeitMatch,
   getTournamentStandings,
   randomizeDraftTournament,
   recordMatchResult,
@@ -9,6 +10,7 @@ import {
   resetCompletedMatch,
   startTournament,
   updateDraftTournament,
+  withdrawPlayer,
 } from '../src/domain/tournament.js';
 import { manageView } from '../src/views/manage.js';
 import { scheduleView } from '../src/views/schedule.js';
@@ -60,6 +62,14 @@ assert.ok(firstBye);
 assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
 odd = finishCurrentRound(odd);
 assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
+
+let swissWithdrawal = startTournament(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss'));
+const withdrawalMatch = swissWithdrawal.rounds[0].matches[0];
+swissWithdrawal = withdrawPlayer(swissWithdrawal, withdrawalMatch.playerA);
+assert.equal(swissWithdrawal.rounds[0].matches[0].outcome, 'withdrawal');
+const remainingMatchIndex = swissWithdrawal.rounds[0].matches.findIndex((match) => match.status === '可開始');
+swissWithdrawal = forfeitMatch(swissWithdrawal, 0, remainingMatchIndex, swissWithdrawal.rounds[0].matches[remainingMatchIndex].playerB);
+assert.ok(!swissWithdrawal.rounds[1].matches.some((match) => [match.playerA, match.playerB].includes(withdrawalMatch.playerA)), '退賽選手不進入瑞士制後續配對');
 
 let changed = createTournament('切換賽制', ['A', 'B', 'C', 'D']);
 changed = updateDraftTournament(changed, changed.name, changed.players, 'swiss');
