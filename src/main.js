@@ -7,6 +7,7 @@ import { createTournamentRecord, deleteTournamentRecord, getState, initializeSto
 import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, withdrawPlayer } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
+import { guideView } from './views/guide.js';
 import { scoreboardView, bindScoreboard } from './views/scoreboard.js';
 import { manageView, bindManage } from './views/manage.js';
 import { scheduleView } from './views/schedule.js';
@@ -24,6 +25,7 @@ function render() {
     return;
   }
   let view = homeView(state.tournaments.length, state.isAdmin);
+  if (route === 'guide') view = guideView(state.isAdmin);
   if (route === 'scoreboard') view = scoreboardView();
   if (route === 'manage') {
     if (!state.isAdmin) {

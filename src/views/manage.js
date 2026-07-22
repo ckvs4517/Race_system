@@ -10,7 +10,7 @@ export function manageView(tournament = null) {
   const description = isEditing
     ? '賽事開始前可以修改名稱、賽制、戰鬥台數與參賽者；儲存後會重新產生預覽賽程。'
     : '先建立準備中的賽事，確認參賽名單後再正式開始。';
-  const backButton = isEditing ? '<button class="button button-secondary" data-action="cancel-edit">← 返回賽程</button>' : '';
+  const backButton = `<div class="header-actions">${isEditing ? '<button class="button button-secondary" data-action="cancel-edit">← 返回賽程</button>' : ''}<button class="button button-secondary" data-route="guide">查看操作說明</button></div>`;
   const playerText = tournament?.players?.join('\n') || '';
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');

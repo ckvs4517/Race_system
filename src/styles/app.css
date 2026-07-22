@@ -410,3 +410,37 @@ footer { font-size: 12px; }
   .leaderboard-row .rank, .leaderboard-row > b { font-size: 15px; }
   footer { padding: 18px 14px; font-size: 11px; text-align: center; }
 }
+
+/* 第一次使用者說明頁 */
+.guide-steps { display: grid; gap: 14px; }
+.guide-step { min-height: 132px; display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 22px; padding: 24px 28px; background: linear-gradient(145deg, #111720, #0b0f15); border: 1px solid var(--line); border-radius: 12px; }
+.guide-step > span { color: var(--red); font: 900 34px/1 var(--font-display); }
+.guide-step h2 { margin: 0 0 8px; font-size: 23px; }
+.guide-step p { max-width: 760px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.75; }
+.guide-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
+.guide-notes article, .guide-quick { padding: 28px; background: #0d1117; border: 1px solid var(--line); border-radius: 12px; }
+.guide-notes h2, .guide-quick h2 { margin: 8px 0 12px; font-size: 24px; }
+.guide-notes ul { margin: 0; padding-left: 22px; color: #c5cbd4; }
+.guide-notes li { margin: 10px 0; font-size: 15px; line-height: 1.65; }
+.guide-quick { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 16px; }
+.guide-quick p:not(.kicker) { margin: 0; color: var(--muted); font-size: 15px; }
+
+@media (max-width: 900px) {
+  .hero-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 420px; }
+  .hero-stats span { max-width: 90px; font-size: 14px; }
+  .guide-notes { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .hero-actions { display: grid; grid-template-columns: 1fr; }
+  .hero-stats { width: 100%; max-width: 330px; gap: 22px 14px; }
+  .hero-stats div { align-items: center; }
+  .hero-stats b { font-size: 38px; }
+  .guide-step { min-height: 0; grid-template-columns: 48px 1fr; align-items: start; gap: 12px; padding: 20px 16px; }
+  .guide-step > span { padding-top: 3px; font-size: 28px; }
+  .guide-step h2 { font-size: 20px; }
+  .guide-step p { font-size: 15px; }
+  .guide-notes article, .guide-quick { padding: 22px 18px; }
+  .guide-quick { align-items: stretch; flex-direction: column; }
+  .guide-quick .button { width: 100%; }
+}

@@ -20,8 +20,9 @@ export function homeView(tournamentCount, isAdmin = false) {
         <div class="hero-actions">
           <button class="button button-primary" data-route="${isAdmin ? 'manage' : 'control'}">${isAdmin ? '建立新賽事' : '主辦方登入'} ${icons.arrow}</button>
           <button class="button button-secondary" data-route="scoreboard">開啟記分板</button>
+          <button class="button button-secondary" data-route="guide">第一次使用？</button>
         </div>
-        <div class="hero-stats"><div><b>${String(tournamentCount).padStart(2, '0')}</b><span>已建立賽事</span></div><div><b>02</b><span>支援賽制</span></div><div><b>∞</b><span>對戰熱情</span></div></div>
+        <div class="hero-stats"><div><b>${String(tournamentCount).padStart(2, '0')}</b><span>已建立賽事</span></div><div><b>02</b><span>支援賽制</span></div><div><b>32</b><span>最多參賽人數</span></div><div><b>∞</b><span>對戰熱情</span></div></div>
       </div>
       <div class="arena-visual" aria-hidden="true">
         <div class="arena-grid"></div><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>

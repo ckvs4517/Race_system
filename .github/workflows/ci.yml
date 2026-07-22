@@ -33,6 +33,7 @@ jobs:
           node tests/navigation.test.mjs
           node tests/sync.test.mjs
           node tests/responsive-ui.test.mjs
+          node tests/guide.test.mjs
 
       - name: Test all formats from 2 to 32 players
         shell: bash
