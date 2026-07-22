@@ -30,7 +30,13 @@ export function shell(route, content, state = {}) {
       <div class="topbar-actions"><div class="system-state"><span></span> ${syncLabel}</div>${state.isAdmin ? '<button class="topbar-logout" data-action="logout-admin">登出</button>' : ''}</div>
     </header>
     <main>${content}</main>
-    <footer><span>SPIN LEAGUE © 2026</span><span>CLOUD SYNC · ${icons.bolt} READY</span></footer>
+    <footer>
+      <span>SPIN LEAGUE © 2026</span>
+      <div class="footer-links">
+        <a class="footer-github" href="https://github.com/ckvs4517/Race_system" target="_blank" rel="noopener noreferrer" aria-label="在新分頁開啟 GitHub 專案">GitHub 專案 ↗</a>
+        <span>CLOUD SYNC · ${icons.bolt} READY</span>
+      </div>
+    </footer>
   `;
 }
 

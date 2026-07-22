@@ -267,6 +267,9 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 
 footer { min-height: 62px; display: flex; justify-content: space-between; align-items: center; padding: 0 max(4vw, 28px); color: #555f6f; border-top: 1px solid var(--line); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; }
 footer span { display: flex; align-items: center; gap: 5px; }footer svg { color: var(--red); }
+.footer-links { display: flex; align-items: center; gap: 14px; }
+.footer-github { display: inline-flex; min-height: 44px; align-items: center; padding: 0 7px; color: #697384; text-decoration: none; transition: color .2s ease; }
+.footer-github:hover, .footer-github:focus-visible { color: #aeb8c8; }
 
 @media (max-width: 900px) {
   .ambient { display: none; }
@@ -288,7 +291,7 @@ footer span { display: flex; align-items: center; gap: 5px; }footer svg { color:
   .page-section { padding-block: 45px 70px; }.page-header { margin-bottom: 28px; }.page-header .button { width: 100%; }
   .scoreboard { grid-template-columns: 1fr; gap: 13px; }.score-side { min-height: 330px; }.versus { height: 0; }.versus span { width: 44px; height: 44px; }.score-actions { flex-direction: row; }.score-value { font-size: 100px; }.score-toolbar { flex-wrap: wrap; gap: 8px 20px; }.score-toolbar span { order: 3; width: 100%; text-align: center; }
   .form-panel { padding: 22px; }.form-footer { align-items: stretch; flex-direction: column; gap: 16px; }.seed-panel { align-items: flex-start; flex-direction: column; }.seed-list { max-width: 100%; justify-content: flex-start; }.bracket-guide { align-items: flex-start; flex-direction: column; gap: 7px; }.bracket-shell { margin-inline: -15px; border-radius: 0; border-right: 0; border-left: 0; }.match-confirm, .match-administrative { align-items: stretch; flex-direction: column; }.match-confirm .button, .match-administrative .button { width: 100%; }.match-administrative > div:last-child { flex-direction: column; }.participant-list { grid-template-columns: 1fr; }.participant-row:nth-child(odd) { border-right: 0; }.leaderboard-heading { align-items: flex-start; flex-direction: column; gap: 8px; }.leaderboard-table { overflow-x: auto; }.leaderboard-row { min-width: 660px; }
-  footer { flex-direction: column; justify-content: center; gap: 8px; }
+  footer { flex-direction: column; justify-content: center; gap: 8px; }.footer-links { flex-wrap: wrap; justify-content: center; gap: 4px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
