@@ -94,10 +94,8 @@ assert.equal(tournament.swissStage, 'completed');
 assert.ok(tournament.champion);
 assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
 const completedView = scheduleView([tournament], tournament.id, true);
-assert.match(completedView, /勝者組/);
-assert.match(completedView, /敗者組/);
 assert.match(completedView, /TOP 4 FINAL/);
-assert.match(completedView, /swiss-score-group/);
+assert.doesNotMatch(completedView, /勝者組|敗者組|QUALIFIER|ROUND 01/, '四強決賽後不再顯示前面的預賽與資格賽');
 assert.match(completedView, /round-column is-completed/);
 assert.doesNotMatch(completedView, /round-column is-completed[^>]*\sopen/);
 
