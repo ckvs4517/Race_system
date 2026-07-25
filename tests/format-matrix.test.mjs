@@ -7,6 +7,7 @@ import {
   getTournamentStandings,
   recordMatchResult,
   requiredSeedCount,
+  startSwissFinal,
   startTournament,
 } from '../src/domain/tournament.js';
 
@@ -15,6 +16,7 @@ let completedMatches = 0;
 
 for (const format of ['single_elimination', 'swiss']) {
   for (let playerCount = 2; playerCount <= 32; playerCount += 1) {
+    if (format === 'swiss' && playerCount < 4) continue;
     const players = Array.from({ length: playerCount }, (_, index) => `${format}-${playerCount}-${index + 1}`);
     let tournament = createTournament(`${playerCount} 人矩陣測試`, players, format, Math.min(8, Math.max(1, Math.ceil(playerCount / 4))));
 
@@ -26,7 +28,11 @@ for (const format of ['single_elimination', 'swiss']) {
     let safety = 0;
     while (tournament.status === '進行中') {
       assert.ok(safety++ < 200, `${format} ${playerCount} 人賽程必須可以結束`);
-      const roundIndex = tournament.rounds.length - 1;
+      if (format === 'swiss' && tournament.swissStage === 'qualification') {
+        const finalists = getTournamentStandings(tournament).slice(0, Math.min(4, playerCount)).map((row) => row.player);
+        tournament = startSwissFinal(tournament, finalists);
+      }
+      const roundIndex = tournament.rounds.findIndex((round) => round.matches.some((match) => match.status === '可開始'));
       const playableIds = tournament.rounds[roundIndex].matches
         .filter((match) => match.status === '可開始')
         .map((match) => match.id);
@@ -49,14 +55,14 @@ for (const format of ['single_elimination', 'swiss']) {
     if (format === 'single_elimination') {
       assert.equal(buildRounds(tournament).length, Math.ceil(Math.log2(playerCount)), `${playerCount} 人單淘汰輪數正確`);
     } else {
-      assert.equal(tournament.rounds.length, Math.max(2, Math.ceil(Math.log2(playerCount))), `${playerCount} 人瑞士輪數正確`);
+      assert.equal(tournament.rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length, 4, `${playerCount} 人瑞士預賽固定四輪`);
     }
     completedTournaments += 1;
   }
 }
 
-assert.throws(() => createTournament('人數不足', ['A']), /2 至 32/);
-assert.throws(() => createTournament('人數超過', Array.from({ length: 33 }, (_, index) => `P${index}`)), /2 至 32/);
+assert.throws(() => startTournament(createTournament('人數不足', ['A'])), /2 至 32/);
+assert.throws(() => createTournament('人數超過', Array.from({ length: 33 }, (_, index) => `P${index}`)), /不可超過 32/);
 assert.throws(() => createTournament('重複名稱', ['A', 'A']), /不可重複/);
 assert.throws(() => createTournament('台數不足', ['A', 'B'], 'single_elimination', 0), /1 至 8/);
 assert.throws(() => createTournament('台數超過', ['A', 'B'], 'single_elimination', 9), /1 至 8/);

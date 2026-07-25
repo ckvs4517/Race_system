@@ -21,7 +21,7 @@ export function requiredSeedCount(tournamentOrPlayers) {
 export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}) {
   // 奇數單淘汰需先抽種子，因此建立時暫不產生首輪；其他情況可立即預覽。
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
-  validatePlayers(cleanPlayers);
+  validateDraftPlayers(cleanPlayers);
   const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
   const seedCount = format.initialSeedCount(cleanPlayers);
@@ -38,7 +38,9 @@ export function createTournament(name, players, formatId = 'single_elimination',
     status: '準備中',
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
     participantStates: createParticipantStates(cleanPlayers),
-    rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
+    rounds: seedCount || cleanPlayers.length < 2 ? [] : [format.createOpeningRound(cleanPlayers)],
+    registrationSettings: createRegistrationSettings(),
+    ...(format.initialState?.() || {}),
   };
 }
 
@@ -50,7 +52,7 @@ export function duplicateTournament(tournament) {
 export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}) {
   if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
-  validatePlayers(cleanPlayers);
+  validateDraftPlayers(cleanPlayers);
   const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
   const seedCount = format.initialSeedCount(cleanPlayers);
@@ -65,9 +67,10 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
     seedPlayerIndexes: [],
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
     participantStates: createParticipantStates(cleanPlayers),
-    rounds: seedCount ? [] : [format.createOpeningRound(cleanPlayers)],
+    rounds: seedCount || cleanPlayers.length < 2 ? [] : [format.createOpeningRound(cleanPlayers)],
     seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
+    ...(format.initialState?.() || {}),
   };
 }
 
@@ -107,7 +110,7 @@ export function randomizeDraftTournament(tournament, random = Math.random) {
     players,
     seedPlayerIndexes: [],
     totalRounds: format.totalRounds?.(players) || null,
-    rounds: seedCount ? [] : [format.createOpeningRound(players)],
+    rounds: seedCount || players.length < 2 ? [] : [format.createOpeningRound(players)],
     seedDrawnAt: null,
     randomizedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -118,14 +121,18 @@ export function startTournament(tournament) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (normalized.status !== '準備中') throw new Error('這場賽事已經開始或完成。');
+  validatePlayers(normalized.players);
+  if (format.id === 'swiss' && normalized.players.length < 4) throw new Error('四輪瑞士制至少需要 4 位選手。');
   if (normalized.seedPlayerIndexes.length !== format.initialSeedCount(normalized.players)) {
     throw new Error('請先完成種子選手抽選再開始賽事。');
   }
+  const openingRound = normalized.rounds[0] || format.createOpeningRound(normalized.players);
   const stats = format.initializeStats(normalized.players);
   return {
     ...normalized,
     status: '進行中',
-    playerStats: format.activateOpeningRound(normalized.rounds[0], stats),
+    rounds: normalized.rounds.length ? normalized.rounds : [openingRound],
+    playerStats: format.activateOpeningRound(openingRound, stats),
     startedAt: new Date().toISOString(),
   };
 }
@@ -139,8 +146,12 @@ export function normalizeTournament(tournament) {
       format: format.id,
       arenaCount: normalizeStoredArenaCount(tournament.arenaCount),
       eventInfo: normalizeEventInfo(tournament.eventInfo),
-      totalRounds: tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
+      totalRounds: format.id === 'swiss' && tournament.swissVersion === 2
+        ? format.totalRounds(tournament.players || [])
+        : tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
       participantStates: normalizeParticipantStates(tournament.players || [], tournament.participantStates),
+      registrationSettings: normalizeRegistrationSettings(tournament.registrationSettings),
+      ...(format.id === 'swiss' && tournament.status === '準備中' && tournament.swissVersion !== 2 ? format.initialState() : {}),
     };
   }
 
@@ -177,6 +188,37 @@ export function getTournamentStandings(tournament) {
   return getTournamentFormat(normalized.format).getStandings(normalized);
 }
 
+export function getSwissPhaseStandings(tournament, phase) {
+  const normalized = normalizeTournament(tournament);
+  const format = getTournamentFormat(normalized.format);
+  if (format.id !== 'swiss' || !format.getPhaseStandings) return [];
+  return format.getPhaseStandings(normalized, phase);
+}
+
+export function startSwissQualifier(tournament, candidates) {
+  const normalized = normalizeTournament(tournament);
+  const format = getTournamentFormat(normalized.format);
+  if (format.id !== 'swiss' || !format.startQualifier) throw new Error('這場賽事不支援資格加賽。');
+  return format.startQualifier(normalized, candidates);
+}
+
+export function startSwissFinal(tournament, finalists) {
+  const normalized = normalizeTournament(tournament);
+  const format = getTournamentFormat(normalized.format);
+  if (format.id !== 'swiss' || !format.startFinal) throw new Error('這場賽事不支援四強循環決賽。');
+  return format.startFinal(normalized, finalists);
+}
+
+export function updateRegistrationSettings(tournament, settings) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '準備中') throw new Error('賽事開始後不能修改報名設定。');
+  return {
+    ...normalized,
+    registrationSettings: normalizeRegistrationSettings({ ...normalized.registrationSettings, ...settings }),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   // 回退前段比賽時捨棄後續輪次，避免舊勝者污染新的晉級路線。
   const normalized = normalizeTournament(tournament);
@@ -195,12 +237,21 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   delete match.forfeitPlayer;
   delete match.resolutionReason;
   const format = getTournamentFormat(normalized.format);
+  const resetPhase = rounds[roundIndex]?.phase || 'preliminary';
+  const swissStage = normalized.format === 'swiss'
+    ? resetPhase === 'preliminary' ? 'preliminary' : resetPhase
+    : undefined;
   return {
     ...normalized,
     rounds,
     playerStats: format.rebuildStats(normalized.players, rounds),
     champion: null,
     status: '進行中',
+    ...(swissStage ? {
+      swissStage,
+      finalists: swissStage === 'preliminary' ? [] : normalized.finalists,
+      activeQualifierSeriesId: swissStage === 'qualifier' ? round.seriesId : normalized.activeQualifierSeriesId,
+    } : {}),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -303,6 +354,11 @@ function validatePlayers(players) {
   if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
 }
 
+function validateDraftPlayers(players) {
+  if (players.length > 32) throw new Error('參賽者人數不可超過 32 位。');
+  if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
+}
+
 function validateFinalScore(scoreA, scoreB) {
   if (![scoreA, scoreB].every((score) => Number.isInteger(score) && score >= 0)) throw new Error('比分必須是 0 以上的整數。');
   if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');
@@ -344,6 +400,43 @@ function normalizeEventInfo(value = {}) {
     postUrl: cleanEventUrl(info.postUrl, '貼文連結'),
     notes: cleanEventText(info.notes, 2000, '備註'),
   };
+}
+
+function createRegistrationSettings() {
+  return {
+    enabled: false,
+    token: createPublicToken(),
+    capacity: 32,
+    deadline: '',
+    fields: [],
+  };
+}
+
+function normalizeRegistrationSettings(value = {}) {
+  const settings = value && typeof value === 'object' ? value : {};
+  const capacity = Number(settings.capacity);
+  const fields = Array.isArray(settings.fields) ? settings.fields
+    .filter((field) => field && typeof field === 'object' && typeof field.id === 'string' && typeof field.label === 'string')
+    .slice(0, 20)
+    .map((field) => ({
+      id: field.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40),
+      label: field.label.slice(0, 80),
+      type: ['text', 'textarea', 'checkbox'].includes(field.type) ? field.type : 'text',
+      required: Boolean(field.required),
+    }))
+    .filter((field) => field.id && field.label) : [];
+  return {
+    enabled: Boolean(settings.enabled),
+    token: typeof settings.token === 'string' && settings.token.length >= 16 ? settings.token : createPublicToken(),
+    capacity: Number.isInteger(capacity) && capacity >= 2 && capacity <= 32 ? capacity : 32,
+    deadline: typeof settings.deadline === 'string' ? settings.deadline.slice(0, 30) : '',
+    fields,
+  };
+}
+
+function createPublicToken() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replaceAll('-', '');
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 }
 
 function cleanEventText(value, maximumLength, label) {

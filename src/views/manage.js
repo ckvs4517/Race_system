@@ -41,11 +41,11 @@ export function manageView(tournament = null) {
           <label class="field"><span>原始貼文連結</span><input name="postUrl" type="url" maxlength="500" value="${escapeAttribute(eventInfo.postUrl || '')}" placeholder="https://www.instagram.com/..."></label>
         </div>
         <label class="field"><span>活動備註</span><textarea class="event-notes" name="notes" maxlength="2000" placeholder="可貼上禁用清單、報名費、參賽規則、獎品及其他注意事項。">${escapeText(eventInfo.notes || '')}</textarea><small>保留換行，最多 2,000 字。</small></label>
-        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>一行輸入一位，支援 2–32 位</small></div></div>
-        <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼" required>${escapeText(playerText)}</textarea></label>
+        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>可先留空開放線上報名，或一行手動輸入一位，最多 32 位</small></div></div>
+        <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼">${escapeText(playerText)}</textarea></label>
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立預覽賽程'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>兩種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：每輪依目前排名配對，盡量避免重複對手，完成指定輪數後依戰績排名。</p><ul><li><i></i>支援 2 至 32 位選手</li><li><i></i>支援 1 至 8 台戰鬥台</li><li><i></i>每輪對戰平均分配到各台</li><li><i></i>瑞士制自動安排後續對戰</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>兩種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；主辦方可直接確認四強，或先建立資格積分決定賽，再進行前四循環決賽。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>支援 2 至 32 位正式名單</li><li><i></i>支援 1 至 8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
 }
@@ -60,7 +60,7 @@ export function bindManage(root, options) {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const playerList = getPlayers();
-    if (playerList.length < 2 || playerList.length > 32) return alert('參賽者人數需要介於 2 至 32 位。');
+    if (playerList.length > 32) return alert('參賽者人數不可超過 32 位。');
     try {
       const eventInfo = {
         date: form.elements.eventDate.value,

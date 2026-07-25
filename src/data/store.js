@@ -9,6 +9,8 @@ let state = {
   selectedTournamentId: null,
   selectedMatch: null,
   editingTournamentId: null,
+  registrationTournamentId: null,
+  registrations: [],
   isAdmin: false,
   loading: true,
   syncStatus: 'idle',
@@ -190,6 +192,47 @@ export async function replaceTournamentRecords(tournaments) {
   }
 }
 
+export async function loadTournamentRegistrations(tournamentId) {
+  requireAdmin();
+  const result = await api(`/api/tournaments/${encodeURIComponent(tournamentId)}/registrations`);
+  state.registrationTournamentId = Number(tournamentId);
+  state.registrations = Array.isArray(result.registrations) ? result.registrations : [];
+  notify();
+  return structuredClone(state.registrations);
+}
+
+export async function updateRegistrationRecord(registrationId, status) {
+  requireAdmin();
+  const tournament = state.tournaments.find((item) => item.id === state.registrationTournamentId);
+  try {
+    const result = await api(`/api/registrations/${encodeURIComponent(registrationId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, expectedRevision: Number(tournament?.revision) || 0 }),
+    });
+    if (result.tournament) replaceTournament(result.tournament);
+    state.registrations = state.registrations.map((item) => item.id === registrationId ? result.registration : item);
+    state.syncStatus = 'saved';
+    state.error = null;
+    notify();
+    return structuredClone(result);
+  } catch (error) {
+    if (error.status === 409 && error.payload?.tournament) replaceTournament(error.payload.tournament);
+    handleSaveError(error);
+    throw error;
+  }
+}
+
+export async function getPublicRegistration(tournamentId, token) {
+  return api(`/api/public/registrations/${encodeURIComponent(tournamentId)}/${encodeURIComponent(token)}`);
+}
+
+export async function submitPublicRegistration(tournamentId, token, registration) {
+  return api(`/api/public/registrations/${encodeURIComponent(tournamentId)}/${encodeURIComponent(token)}`, {
+    method: 'POST',
+    body: JSON.stringify(registration),
+  });
+}
+
 export async function loginAdmin(pin) {
   const result = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ pin }) });
   sessionStorage.setItem(AUTH_KEY, result.token);
@@ -202,6 +245,8 @@ export function logoutAdmin() {
   sessionStorage.removeItem(AUTH_KEY);
   state.isAdmin = false;
   state.editingTournamentId = null;
+  state.registrationTournamentId = null;
+  state.registrations = [];
   notify();
 }
 

@@ -10,7 +10,7 @@ assert.match(home, /data-route="guide"/, '首頁提供第一次使用入口');
 
 const guide = guideView(false);
 assert.match(guide, /五步完成一場賽事/, '說明頁提供五步流程');
-assert.match(guide, /2～32 位選手/, '說明頁說明參賽人數範圍');
+assert.match(guide, /單淘汰支援 2～32 位，瑞士制支援 4～32 位/, '說明頁說明兩種賽制的人數範圍');
 assert.match(guide, /未出席或中途退賽成立後不可恢復/, '說明頁標示不可逆退賽規則');
 assert.match(shell('guide', guide, { isAdmin: false }), /nav-item active[^>]*data-route="guide"/, '導覽列可開啟並標示使用說明頁');
 

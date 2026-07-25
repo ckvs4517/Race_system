@@ -3,8 +3,8 @@
  * 協調路由、狀態、畫面與事件；賽制規則放在 domain/formats，雲端存取放在 data/store。
  */
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
-import { createTournamentRecord, deleteTournamentRecord, getState, initializeStore, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, subscribe, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, withdrawPlayer } from './domain/tournament.js';
+import { createTournamentRecord, deleteTournamentRecord, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
+import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startSwissFinal, startSwissQualifier, startTournament, updateRegistrationSettings, withdrawPlayer } from './domain/tournament.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { guideView } from './views/guide.js';
@@ -13,8 +13,11 @@ import { manageView, bindManage } from './views/manage.js';
 import { scheduleView } from './views/schedule.js';
 import { bindControl, controlView } from './views/control.js';
 import { bindDataManagement, dataManagementView } from './views/data-management.js';
+import { bindPublicRegistration, registrationView } from './views/registration.js';
+import { bindRegistrationAdmin, registrationAdminView } from './views/registration-admin.js';
 
 const app = document.querySelector('#app');
+let publicRegistrationState = { key: '', loading: false, data: null, error: '', success: false };
 
 function render() {
   // 每次狀態或網址改變都重新產生畫面，再綁定該頁需要的事件。
@@ -37,6 +40,19 @@ function render() {
   }
   if (route === 'control') view = controlView(state.isAdmin, state.error);
   if (route === 'data') view = state.isAdmin ? dataManagementView(state.tournaments) : controlView(false, '請先登入主辦方後台。');
+  if (route === 'registration') view = state.isAdmin
+    ? registrationAdminView(state.tournaments, state.registrationTournamentId, state.registrations)
+    : controlView(false, '請先登入主辦方後台。');
+  if (route === 'register') {
+    const params = registrationRouteParams();
+    const key = params ? `${params.tournamentId}/${params.token}` : '';
+    if (key && publicRegistrationState.key !== key) {
+      publicRegistrationState = { key, loading: true, data: null, error: '', success: false };
+      queueMicrotask(() => loadPublicRegistration(params));
+    }
+    if (!key) publicRegistrationState = { key: '', loading: false, data: null, error: '報名連結格式不正確。', success: false };
+    view = registrationView(publicRegistrationState);
+  }
   if (route === 'schedule') {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const matchSelection = state.selectedMatch;
@@ -61,6 +77,9 @@ function render() {
   if (route === 'control') bindControlEvents();
   if (route === 'data' && state.isAdmin) bindDataManagementEvents(state);
   if (route === 'data' && !state.isAdmin) bindControlEvents();
+  if (route === 'registration' && state.isAdmin) bindRegistrationAdminEvents(state);
+  if (route === 'registration' && !state.isAdmin) bindControlEvents();
+  if (route === 'register') bindPublicRegistrationEvents();
   if (route === 'schedule') bindScheduleEvents(state);
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -80,6 +99,65 @@ function bindDataManagementEvents(state) {
       }
     },
   });
+}
+
+function bindRegistrationAdminEvents(state) {
+  bindRegistrationAdmin(app, {
+    onSelect: async (tournamentId) => {
+      try {
+        await loadTournamentRegistrations(tournamentId);
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    onBack: () => {
+      updateState((current) => ({ ...current, registrationTournamentId: null, registrations: [] }));
+    },
+    onSaveSettings: async (settings) => {
+      try {
+        const tournamentId = state.registrationTournamentId;
+        await mutateTournament(tournamentId, (tournament) => updateRegistrationSettings(tournament, settings));
+        render();
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    onStatus: async (registrationId, status) => {
+      const label = { approved: '核准並加入正式名單', waitlist: '設為候補', rejected: '拒絕' }[status] || status;
+      if (!confirm(`確定要將這筆報名「${label}」嗎？`)) return;
+      try {
+        await updateRegistrationRecord(registrationId, status);
+        render();
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+  });
+}
+
+function bindPublicRegistrationEvents() {
+  const params = registrationRouteParams();
+  if (!params) return;
+  bindPublicRegistration(app, async (registration) => {
+    await submitPublicRegistration(params.tournamentId, params.token, registration);
+    publicRegistrationState = { ...publicRegistrationState, loading: false, success: true, error: '' };
+    render();
+  });
+}
+
+async function loadPublicRegistration(params) {
+  try {
+    const data = await getPublicRegistration(params.tournamentId, params.token);
+    publicRegistrationState = { ...publicRegistrationState, loading: false, data, error: '' };
+  } catch (error) {
+    publicRegistrationState = { ...publicRegistrationState, loading: false, data: null, error: error.message };
+  }
+  render();
+}
+
+function registrationRouteParams() {
+  const match = location.hash.match(/^#register\/([^/]+)\/([^/]+)$/);
+  return match ? { tournamentId: decodeURIComponent(match[1]), token: decodeURIComponent(match[2]) } : null;
 }
 
 function bindControlEvents() {
@@ -208,6 +286,18 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定將「${player}」標記為${label}嗎？\n若已有尚未進行的對戰，對手將以 4：0 不戰勝。`)) return;
     updateParticipantStatus(tournament.id, player, status);
   }));
+  app.querySelector('[data-swiss-qualifier-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const candidates = [...event.currentTarget.querySelectorAll('input[name="candidate"]:checked')].map((input) => input.value);
+    if (!confirm(`確定為選取的 ${candidates.length} 位選手建立資格積分決定賽嗎？`)) return;
+    beginSwissQualifier(state.selectedTournamentId, candidates);
+  });
+  app.querySelector('[data-swiss-final-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const finalists = [...event.currentTarget.querySelectorAll('input[name="finalist"]:checked')].map((input) => input.value);
+    if (!confirm(`確定由這 ${finalists.length} 位選手進入前四循環決賽嗎？`)) return;
+    beginSwissFinal(state.selectedTournamentId, finalists);
+  });
   app.querySelector('[data-action="start-tournament"]')?.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     if (!confirm(`確定開始「${tournament.name}」嗎？\n開始後將鎖定 ${tournament.players.length} 位參賽者，無法再編輯名單。`)) return;
@@ -229,6 +319,24 @@ function bindScheduleEvents(state) {
     selectTournament(null);
     render();
   });
+}
+
+async function beginSwissQualifier(tournamentId, candidates) {
+  try {
+    await mutateTournament(tournamentId, (tournament) => startSwissQualifier(tournament, candidates));
+    render();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function beginSwissFinal(tournamentId, finalists) {
+  try {
+    await mutateTournament(tournamentId, (tournament) => startSwissFinal(tournament, finalists));
+    render();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function escapeText(value) {

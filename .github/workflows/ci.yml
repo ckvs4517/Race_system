@@ -29,6 +29,7 @@ jobs:
           set -euo pipefail
           node tests/swiss.test.mjs
           node tests/api.test.mjs
+          node tests/registration.test.mjs
           node tests/data-management.test.mjs
           node tests/navigation.test.mjs
           node tests/sync.test.mjs

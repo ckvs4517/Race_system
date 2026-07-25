@@ -9,6 +9,8 @@ import {
   recordMatchResult,
   requiredSeedCount,
   resetCompletedMatch,
+  startSwissFinal,
+  startSwissQualifier,
   startTournament,
   updateDraftTournament,
   withdrawPlayer,
@@ -20,7 +22,7 @@ const players = Array.from({ length: 8 }, (_, index) => `選手 ${index + 1}`);
 let tournament = createTournament('八人瑞士賽', players, 'swiss');
 
 assert.equal(tournament.format, 'swiss');
-assert.equal(tournament.totalRounds, 3);
+assert.equal(tournament.totalRounds, 4);
 assert.equal(requiredSeedCount(tournament), 0);
 assert.equal(tournament.rounds.length, 1);
 assert.equal(tournament.rounds[0].matches.length, 4);
@@ -32,24 +34,34 @@ tournament = startTournament(tournament);
 assert.match(scheduleView([tournament], tournament.id, true), /瑞士制/);
 assert.match(scheduleView([tournament], tournament.id, true), /LIVE STANDINGS/);
 
-while (tournament.status === '進行中') {
-  const roundIndex = tournament.rounds.length - 1;
-  const matchIds = tournament.rounds[roundIndex].matches.filter((match) => match.status === '可開始').map((match) => match.id);
-  for (const [index, matchId] of matchIds.entries()) {
-    const matchIndex = tournament.rounds[roundIndex].matches.findIndex((match) => match.id === matchId);
-    tournament = recordMatchResult(tournament, roundIndex, matchIndex, 10, index);
-  }
-}
+while (tournament.swissStage === 'preliminary') tournament = finishCurrentRound(tournament);
+assert.equal(tournament.status, '進行中');
+assert.equal(tournament.swissStage, 'qualification');
+assert.equal(tournament.rounds.length, 4);
+assert.equal(tournament.champion, null);
+assertNoRepeatedPairings(tournament.rounds);
+assert.match(scheduleView([tournament], tournament.id, true), /四強資格確認/);
 
+const preliminary = getTournamentStandings(tournament);
+assert.ok(preliminary.every((row) => Number.isInteger(row.totalPoints)), '排行榜列出總得分');
+const qualifierPlayers = preliminary.slice(2, 6).map((row) => row.player);
+tournament = startSwissQualifier(tournament, qualifierPlayers);
+assert.equal(tournament.swissStage, 'qualifier');
+while (tournament.swissStage === 'qualifier') tournament = finishCurrentRound(tournament);
+assert.equal(tournament.swissStage, 'qualification');
+
+const finalists = preliminary.slice(0, 4).map((row) => row.player);
+tournament = startSwissFinal(tournament, finalists);
+assert.equal(tournament.swissStage, 'final');
+while (tournament.swissStage === 'final') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '已完成');
-assert.equal(tournament.rounds.length, 3);
+assert.equal(tournament.swissStage, 'completed');
 assert.ok(tournament.champion);
 assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
-assertNoRepeatedPairings(tournament.rounds);
 const completedView = scheduleView([tournament], tournament.id, true);
 assert.match(completedView, /勝者組/);
 assert.match(completedView, /敗者組/);
-assert.match(completedView, /2 勝組/);
+assert.match(completedView, /TOP 4 FINAL/);
 assert.match(completedView, /swiss-score-group/);
 
 const reset = resetCompletedMatch(tournament, 0, 0);
@@ -75,7 +87,7 @@ assert.ok(!swissWithdrawal.rounds[1].matches.some((match) => [match.playerA, mat
 let changed = createTournament('切換賽制', ['A', 'B', 'C', 'D']);
 changed = updateDraftTournament(changed, changed.name, changed.players, 'swiss');
 assert.equal(changed.format, 'swiss');
-assert.equal(changed.totalRounds, 2);
+assert.equal(changed.totalRounds, 4);
 assert.match(manageView(changed), /option value="swiss" selected/);
 assert.match(manageView(), /瑞士制/);
 assert.match(manageView(), /name="arenaCount"/);
@@ -95,7 +107,7 @@ console.log('PASS Swiss format');
 
 function finishCurrentRound(source) {
   let result = source;
-  const roundIndex = result.rounds.length - 1;
+  const roundIndex = result.rounds.findIndex((round) => round.matches.some((match) => match.status === '可開始'));
   const matchIds = result.rounds[roundIndex].matches.filter((match) => match.status === '可開始').map((match) => match.id);
   matchIds.forEach((id, index) => {
     const matchIndex = result.rounds[roundIndex].matches.findIndex((match) => match.id === id);

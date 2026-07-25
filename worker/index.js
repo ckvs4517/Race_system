@@ -10,6 +10,85 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
+      const publicRegistration = publicRegistrationFromPath(url.pathname);
+      if (publicRegistration && request.method === 'GET') {
+        const tournament = await readTournament(env.DB, publicRegistration.tournamentId);
+        const accessError = validatePublicRegistrationAccess(tournament, publicRegistration.token);
+        if (accessError) return json({ error: accessError }, accessError === '找不到這場報名活動。' ? 404 : 400);
+        const countRow = await env.DB.prepare("SELECT COUNT(*) AS count FROM registrations WHERE tournament_id = ? AND status IN ('pending', 'waitlist')")
+          .bind(publicRegistration.tournamentId).first();
+        return json({
+          tournament: publicRegistrationSummary(tournament),
+          registrationCount: tournament.players.length + (Number(countRow?.count) || 0),
+        });
+      }
+
+      if (publicRegistration && request.method === 'POST') {
+        const tournament = await readTournament(env.DB, publicRegistration.tournamentId);
+        const accessError = validatePublicRegistrationAccess(tournament, publicRegistration.token);
+        if (accessError) return json({ error: accessError }, accessError === '找不到這場報名活動。' ? 404 : 400);
+        const payload = await request.json();
+        if (payload.website) return json({ ok: true });
+        const registration = validateRegistration(payload, tournament);
+        const countRow = await env.DB.prepare("SELECT COUNT(*) AS count FROM registrations WHERE tournament_id = ? AND status IN ('pending', 'waitlist')")
+          .bind(publicRegistration.tournamentId).first();
+        if (tournament.players.length + (Number(countRow?.count) || 0) >= tournament.registrationSettings.capacity) return json({ error: '這場賽事的報名名額已滿。' }, 409);
+        await env.DB.prepare(`INSERT INTO registrations
+          (id, tournament_id, display_name, phone, notes, answers, dedupe_key, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+          .bind(registration.id, publicRegistration.tournamentId, registration.displayName, registration.phone, registration.notes, JSON.stringify(registration.answers), registration.dedupeKey).run();
+        return json({ registration: { ...registration, status: 'pending' } }, 201);
+      }
+
+      const adminRegistrationTournamentId = registrationListTournamentId(url.pathname);
+      if (adminRegistrationTournamentId && request.method === 'GET') {
+        if (!(await isAuthorized(request, env))) return json({ error: '後台登入已失效，請重新登入。' }, 401);
+        const result = await env.DB.prepare('SELECT id, tournament_id, display_name, phone, notes, answers, status, created_at, updated_at FROM registrations WHERE tournament_id = ? ORDER BY created_at ASC')
+          .bind(adminRegistrationTournamentId).all();
+        return json({ registrations: result.results.map(mapRegistrationRow) });
+      }
+
+      const registrationId = registrationIdFromPath(url.pathname);
+      if (registrationId && request.method === 'PUT') {
+        if (!(await isAuthorized(request, env))) return json({ error: '後台登入已失效，請重新登入。' }, 401);
+        const payload = await request.json();
+        const status = String(payload.status || '');
+        if (!['approved', 'waitlist', 'rejected'].includes(status)) return json({ error: '不支援的報名狀態。' }, 400);
+        const row = await env.DB.prepare('SELECT id, tournament_id, display_name, phone, notes, answers, status, created_at, updated_at FROM registrations WHERE id = ?')
+          .bind(registrationId).first();
+        if (!row) return json({ error: '找不到這筆報名。' }, 404);
+        if (status !== 'approved') {
+          await env.DB.prepare('UPDATE registrations SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(status, registrationId).run();
+          return json({ registration: { ...mapRegistrationRow(row), status } });
+        }
+
+        const tournament = await readTournament(env.DB, row.tournament_id);
+        const expectedRevision = Number(payload.expectedRevision);
+        if (!tournament || tournament.status !== '準備中') return json({ error: '只有準備中的賽事可以核准報名。' }, 409);
+        if (!Number.isInteger(expectedRevision) || tournament.revision !== expectedRevision) return json({ error: '賽事名單已更新，請重新整理。', tournament }, 409);
+        if (tournament.players.includes(row.display_name)) {
+          await env.DB.prepare("UPDATE registrations SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(registrationId).run();
+          return json({ registration: { ...mapRegistrationRow(row), status: 'approved' }, tournament });
+        }
+        if (tournament.players.length >= 32) return json({ error: '正式名單已達 32 人上限。', tournament }, 409);
+        const nextTournament = withRevision(validateTournament({
+          ...withoutRevision(tournament),
+          players: [...tournament.players, row.display_name],
+          rounds: [],
+          seedPlayerIndexes: [],
+          seedDrawnAt: null,
+          participantStates: {
+            ...(tournament.participantStates || {}),
+            [row.display_name]: { status: 'active' },
+          },
+        }), expectedRevision + 1);
+        const tournamentResult = await env.DB.prepare('UPDATE tournaments SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND revision = ?')
+          .bind(JSON.stringify(withoutRevision(nextTournament)), nextTournament.revision, String(tournament.id), expectedRevision).run();
+        if (!changedRows(tournamentResult)) return json({ error: '賽事名單已更新，請重新整理。', tournament: await readTournament(env.DB, tournament.id) }, 409);
+        await env.DB.prepare("UPDATE registrations SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(registrationId).run();
+        return json({ registration: { ...mapRegistrationRow(row), status: 'approved' }, tournament: nextTournament });
+      }
+
       if (url.pathname === '/api/tournaments' && request.method === 'GET') {
         const result = await env.DB.prepare('SELECT data, revision FROM tournaments ORDER BY updated_at DESC').all();
         const tournaments = result.results.map((row) => ({ ...JSON.parse(row.data), revision: Number(row.revision) || 0 }));
@@ -90,6 +169,8 @@ export default {
 
       return json({ error: '找不到此 API。' }, 404);
     } catch (error) {
+      if (String(error?.message || '').includes('UNIQUE')) return json({ error: '這位選手已經送出過報名。' }, 409);
+      if (String(error?.message || '').startsWith('Invalid registration:')) return json({ error: String(error.message).slice(22) }, 400);
       console.error(error);
       return json({ error: '伺服器發生錯誤，請稍後再試。' }, 500);
     }
@@ -100,7 +181,7 @@ function validateTournament(value) {
   if (!value || typeof value !== 'object') throw new Error('Invalid tournament');
   if (!Number.isFinite(Number(value.id))) throw new Error('Invalid tournament id');
   if (typeof value.name !== 'string' || value.name.length < 1 || value.name.length > 80) throw new Error('Invalid tournament name');
-  if (!Array.isArray(value.players) || value.players.length < 2 || value.players.length > 32) throw new Error('Invalid players');
+  if (!Array.isArray(value.players) || value.players.length > 32 || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');
   if (value.eventInfo != null) {
     if (typeof value.eventInfo !== 'object' || Array.isArray(value.eventInfo)) throw new Error('Invalid event info');
     const limits = { date: 10, checkInStart: 5, checkInEnd: 5, startTime: 5, venueName: 80, address: 160, mapUrl: 500, postUrl: 500, notes: 2000 };
@@ -108,7 +189,98 @@ function validateTournament(value) {
       if (value.eventInfo[key] != null && (typeof value.eventInfo[key] !== 'string' || value.eventInfo[key].length > limit)) throw new Error(`Invalid event info: ${key}`);
     }
   }
+  if (value.registrationSettings != null) {
+    const settings = value.registrationSettings;
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid registration settings');
+    if (typeof settings.token !== 'string' || settings.token.length < 16 || settings.token.length > 100) throw new Error('Invalid registration token');
+    if (!Number.isInteger(Number(settings.capacity)) || Number(settings.capacity) < 2 || Number(settings.capacity) > 32) throw new Error('Invalid registration capacity');
+    if (typeof settings.deadline !== 'string' || settings.deadline.length > 30) throw new Error('Invalid registration deadline');
+    if (!Array.isArray(settings.fields) || settings.fields.length > 20) throw new Error('Invalid registration fields');
+  }
   return value;
+}
+
+function validateRegistration(payload, tournament) {
+  const displayName = cleanRegistrationText(payload.displayName, 60, '請輸入選手名稱。');
+  const phone = cleanRegistrationText(payload.phone, 40, '請輸入聯絡電話。');
+  const notes = cleanOptionalRegistrationText(payload.notes, 500, '備註內容過長。');
+  const answers = {};
+  const suppliedAnswers = payload.answers && typeof payload.answers === 'object' && !Array.isArray(payload.answers) ? payload.answers : {};
+  for (const field of tournament.registrationSettings.fields || []) {
+    const raw = suppliedAnswers[field.id];
+    const value = field.type === 'checkbox' ? Boolean(raw) : cleanOptionalRegistrationText(raw, field.type === 'textarea' ? 1000 : 200, `${field.label}內容過長。`);
+    if (field.required && (value === '' || value === false)) throw new Error(`Invalid registration:請填寫${field.label}。`);
+    answers[field.id] = value;
+  }
+  return {
+    id: crypto.randomUUID(),
+    displayName,
+    phone,
+    notes,
+    answers,
+    dedupeKey: `${displayName.toLocaleLowerCase('zh-Hant')}|${phone.replace(/\s+/g, '')}`,
+  };
+}
+
+function cleanRegistrationText(value, maximumLength, missingMessage) {
+  const text = String(value || '').trim();
+  if (!text) throw new Error(`Invalid registration:${missingMessage}`);
+  if (text.length > maximumLength) throw new Error(`Invalid registration:${missingMessage.replace('請輸入', '').replace('。', '')}內容過長。`);
+  return text;
+}
+
+function cleanOptionalRegistrationText(value, maximumLength, longMessage) {
+  const text = String(value || '').trim();
+  if (text.length > maximumLength) throw new Error(`Invalid registration:${longMessage}`);
+  return text;
+}
+
+function validatePublicRegistrationAccess(tournament, token) {
+  if (!tournament || !tournament.registrationSettings || tournament.registrationSettings.token !== token) return '找不到這場報名活動。';
+  if (!tournament.registrationSettings.enabled) return '這場賽事目前沒有開放報名。';
+  if (tournament.status !== '準備中') return '這場賽事已經停止報名。';
+  if (tournament.registrationSettings.deadline && new Date(tournament.registrationSettings.deadline).getTime() < Date.now()) return '這場賽事的報名時間已截止。';
+  return '';
+}
+
+function publicRegistrationSummary(tournament) {
+  return {
+    id: tournament.id,
+    name: tournament.name,
+    eventInfo: tournament.eventInfo || {},
+    capacity: tournament.registrationSettings.capacity,
+    deadline: tournament.registrationSettings.deadline,
+    fields: tournament.registrationSettings.fields || [],
+  };
+}
+
+function mapRegistrationRow(row) {
+  return {
+    id: row.id,
+    tournamentId: row.tournament_id,
+    displayName: row.display_name,
+    phone: row.phone,
+    notes: row.notes,
+    answers: JSON.parse(row.answers || '{}'),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function publicRegistrationFromPath(pathname) {
+  const match = pathname.match(/^\/api\/public\/registrations\/([^/]+)\/([^/]+)$/);
+  return match ? { tournamentId: decodeURIComponent(match[1]), token: decodeURIComponent(match[2]) } : null;
+}
+
+function registrationListTournamentId(pathname) {
+  const match = pathname.match(/^\/api\/tournaments\/([^/]+)\/registrations$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function registrationIdFromPath(pathname) {
+  const match = pathname.match(/^\/api\/registrations\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function tournamentIdFromPath(pathname) {

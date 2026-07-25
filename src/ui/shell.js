@@ -14,7 +14,7 @@ export function shell(route, content, state = {}) {
     ['guide', '使用說明'],
     ['scoreboard', '記分板'],
     ['schedule', '賽程表'],
-    ...(state.isAdmin ? [['control', '管理後台'], ['data', '資料管理']] : [['control', '主辦方登入']]),
+    ...(state.isAdmin ? [['control', '管理後台'], ['registration', '報名管理'], ['data', '資料管理']] : [['control', '主辦方登入']]),
   ];
   return `
     <div class="ambient ambient-one"></div>
@@ -41,5 +41,9 @@ export function shell(route, content, state = {}) {
 }
 
 export function pageHeader(kicker, title, description, action = '') {
-  return `<div class="page-header"><div><p class="kicker">${kicker}</p><h1>${title}</h1><p class="page-description">${description}</p></div>${action}</div>`;
+  return `<div class="page-header"><div><p class="kicker">${escapeText(kicker)}</p><h1>${escapeText(title)}</h1><p class="page-description">${escapeText(description)}</p></div>${action}</div>`;
+}
+
+function escapeText(value) {
+  return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }

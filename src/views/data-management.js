@@ -28,11 +28,11 @@ export function dataManagementView(tournaments) {
       <div class="data-overview-scroll"><div class="data-overview-row data-overview-header"><span>賽事名稱</span><span>參賽者</span><span>對戰數</span><span>已完成</span><span>狀態</span><span>冠軍</span></div>${overviewRows || '<div class="data-overview-empty">目前沒有賽事資料</div>'}</div>
     </section>
     <div class="data-grid">
-      <article class="data-card"><span class="data-card-label">FULL BACKUP</span><h2>完整 JSON 備份</h2><p>包含所有賽事、名單、種子、賽程、比分、統計與冠軍資料，可供日後完整還原。</p><button class="button button-primary" data-action="export-json" ${disabled}>下載完整備份</button></article>
+      <article class="data-card"><span class="data-card-label">TOURNAMENT BACKUP</span><h2>賽事 JSON 備份</h2><p>包含賽事、正式名單、種子、賽程、比分、統計與冠軍；基於個資保護，不包含獨立報名表中的電話與待審核資料。</p><button class="button button-primary" data-action="export-json" ${disabled}>下載賽事備份</button></article>
       <article class="data-card"><span class="data-card-label">EXCEL REPORT</span><h2>CSV 表格</h2><p>依用途分成兩份，避免把重複出現的賽事名稱誤認為多場賽事。</p><div class="data-export-actions"><button class="button button-primary" data-action="export-overview-csv" ${disabled}>下載賽事總覽 CSV</button><small>一列代表一場賽事</small><button class="button button-secondary" data-action="export-matches-csv" ${disabled}>下載對戰明細 CSV</button><small>一列代表一場選手對戰；同一賽事名稱會重複</small></div></article>
       <article class="data-card data-card-warning"><span class="data-card-label">RESTORE</span><h2>從備份還原</h2><p>選擇先前匯出的 Spin League JSON。驗證成功並再次確認後，將取代目前的全部雲端賽事。</p><input type="file" accept="application/json,.json" data-backup-file hidden><button class="button button-secondary" data-action="import-json">選擇備份檔案</button></article>
     </div>
-    <div class="data-notice"><b>安全提醒</b><span>建議每次大型賽事結束後下載一份完整 JSON 備份。匯入前也先匯出現況，方便需要時復原。</span></div>
+    <div class="data-notice"><b>安全提醒</b><span>建議每次大型賽事結束後下載一份賽事 JSON 備份。匯入前也先匯出現況；報名電話與待審核資料不包含在此檔案中。</span></div>
   </section>`;
 }
 
@@ -74,7 +74,7 @@ export function parseBackup(text) {
   if (data?.format !== BACKUP_FORMAT || data?.version !== BACKUP_VERSION || !Array.isArray(data.tournaments)) throw new Error('這不是有效的 Spin League 備份檔案。');
   if (data.tournaments.length > 200) throw new Error('備份包含過多賽事，無法匯入。');
   data.tournaments.forEach((tournament, index) => {
-    if (!tournament || !Number.isFinite(Number(tournament.id)) || typeof tournament.name !== 'string' || !Array.isArray(tournament.players) || tournament.players.length < 2 || tournament.players.length > 32) {
+    if (!tournament || !Number.isFinite(Number(tournament.id)) || typeof tournament.name !== 'string' || !Array.isArray(tournament.players) || tournament.players.length > 32 || (tournament.status !== '準備中' && tournament.players.length < 2)) {
       throw new Error(`第 ${index + 1} 場賽事的資料格式不正確。`);
     }
   });

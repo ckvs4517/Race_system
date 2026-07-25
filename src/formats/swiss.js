@@ -1,18 +1,22 @@
-/** 瑞士制策略：每輪依戰績配對、避開重複對手，並在指定輪數後決定排名。 */
+/** 四輪瑞士制策略：四輪預賽後由主辦方確認四強，必要時可建立資格積分決定賽。 */
 const BYE = '輪空';
+const PRELIMINARY_ROUNDS = 4;
 
 export const swiss = {
   id: 'swiss',
-  name: '瑞士制',
+  name: '瑞士制（四輪＋四強循環）',
+  version: 2,
 
   initialSeedCount() { return 0; },
 
-  totalRounds(players) {
-    return Math.max(2, Math.ceil(Math.log2(players.length)));
-  },
+  totalRounds() { return PRELIMINARY_ROUNDS; },
 
   createOpeningRound(players) {
-    return createRound(players, 1, new Set());
+    return createSwissRound(players, 1, new Set());
+  },
+
+  initialState() {
+    return { swissVersion: 2, swissStage: 'preliminary', qualifierSeriesCount: 0, finalists: [] };
   },
 
   initializeStats(players) {
@@ -26,85 +30,212 @@ export const swiss = {
   },
 
   getStandings(tournament) {
-    // Buchholz（對手分）會隨其他選手戰績改變，因此每次顯示時重新計算。
-    const stats = tournament.playerStats || deriveStats(tournament.players, tournament.rounds);
-    return rankPlayers(tournament.players, stats).map((row, index) => ({
+    const preliminaryRounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary');
+    const preliminaryStats = deriveStats(tournament.players, preliminaryRounds);
+    const preliminary = rankByWins(tournament.players, preliminaryStats);
+
+    if (!tournament.finalists?.length) {
+      return addRanks(preliminary, tournament, (row) => row.wins);
+    }
+
+    const finalRounds = tournament.rounds.filter((round) => round.phase === 'final');
+    const finalStats = deriveStats(tournament.finalists, finalRounds);
+    const finalists = rankByWinsAndPoints(tournament.finalists, finalStats);
+    const finalistSet = new Set(tournament.finalists);
+    const remaining = preliminary.filter((row) => !finalistSet.has(row.player));
+    return [...finalists, ...remaining].map((row, index) => ({
       ...row,
       rank: index + 1,
       isChampion: tournament.champion === row.player,
       participantStatus: tournament.participantStates?.[row.player]?.status || 'active',
+      stage: finalistSet.has(row.player) ? 'final' : 'preliminary',
     }));
   },
 
+  getPhaseStandings(tournament, phase) {
+    const qualifierSeriesId = phase === 'qualifier'
+      ? (tournament.activeQualifierSeriesId || [...tournament.rounds].reverse().find((round) => round.phase === 'qualifier')?.seriesId)
+      : null;
+    const players = phase === 'final'
+      ? tournament.finalists || []
+      : phase === 'qualifier'
+        ? activeSeriesPlayers(tournament)
+        : tournament.players;
+    const rounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === phase
+      && (!qualifierSeriesId || round.seriesId === qualifierSeriesId));
+    const stats = deriveStats(players, rounds);
+    return addRanks(rankByWins(players, stats), tournament, (row) => row.wins);
+  },
+
   rebuildStats(players, rounds) {
-    return deriveStats(players, rounds);
+    return deriveStats(players, rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary'));
   },
 
   recordResult(tournament, roundIndex, matchIndex, scoreA, scoreB) {
     const rounds = structuredClone(tournament.rounds);
-    const stats = structuredClone(tournament.playerStats);
-    Object.keys(stats).forEach((player) => { stats[player] = { ...emptyStats(), ...stats[player], opponents: [...(stats[player].opponents || [])] }; });
     const match = rounds[roundIndex]?.matches[matchIndex];
+    const round = rounds[roundIndex];
     if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法記分。');
-    if (roundIndex !== rounds.length - 1) throw new Error('只能記錄目前輪次的比賽。');
     if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');
 
-    completeMatch(match, stats, scoreA, scoreB);
-    if (!rounds[roundIndex].matches.every((item) => Boolean(item.winner))) return { rounds, playerStats: stats, champion: null };
+    const phase = round.phase || 'preliminary';
+    const activeRoundIndex = rounds.findIndex((item) => item.matches.some((candidate) => candidate.status === '可開始'));
+    if (roundIndex !== activeRoundIndex) throw new Error('只能記錄目前輪次的比賽。');
 
-    const totalRounds = tournament.totalRounds || this.totalRounds(tournament.players);
-    const activePlayers = tournament.players.filter((player) => isPlayerActive(tournament, player));
-    if (rounds.length >= totalRounds || activePlayers.length <= 1) {
-      const rankedPlayers = activePlayers.length ? activePlayers : tournament.players;
-      const champion = rankPlayers(rankedPlayers, stats)[0].player;
-      return { rounds, playerStats: stats, champion };
+    const phasePlayers = phase === 'preliminary'
+      ? tournament.players
+      : phase === 'final'
+        ? tournament.finalists
+        : round.seriesPlayers;
+    const phaseRoundsBefore = rounds.filter((item, index) => index !== roundIndex && (item.phase || 'preliminary') === phase);
+    const stats = deriveStats(phasePlayers, phaseRoundsBefore);
+    completeMatch(match, stats, scoreA, scoreB);
+    if (!round.matches.every((item) => Boolean(item.winner))) {
+      return phase === 'preliminary' ? { rounds, playerStats: deriveStats(tournament.players, rounds), champion: null } : { rounds, champion: null };
     }
 
-    const history = pairingHistory(rounds);
-    const orderedPlayers = rankPlayers(tournament.players, stats).map((row) => row.player)
-      .filter((player) => isPlayerActive(tournament, player));
-    const nextRound = createRound(orderedPlayers, rounds.length + 1, history, stats);
-    applyBye(nextRound, stats);
+    const nextPhaseRound = rounds.find((item, index) => index > roundIndex
+      && (item.phase || 'preliminary') === phase
+      && item.seriesId === round.seriesId
+      && item.matches.some((candidate) => candidate.status === '等待前輪'));
+    if (nextPhaseRound) {
+      activateRound(nextPhaseRound);
+      return phase === 'preliminary' ? { rounds, playerStats: deriveStats(tournament.players, rounds), champion: null } : { rounds, champion: null };
+    }
+
+    if (phase === 'qualifier') {
+      return { rounds, champion: null, swissStage: 'qualification', activeQualifierSeriesId: null };
+    }
+
+    if (phase === 'final') {
+      const finalStats = deriveStats(tournament.finalists, rounds.filter((item) => item.phase === 'final'));
+      const finalRanking = rankByWinsAndPoints(tournament.finalists, finalStats);
+      return { rounds, champion: finalRanking[0]?.player || null, swissStage: 'completed' };
+    }
+
+    const preliminaryRounds = rounds.filter((item) => (item.phase || 'preliminary') === 'preliminary');
+    const preliminaryStats = deriveStats(tournament.players, preliminaryRounds);
+    const activePlayers = tournament.players.filter((player) => isPlayerActive(tournament, player));
+    if (preliminaryRounds.length >= PRELIMINARY_ROUNDS || activePlayers.length <= 1) {
+      return { rounds, playerStats: preliminaryStats, champion: null, swissStage: 'qualification' };
+    }
+
+    const history = pairingHistory(preliminaryRounds);
+    const orderedPlayers = rankByWins(activePlayers, preliminaryStats).map((row) => row.player);
+    const nextRound = createSwissRound(orderedPlayers, preliminaryRounds.length + 1, history, preliminaryStats);
+    applyBye(nextRound, preliminaryStats);
     rounds.push(nextRound);
-    return { rounds, playerStats: stats, champion: null };
+    return { rounds, playerStats: preliminaryStats, champion: null };
+  },
+
+  startQualifier(tournament, candidates) {
+    if (tournament.swissStage !== 'qualification') throw new Error('目前不能建立資格積分決定賽。');
+    const unique = validateSelection(candidates, tournament.players, 2, 6, '資格加賽');
+    const seriesNumber = Number(tournament.qualifierSeriesCount || 0) + 1;
+    const seriesId = `qualifier-${seriesNumber}`;
+    return {
+      ...tournament,
+      rounds: [...tournament.rounds, ...createRoundRobinRounds(unique, 'qualifier', seriesId, `資格加賽 ${seriesNumber}`)],
+      swissStage: 'qualifier',
+      qualifierSeriesCount: seriesNumber,
+      activeQualifierSeriesId: seriesId,
+      updatedAt: new Date().toISOString(),
+    };
+  },
+
+  startFinal(tournament, finalists) {
+    if (tournament.swissStage !== 'qualification') throw new Error('目前不能確認四強。');
+    const unique = validateSelection(finalists, tournament.players, 4, 4, '四強');
+    return {
+      ...tournament,
+      rounds: [...tournament.rounds, ...createRoundRobinRounds(unique, 'final', 'final', '四強循環決賽')],
+      finalists: unique,
+      swissStage: 'final',
+      champion: null,
+      updatedAt: new Date().toISOString(),
+    };
   },
 };
 
-function createRound(orderedPlayers, roundNumber, history, stats = null) {
+function createSwissRound(orderedPlayers, roundNumber, history, stats = null) {
   const players = [...orderedPlayers];
   let byePlayer = null;
   if (players.length % 2) {
-    // 從排名後方選擇尚未輪空者，避免同一位選手重複取得輪空勝。
     const reversed = [...players].reverse();
     byePlayer = reversed.find((player) => !(stats?.[player]?.byeCount)) || reversed[0];
     players.splice(players.indexOf(byePlayer), 1);
   }
 
-  const pairs = [];
-  while (players.length) {
-    const playerA = players.shift();
-    const playerWins = stats?.[playerA]?.wins || 0;
-    // 配對優先級：同勝場未交手 → 同勝場 → 跨組未交手 → 最後可用選手。
-    let opponentIndex = players.findIndex((player) => (stats?.[player]?.wins || 0) === playerWins && !history.has(pairKey(playerA, player)));
-    if (opponentIndex < 0) opponentIndex = players.findIndex((player) => (stats?.[player]?.wins || 0) === playerWins);
-    if (opponentIndex < 0) opponentIndex = players.findIndex((player) => !history.has(pairKey(playerA, player)));
-    if (opponentIndex < 0) opponentIndex = 0;
-    const playerB = players.splice(opponentIndex, 1)[0];
-    pairs.push([playerA, playerB]);
-  }
+  const pairs = findPairings(players, history, stats, false) || findPairings(players, history, stats, true) || [];
   if (byePlayer) pairs.push([byePlayer, BYE]);
 
   return {
-    name: `第 ${roundNumber} 輪`,
+    name: `瑞士制第 ${roundNumber} 輪`,
+    phase: 'preliminary',
+    phaseRound: roundNumber,
+    seriesId: 'preliminary',
     seedPlayer: byePlayer,
     seedReason: byePlayer ? 'swiss-bye' : null,
-    matches: pairs.map(([playerA, playerB], index) => createMatch(`r${roundNumber}m${index + 1}`, playerA, playerB)),
+    matches: pairs.map(([playerA, playerB], index) => createMatch(`swiss-r${roundNumber}m${index + 1}`, playerA, playerB)),
   };
+}
+
+function findPairings(players, history, stats, allowRepeat) {
+  if (!players.length) return [];
+  const [playerA, ...remaining] = players;
+  const winsA = stats?.[playerA]?.wins || 0;
+  const candidates = remaining.map((player, index) => ({
+    player,
+    index,
+    repeated: history.has(pairKey(playerA, player)),
+    winDifference: Math.abs(winsA - (stats?.[player]?.wins || 0)),
+  })).filter((candidate) => allowRepeat || !candidate.repeated)
+    .sort((left, right) => left.repeated - right.repeated || left.winDifference - right.winDifference || left.index - right.index);
+
+  for (const candidate of candidates) {
+    const rest = remaining.filter((_, index) => index !== candidate.index);
+    const tail = findPairings(rest, history, stats, allowRepeat);
+    if (tail) return [[playerA, candidate.player], ...tail];
+  }
+  return null;
+}
+
+function createRoundRobinRounds(sourcePlayers, phase, seriesId, label) {
+  const players = [...sourcePlayers];
+  if (players.length % 2) players.push(BYE);
+  const rounds = [];
+  for (let roundIndex = 0; roundIndex < players.length - 1; roundIndex += 1) {
+    const pairs = [];
+    for (let index = 0; index < players.length / 2; index += 1) {
+      const playerA = players[index];
+      const playerB = players[players.length - 1 - index];
+      if (playerA !== BYE && playerB !== BYE) pairs.push([playerA, playerB]);
+    }
+    rounds.push({
+      name: `${label}－第 ${roundIndex + 1} 輪`,
+      phase,
+      phaseRound: roundIndex + 1,
+      seriesId,
+      seriesPlayers: [...sourcePlayers],
+      matches: pairs.map(([playerA, playerB], index) => ({
+        ...createMatch(`${seriesId}-r${roundIndex + 1}m${index + 1}`, playerA, playerB),
+        status: roundIndex === 0 ? '可開始' : '等待前輪',
+      })),
+    });
+    players.splice(1, 0, players.pop());
+  }
+  return rounds;
 }
 
 function createMatch(id, playerA, playerB) {
   const hasBye = playerB === BYE;
   return { id, playerA, playerB, scoreA: null, scoreB: null, winner: hasBye ? playerA : null, status: hasBye ? '輪空晉級' : '可開始' };
+}
+
+function activateRound(round) {
+  round.matches.forEach((match) => {
+    if (match.status === '等待前輪') match.status = '可開始';
+  });
 }
 
 function completeMatch(match, stats, scoreA, scoreB) {
@@ -115,8 +246,6 @@ function completeMatch(match, stats, scoreA, scoreB) {
   match.completedAt = new Date().toISOString();
   updateStats(stats, match.playerA, scoreA, scoreB);
   updateStats(stats, match.playerB, scoreB, scoreA);
-  stats[match.playerA].opponents.push(match.playerB);
-  stats[match.playerB].opponents.push(match.playerA);
   const loser = match.winner === match.playerA ? match.playerB : match.playerA;
   stats[match.winner].wins += 1;
   stats[loser].losses += 1;
@@ -129,7 +258,7 @@ function applyBye(round, stats) {
   stats[byeMatch.playerA].byeCount += 1;
 }
 
-function deriveStats(players, rounds = []) {
+function deriveStats(players = [], rounds = []) {
   const stats = Object.fromEntries(players.map((player) => [player, emptyStats()]));
   rounds.forEach((round) => round.matches.forEach((match) => {
     if (match.playerB === BYE) {
@@ -142,26 +271,44 @@ function deriveStats(players, rounds = []) {
   return stats;
 }
 
-function rankPlayers(players, stats) {
-  // 排名規則：勝場 → 對手分 → 得失分差 → 總得分 → 姓名。
+function rankByWins(players, stats) {
+  const order = new Map(players.map((player, index) => [player, index]));
+  return rowsFor(players, stats).sort((a, b) => b.wins - a.wins || order.get(a.player) - order.get(b.player));
+}
+
+function rankByWinsAndPoints(players, stats) {
+  const order = new Map(players.map((player, index) => [player, index]));
+  return rowsFor(players, stats).sort((a, b) => b.wins - a.wins || b.totalPoints - a.totalPoints || order.get(a.player) - order.get(b.player));
+}
+
+function rowsFor(players, stats) {
   return players.map((player) => {
     const playerStats = { ...emptyStats(), ...(stats[player] || {}) };
-    const buchholz = (playerStats.opponents || []).reduce((sum, opponent) => sum + (stats[opponent]?.wins || 0), 0);
     return {
       player,
       wins: playerStats.wins,
       losses: playerStats.losses,
       totalPoints: playerStats.pointsFor,
-      pointsAgainst: playerStats.pointsAgainst,
-      difference: playerStats.pointsFor - playerStats.pointsAgainst,
-      buchholz,
       byeCount: playerStats.byeCount,
     };
-  }).sort((a, b) => b.wins - a.wins
-    || b.buchholz - a.buchholz
-    || b.difference - a.difference
-    || b.totalPoints - a.totalPoints
-    || a.player.localeCompare(b.player, 'zh-Hant'));
+  });
+}
+
+function addRanks(rows, tournament, scoreKey) {
+  let previousScore = null;
+  let previousRank = 0;
+  return rows.map((row, index) => {
+    const score = scoreKey(row);
+    const rank = index === 0 || score !== previousScore ? index + 1 : previousRank;
+    previousScore = score;
+    previousRank = rank;
+    return {
+      ...row,
+      rank,
+      isChampion: tournament.champion === row.player,
+      participantStatus: tournament.participantStates?.[row.player]?.status || 'active',
+    };
+  });
 }
 
 function pairingHistory(rounds) {
@@ -177,7 +324,7 @@ function pairKey(a, b) {
 }
 
 function emptyStats() {
-  return { pointsFor: 0, pointsAgainst: 0, matchesPlayed: 0, byeCount: 0, wins: 0, losses: 0, opponents: [] };
+  return { pointsFor: 0, pointsAgainst: 0, matchesPlayed: 0, byeCount: 0, wins: 0, losses: 0 };
 }
 
 function updateStats(stats, player, pointsFor, pointsAgainst) {
@@ -185,6 +332,20 @@ function updateStats(stats, player, pointsFor, pointsAgainst) {
   stats[player].pointsFor += pointsFor;
   stats[player].pointsAgainst += pointsAgainst;
   stats[player].matchesPlayed += 1;
+}
+
+function validateSelection(values, allowedPlayers, minimum, maximum, label) {
+  const unique = [...new Set(values.map((value) => String(value).trim()).filter(Boolean))];
+  if (unique.length < minimum || unique.length > maximum) throw new Error(`${label}需要選擇 ${minimum}${minimum === maximum ? '' : ` 至 ${maximum}`} 位選手。`);
+  if (unique.some((player) => !allowedPlayers.includes(player))) throw new Error(`${label}包含不在賽事中的選手。`);
+  return unique;
+}
+
+function activeSeriesPlayers(tournament) {
+  const round = tournament.activeQualifierSeriesId
+    ? tournament.rounds.find((item) => item.seriesId === tournament.activeQualifierSeriesId)
+    : [...tournament.rounds].reverse().find((item) => item.phase === 'qualifier');
+  return round?.seriesPlayers || [];
 }
 
 function isPlayerActive(tournament, player) {

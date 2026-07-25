@@ -16,11 +16,13 @@ Spin League 採用「靜態前端＋雲端 API」架構：
 Cloudflare Worker
   ├─ PIN 登入與 HMAC 權杖
   ├─ 賽事 CRUD API
+  ├─ 公開報名與後台審核 API
   └─ revision 衝突檢查
           │
           ▼
 Cloudflare D1
-  └─ 每場賽事一筆 JSON 資料
+  ├─ tournaments：每場賽事一筆 JSON 資料
+  └─ registrations：每筆公開報名一列
 ```
 
 前端沒有使用 React、Vue 或建置 bundler。瀏覽器直接載入 `src/main.js`，因此修改後容易追蹤實際執行流程。
@@ -37,7 +39,7 @@ Cloudflare D1
 │  ├─ domain/tournament.js   # 共用賽事生命週期
 │  ├─ formats/               # 單淘汰與瑞士制策略
 │  ├─ ui/                    # 共用框架與 SVG 圖示
-│  ├─ views/                 # 各頁面的 HTML 與事件綁定
+│  ├─ views/                 # 各頁面、公開報名與審核畫面
 │  └─ styles/app.css         # 全站樣式與響應式規則
 ├─ worker/index.js           # Cloudflare Worker API
 ├─ .openai/
@@ -99,6 +101,16 @@ Cloudflare D1
   participantStates: {
     A: { status: 'active' }    // active、no_show、withdrawn
   },
+  registrationSettings: {
+    enabled: true,
+    token: '不可預測的公開連結 token',
+    capacity: 32,
+    deadline: '2026-07-24T15:00:00.000Z',
+    fields: []               // 預留 text、textarea、checkbox 自訂欄位
+  },
+  swissVersion: 2,
+  swissStage: 'preliminary', // preliminary、qualification、qualifier、final、completed
+  finalists: [],
   rounds: [
     {
       name: '4 強',
@@ -127,6 +139,7 @@ Cloudflare D1
 ```text
 建立賽事
   → 準備中：可改名稱、賽制、台數與名單
+  → 可開放公開報名，後台核准後加入正式名單
   → 抽種子／隨機分組
   → 賽事開始：鎖定設定
   → 進行中：記分、棄賽、退賽與重賽
@@ -158,10 +171,29 @@ Cloudflare D1
 
 ### 瑞士制規則
 
-- 輪數為 `max(2, ceil(log2(參賽人數)))`。
+- 至少 4 位選手，固定進行四輪瑞士制預賽。
 - 優先配對同勝場且尚未交手的選手。
 - 奇數人時優先讓排名較低且尚未輪空者輪空。
-- 排名依勝場、Buchholz 對手分、得失分差、總得分與姓名決定。
+- 預賽排行榜只依勝場產生同分名次，並列出總得分供現場確認；不使用對手分或得失分差。
+- 四輪後進入 `qualification`，不會直接產生冠軍。
+- 主辦方可選 2～6 位建立一組循環資格積分決定賽；完成後回到四強資格確認，可視需要再次加賽。
+- 主辦方也可直接選正好 4 位，建立三輪、六場的前四循環決賽。
+- 四強決賽依勝場、總得分排列，第一名成為冠軍。
+- `swissVersion: 2` 用於區分新版資料；舊的已完成賽事仍可讀取。
+
+### 公開報名模型
+
+報名不放進賽事 JSON，而是使用獨立的 `registrations` 表，避免參賽者送出表單時與裁判記分共用 tournament revision。
+
+固定欄位：
+
+- `display_name`：選手名稱／暱稱。
+- `phone`：後台可見的聯絡電話。
+- `notes`：選填備註。
+- `status`：`pending`、`approved`、`waitlist`、`rejected`。
+- `answers`：JSON 格式的可擴充答案；未來增加表單欄位不必修改 registrations schema。
+
+相同賽事內以正規化後的「名稱＋電話」避免重複報名。公開端點只回傳賽事摘要、名額與自訂欄位，不回傳任何既有報名者個資。核准時後端同時檢查 tournament revision、32 人上限及同名選手，成功後加入正式名單。
 
 ## 6. API
 
@@ -171,6 +203,8 @@ Cloudflare D1
 | ------- | ------------------------ | ------------ |
 | `GET` | `/api/tournaments`     | 取得全部賽事 |
 | `GET` | `/api/tournaments/:id` | 取得單一賽事 |
+| `GET` | `/api/public/registrations/:tournamentId/:token` | 取得公開報名表單資訊 |
+| `POST` | `/api/public/registrations/:tournamentId/:token` | 送出公開報名 |
 
 管理端點需要 `Authorization: Bearer <token>`：
 
@@ -182,6 +216,8 @@ Cloudflare D1
 | `PUT`    | `/api/tournaments/:id`            | 以 revision 更新單一賽事  |
 | `DELETE` | `/api/tournaments/:id?revision=N` | 刪除單一賽事              |
 | `PUT`    | `/api/tournaments`                | 備份還原時取代全部資料    |
+| `GET`    | `/api/tournaments/:id/registrations` | 取得該賽事報名名單      |
+| `PUT`    | `/api/registrations/:id`          | 核准、候補或拒絕報名      |
 
 後端需要下列環境資源：
 
@@ -242,6 +278,7 @@ Node 測試：
 ```bash
 node tests/swiss.test.mjs
 node tests/api.test.mjs
+node tests/registration.test.mjs
 node tests/data-management.test.mjs
 node tests/navigation.test.mjs
 node tests/sync.test.mjs
@@ -253,7 +290,7 @@ node tests/format-matrix.test.mjs
 - `tests/tournament.test.html`：賽制與畫面輸出。
 - `tests/full-flow.test.html`：登入到登出的完整 UI 操作。
 
-GitHub Actions 會自動啟動臨時 Ubuntu runner，執行 Node、Chrome、建置與部署檔案檢查。`format-matrix` 會實際跑完 2～32 人的單淘汰及瑞士制，共 62 種組合。
+GitHub Actions 會自動啟動臨時 Ubuntu runner，執行 Node、Chrome、建置與部署檔案檢查。`format-matrix` 會實際跑完 2～32 人單淘汰，以及 4～32 人新版瑞士制。
 
 ## 11. 修改原則
 
@@ -268,7 +305,9 @@ GitHub Actions 會自動啟動臨時 Ubuntu runner，執行 Node、Chrome、建�
 
 - 主辦方仍使用共用 PIN，沒有個別裁判帳號與操作紀錄。
 - 更新採 3 秒輪詢，不是 WebSocket 即時推播。
-- 尚未支援報到、暫停賽事、指定配對、雙淘汰或循環賽。
+- 公開報名第一版的固定欄位為名稱、電話與備註；底層已保留自訂欄位資料結構，但尚未提供圖形化表單欄位編輯器。
+- JSON 賽事備份目前不包含獨立 registrations 表中的報名個資；正式名單與全部賽果仍會備份。
+- 尚未支援報到、暫停賽事、指定配對或雙淘汰。
 - 自動測試可降低回歸風險，但不能模擬所有瀏覽器、網路中斷與雲端故障。
 
 ## 13. 授權提醒
