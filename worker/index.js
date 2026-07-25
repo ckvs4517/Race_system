@@ -2,6 +2,22 @@
  * Cloudflare Worker 進入點。
  * `/api/*` 由此處理，其餘要求交給靜態資源服務；D1 revision 提供樂觀鎖保護。
  */
+import {
+  addDraftPlayer,
+  drawRandomSeeds,
+  forfeitMatch,
+  randomizeDraftTournament,
+  recordMatchResult,
+  removeDraftPlayer,
+  resetCompletedMatch,
+  setDraftPlayerCheckedIn,
+  startSwissFinal,
+  startSwissQualifier,
+  startTournament,
+  updateRegistrationSettings,
+  withdrawPlayer,
+} from '../src/domain/tournament.js';
+
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 
 export default {
@@ -90,16 +106,43 @@ export default {
         return json({ registration: { ...mapRegistrationRow(row), status: 'approved' }, tournament: nextTournament });
       }
 
+      const actionTournamentId = tournamentActionIdFromPath(url.pathname);
+      if (actionTournamentId && request.method === 'POST') {
+        if (!(await isAuthorized(request, env))) return json({ error: '後台登入已失效，請重新登入。' }, 401);
+        const payload = await request.json();
+        const expectedRevision = Number(payload.expectedRevision);
+        if (!Number.isInteger(expectedRevision) || expectedRevision < 0) return json({ error: '賽事版本資訊不正確。' }, 400);
+        const current = await readTournament(env.DB, actionTournamentId);
+        if (!current) return json({ error: '找不到這場賽事。' }, 404);
+        if (current.revision !== expectedRevision) return json({ error: '資料已由其他裁判更新。', tournament: current }, 409);
+        let updated;
+        try {
+          updated = applyTournamentAction(withoutRevision(current), String(payload.type || ''), payload.payload || {});
+        } catch (error) {
+          return json({ error: error.message || '賽事操作無法執行。' }, 400);
+        }
+        const nextTournament = withRevision(validateTournament(withoutRevision(updated)), expectedRevision + 1);
+        const result = await env.DB.prepare('UPDATE tournaments SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND revision = ?')
+          .bind(JSON.stringify(withoutRevision(nextTournament)), nextTournament.revision, actionTournamentId, expectedRevision).run();
+        if (!changedRows(result)) return json({ error: '資料已由其他裁判更新。', tournament: await readTournament(env.DB, actionTournamentId) }, 409);
+        return json({ tournament: nextTournament });
+      }
+
       if (url.pathname === '/api/tournaments' && request.method === 'GET') {
         const result = await env.DB.prepare('SELECT data, revision FROM tournaments ORDER BY updated_at DESC').all();
         const tournaments = result.results.map((row) => ({ ...JSON.parse(row.data), revision: Number(row.revision) || 0 }));
-        return json({ tournaments });
+        const etag = collectionEtag(tournaments);
+        if (request.headers.get('if-none-match') === etag) return notModified(etag);
+        return json({ tournaments }, 200, { etag });
       }
 
       const tournamentId = tournamentIdFromPath(url.pathname);
       if (tournamentId && request.method === 'GET') {
         const tournament = await readTournament(env.DB, tournamentId);
-        return tournament ? json({ tournament }) : json({ error: '找不到這場賽事。' }, 404);
+        if (!tournament) return json({ error: '找不到這場賽事。' }, 404);
+        const etag = tournamentEtag(tournament);
+        if (request.headers.get('if-none-match') === etag) return notModified(etag);
+        return json({ tournament }, 200, { etag });
       }
 
       if (url.pathname === '/api/admin/login' && request.method === 'POST') {
@@ -130,7 +173,10 @@ export default {
       if (url.pathname === '/api/tournaments' && request.method === 'POST') {
         if (!(await isAuthorized(request, env))) return json({ error: '後台登入已失效，請重新登入。' }, 401);
         const payload = await request.json();
-        const tournament = withRevision(validateTournament(payload.tournament), 1);
+        const draft = validateTournament(payload.tournament);
+        // 新賽事的隨機分組由伺服器產生，避免不同前端各自形成不同版本。
+        const shouldPrepareDraft = draft.status === '準備中' && draft.bracketVersion === 2;
+        const tournament = withRevision(validateTournament(shouldPrepareDraft ? randomizeDraftTournament(draft) : draft), 1);
         const existing = await readTournament(env.DB, String(tournament.id));
         if (existing) return json({ error: '賽事識別碼重複，請重新建立。', tournament: existing }, 409);
         await env.DB.prepare('INSERT INTO tournaments (id, data, revision, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)')
@@ -145,6 +191,13 @@ export default {
         if (!Number.isInteger(expectedRevision) || expectedRevision < 0) return json({ error: '賽事版本資訊不正確。' }, 400);
         const tournament = validateTournament(payload.tournament);
         if (String(tournament.id) !== tournamentId) return json({ error: '賽事識別碼不一致。' }, 400);
+        const current = await readTournament(env.DB, tournamentId);
+        if (!current) return json({ error: '找不到這場賽事。' }, 404);
+        if (current.revision !== expectedRevision) return json({ error: '資料已由其他裁判更新。', tournament: current }, 409);
+        // 整包 PUT 只供草稿表單編輯；開賽後必須走後端 action，不能從前端竄改比分或晉級。
+        if (current.status !== '準備中' || tournament.status !== '準備中') {
+          return json({ error: '賽事開始後請使用正式賽事操作，不能整包覆寫資料。' }, 400);
+        }
         const nextTournament = withRevision(tournament, expectedRevision + 1);
         // revision 不相符就不更新，避免過期裁判畫面覆蓋較新的賽果。
         const result = await env.DB.prepare('UPDATE tournaments SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND revision = ?')
@@ -284,9 +337,47 @@ function registrationIdFromPath(pathname) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function tournamentActionIdFromPath(pathname) {
+  const match = pathname.match(/^\/api\/tournaments\/([^/]+)\/actions$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function tournamentIdFromPath(pathname) {
   const match = pathname.match(/^\/api\/tournaments\/([^/]+)$/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+function applyTournamentAction(tournament, type, payload) {
+  switch (type) {
+    case 'set_check_in':
+      return setDraftPlayerCheckedIn(tournament, String(payload.player || ''), Boolean(payload.checkedIn));
+    case 'add_player':
+      return addDraftPlayer(tournament, String(payload.player || ''));
+    case 'remove_player':
+      return removeDraftPlayer(tournament, String(payload.player || ''));
+    case 'draw_seeds':
+      return drawRandomSeeds(tournament);
+    case 'randomize_bracket':
+      return randomizeDraftTournament(tournament);
+    case 'start_tournament':
+      return startTournament(tournament);
+    case 'record_match':
+      return recordMatchResult(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
+    case 'forfeit_match':
+      return forfeitMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex), String(payload.player || ''));
+    case 'replay_match':
+      return resetCompletedMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex));
+    case 'withdraw_player':
+      return withdrawPlayer(tournament, String(payload.player || ''), payload.status === 'no_show' ? 'no_show' : 'withdrawn');
+    case 'start_swiss_qualifier':
+      return startSwissQualifier(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
+    case 'start_swiss_final':
+      return startSwissFinal(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
+    case 'update_registration_settings':
+      return updateRegistrationSettings(tournament, payload.settings || {});
+    default:
+      throw new Error('不支援的賽事操作。');
+  }
 }
 
 async function readTournament(database, id) {
@@ -306,6 +397,24 @@ function withoutRevision(tournament) {
 
 function changedRows(result) {
   return Number(result?.meta?.changes ?? result?.changes ?? 0) > 0;
+}
+
+function tournamentEtag(tournament) {
+  return `"t-${String(tournament.id)}-${Number(tournament.revision) || 0}"`;
+}
+
+function collectionEtag(tournaments) {
+  const signature = tournaments.map((tournament) => `${tournament.id}:${Number(tournament.revision) || 0}`).join('|');
+  let hash = 2166136261;
+  for (let index = 0; index < signature.length; index += 1) {
+    hash ^= signature.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `"tl-${tournaments.length}-${(hash >>> 0).toString(36)}"`;
+}
+
+function notModified(etag) {
+  return new Response(null, { status: 304, headers: { etag, 'cache-control': 'no-cache' } });
 }
 
 async function isAuthorized(request, env) {
@@ -360,6 +469,6 @@ function bytesToBase64Url(bytes) {
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
-function json(body, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+function json(body, status = 200, headers = {}) {
+  return new Response(JSON.stringify(body), { status, headers: { ...JSON_HEADERS, ...headers } });
 }

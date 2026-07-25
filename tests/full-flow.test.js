@@ -1,4 +1,20 @@
 /** 完整 UI 流程測試：使用記憶體 API 模擬主辦方從登入到登出的實際操作。 */
+import {
+  addDraftPlayer,
+  drawRandomSeeds,
+  forfeitMatch,
+  randomizeDraftTournament,
+  recordMatchResult,
+  removeDraftPlayer,
+  resetCompletedMatch,
+  setDraftPlayerCheckedIn,
+  startSwissFinal,
+  startSwissQualifier,
+  startTournament,
+  updateRegistrationSettings,
+  withdrawPlayer,
+} from '../src/domain/tournament.js';
+
 const result = document.querySelector('#result');
 const records = new Map();
 const alerts = [];
@@ -188,9 +204,19 @@ async function mockFetch(input, options = {}) {
   if (path === '/api/tournaments' && method === 'GET') return json({ tournaments: [...records.values()] });
   if (path === '/api/tournaments' && method === 'POST') {
     const { tournament } = JSON.parse(options.body);
-    const saved = { ...tournament, revision: 1 };
+    const saved = { ...randomizeDraftTournament(tournament), revision: 1 };
     records.set(String(saved.id), saved);
     return json({ tournament: saved }, 201);
+  }
+  const actionMatch = path.match(/^\/api\/tournaments\/([^/]+)\/actions$/);
+  if (actionMatch && method === 'POST') {
+    const id = decodeURIComponent(actionMatch[1]);
+    const current = records.get(id);
+    const { type, payload = {}, expectedRevision } = JSON.parse(options.body);
+    if (!current || current.revision !== expectedRevision) return json({ error: '資料衝突', tournament: current }, 409);
+    const saved = { ...applyAction(current, type, payload), revision: current.revision + 1 };
+    records.set(id, saved);
+    return json({ tournament: saved });
   }
   const match = path.match(/^\/api\/tournaments\/(.+)$/);
   if (match && method === 'PUT') {
@@ -207,6 +233,28 @@ async function mockFetch(input, options = {}) {
     return json({ success: true });
   }
   throw new Error(`未模擬的 API：${method} ${path}`);
+}
+
+function applyAction(tournament, type, payload) {
+  const source = { ...tournament };
+  delete source.revision;
+  const actions = {
+    set_check_in: () => setDraftPlayerCheckedIn(source, payload.player, payload.checkedIn),
+    add_player: () => addDraftPlayer(source, payload.player),
+    remove_player: () => removeDraftPlayer(source, payload.player),
+    draw_seeds: () => drawRandomSeeds(source),
+    randomize_bracket: () => randomizeDraftTournament(source),
+    start_tournament: () => startTournament(source),
+    record_match: () => recordMatchResult(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB),
+    forfeit_match: () => forfeitMatch(source, payload.roundIndex, payload.matchIndex, payload.player),
+    replay_match: () => resetCompletedMatch(source, payload.roundIndex, payload.matchIndex),
+    withdraw_player: () => withdrawPlayer(source, payload.player, payload.status),
+    start_swiss_qualifier: () => startSwissQualifier(source, payload.players),
+    start_swiss_final: () => startSwissFinal(source, payload.players),
+    update_registration_settings: () => updateRegistrationSettings(source, payload.settings),
+  };
+  if (!actions[type]) throw new Error(`未模擬的賽事操作：${type}`);
+  return actions[type]();
 }
 
 function json(body, status = 200) {

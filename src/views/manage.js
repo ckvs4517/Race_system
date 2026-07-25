@@ -45,7 +45,7 @@ export function manageView(tournament = null) {
         <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼">${escapeText(playerText)}</textarea></label>
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立賽事與報到名單'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>兩種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；主辦方可直接確認四強，或先建立資格積分決定賽，再進行前四循環決賽。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>支援 2 至 32 位正式名單</li><li><i></i>支援 1 至 8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>兩種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；主辦方可直接確認四強，或先建立資格積分決定賽，再進行前四循環決賽。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>支援 2–32 位正式名單</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
 }

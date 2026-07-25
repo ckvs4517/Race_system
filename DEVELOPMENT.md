@@ -16,8 +16,10 @@ Spin League 採用「靜態前端＋雲端 API」架構：
 Cloudflare Worker
   ├─ PIN 登入與 HMAC 權杖
   ├─ 賽事 CRUD API
+  ├─ 正式賽事 command API 與規則驗證
   ├─ 公開報名與後台審核 API
-  └─ revision 衝突檢查
+  ├─ revision 衝突檢查
+  └─ ETag 條件式讀取
           │
           ▼
 Cloudflare D1
@@ -59,7 +61,8 @@ Cloudflare D1
 ```text
 使用者操作
   → main.js 事件處理
-  → data/store.js 寫入雲端
+  → data/store.js 送出小型後端指令
+  → Worker 套用 domain / formats 規則並以 revision 寫入
   → store 更新前端狀態
   → subscribe() 通知 main.js
   → view 重新產生 HTML
@@ -68,9 +71,9 @@ Cloudflare D1
 各層責任：
 
 - `views`：輸出 HTML、讀取表單、綁定單純 UI 事件。
-- `main.js`：決定操作要呼叫哪個 store 或 domain 函式。
-- `data/store.js`：管理前端狀態、登入權杖、API 與衝突重試。
-- `domain/tournament.js`：管理賽事共用生命週期與資料驗證。
+- `main.js`：協調路由、畫面與操作，不直接計算正式賽果。
+- `data/store.js`：管理前端狀態、登入權杖、ETag、API 與衝突重試。
+- `domain/tournament.js`：前後端共用的賽事生命週期與規則；正式操作由 Worker 呼叫。
 - `formats`：處理各賽制特有的配對、統計與排名。
 
 ## 4. 賽事資料模型
@@ -229,7 +232,8 @@ Cloudflare D1
 | `POST`   | `/api/admin/login`                | 使用 PIN 取得 12 小時權杖 |
 | `GET`    | `/api/admin/session`              | 驗證目前權杖              |
 | `POST`   | `/api/tournaments`                | 建立賽事                  |
-| `PUT`    | `/api/tournaments/:id`            | 以 revision 更新單一賽事  |
+| `POST`   | `/api/tournaments/:id/actions`    | 執行記分、報到、分組、開賽等正式指令 |
+| `PUT`    | `/api/tournaments/:id`            | 以 revision 編輯準備中草稿 |
 | `DELETE` | `/api/tournaments/:id?revision=N` | 刪除單一賽事              |
 | `PUT`    | `/api/tournaments`                | 備份還原時取代全部資料    |
 | `GET`    | `/api/tournaments/:id/registrations` | 取得該賽事報名名單      |
@@ -252,13 +256,23 @@ SET data = ?, revision = ?
 WHERE id = ? AND revision = ?
 ```
 
-若資料已被其他裁判修改，更新筆數會是 0，API 回傳 `409 Conflict` 與最新賽事。前端會保留最新版，並只對適合安全合併的操作重試一次。同一場比賽已被完成時不會強制覆蓋。
+若資料已被其他裁判修改，更新筆數會是 0，API 回傳 `409 Conflict` 與最新賽事。記分、判負、重賽、退賽、報到、增刪選手、抽種子、隨機分組、開賽、瑞士制晉級與報名設定都只傳 `type + payload + expectedRevision`；Worker 讀取最新版後套用共用 domain 規則。前端會保留最新版，並對可重試的指令重試一次。同一場比賽已被完成時，領域規則仍會拒絕再次覆寫。
 
-非記分與非編輯畫面每 3 秒檢查版本；正式記分畫面暫停輪詢，避免尚未送出的比分被清除。
+賽程頁每 4 秒只查目前選取的單一賽事，首頁每 15 秒更新完整清單；記分畫面暫停輪詢，避免尚未送出的比分被清除。GET 會附帶 `If-None-Match`，資料未變時 Worker 回傳 `304`，前端不解析 JSON、不更新狀態，也不重繪。瀏覽器分頁隱藏時會降低檢查頻率。
+
+前端 store 只建立淺層唯讀狀態快照，避免每次畫面更新深拷貝整場賽程；同一個 microtask 內的多次狀態通知會合併成一次重繪，背景同步也不再把頁面捲回最上方。
 
 ## 8. 本地預覽
 
 ES Modules 不能可靠地透過 `file://` 載入，請使用任一靜態 HTTP server，例如 VS Code Live Server。
+
+專案也提供零相依測試伺服器：
+
+```powershell
+& 'C:\Program Files\nodejs\node.exe' .\tests\local-test-server.mjs
+```
+
+然後開啟 `http://127.0.0.1:8765/`。這個伺服器只提供靜態檔案，不包含正式 Worker/D1 API。
 
 只預覽前端時，`/api/*` 不會存在；完整功能需要部署 Worker/D1，或自行提供符合上一節契約的 API。
 
@@ -274,6 +288,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 - `dist/client`：前端靜態檔案。
 - `dist/server/index.js`：Worker。
+- `dist/src/domain`、`dist/src/formats`：Worker 共用的賽事規則模組。
 - `dist/.openai/hosting.json`：Sites 設定。
 - `dist/.openai/drizzle`：D1 migration。
 
@@ -298,6 +313,7 @@ node tests/registration.test.mjs
 node tests/data-management.test.mjs
 node tests/navigation.test.mjs
 node tests/sync.test.mjs
+node tests/action-sync.test.mjs
 node tests/format-matrix.test.mjs
 ```
 
@@ -320,7 +336,7 @@ GitHub Actions 會自動啟動臨時 Ubuntu runner，執行 Node、Chrome、建�
 ## 12. 目前限制
 
 - 主辦方仍使用共用 PIN，沒有個別裁判帳號與操作紀錄。
-- 更新採 3 秒輪詢，不是 WebSocket 即時推播。
+- 更新採 4 秒單場／15 秒清單的 ETag 輪詢，不是 WebSocket 即時推播。
 - 公開報名第一版的固定欄位為名稱、電話與備註；底層已保留自訂欄位資料結構，但尚未提供圖形化表單欄位編輯器。
 - JSON 賽事備份目前不包含獨立 registrations 表中的報名個資；正式名單與全部賽果仍會備份。
 - 尚未支援暫停賽事、指定配對或雙淘汰。

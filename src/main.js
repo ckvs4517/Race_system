@@ -3,8 +3,8 @@
  * 協調路由、狀態、畫面與事件；賽制規則放在 domain/formats，雲端存取放在 data/store。
  */
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
-import { createTournamentRecord, deleteTournamentRecord, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { addDraftPlayer, drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, removeDraftPlayer, requiredSeedCount, resetCompletedMatch, setDraftPlayerCheckedIn, startSwissFinal, startSwissQualifier, startTournament, updateRegistrationSettings, withdrawPlayer } from './domain/tournament.js';
+import { createTournamentRecord, deleteTournamentRecord, executeTournamentAction, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
+import { duplicateTournament, normalizeTournament, requiredSeedCount } from './domain/tournament.js';
 import { downloadTournamentImage } from './export/tournament-image.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
@@ -20,7 +20,7 @@ import { bindRegistrationAdmin, registrationAdminView } from './views/registrati
 const app = document.querySelector('#app');
 let publicRegistrationState = { key: '', loading: false, data: null, error: '', success: false };
 
-function render() {
+function render(resetScroll = false) {
   // 每次狀態或網址改變都重新產生畫面，再綁定該頁需要的事件。
   const route = currentRoute();
   const state = getState();
@@ -82,7 +82,8 @@ function render() {
   if (route === 'registration' && !state.isAdmin) bindControlEvents();
   if (route === 'register') bindPublicRegistrationEvents();
   if (route === 'schedule') bindScheduleEvents(state);
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  // 雲端同步只更新內容，不把裁判正在查看的位置強制拉回頁首。
+  if (resetScroll) window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function bindDataManagementEvents(state) {
@@ -117,8 +118,7 @@ function bindRegistrationAdminEvents(state) {
     onSaveSettings: async (settings) => {
       try {
         const tournamentId = state.registrationTournamentId;
-        await mutateTournament(tournamentId, (tournament) => updateRegistrationSettings(tournament, settings));
-        render();
+        await executeTournamentAction(tournamentId, 'update_registration_settings', { settings });
       } catch (error) {
         alert(error.message);
       }
@@ -128,7 +128,6 @@ function bindRegistrationAdminEvents(state) {
       if (!confirm(`確定要將這筆報名「${label}」嗎？`)) return;
       try {
         await updateRegistrationRecord(registrationId, status);
-        render();
       } catch (error) {
         alert(error.message);
       }
@@ -195,7 +194,6 @@ function bindGlobalEvents() {
 }
 
 async function addTournament(tournament) {
-  tournament = randomizeDraftTournament(tournament);
   try {
     const saved = await createTournamentRecord(tournament);
     selectTournament(saved.id);
@@ -284,7 +282,7 @@ function bindScheduleEvents(state) {
   app.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', async () => {
     input.disabled = true;
     try {
-      await mutateTournament(state.selectedTournamentId, (tournament) => setDraftPlayerCheckedIn(tournament, input.dataset.checkInPlayer, input.checked), { retryOnConflict: true });
+      await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player: input.dataset.checkInPlayer, checkedIn: input.checked });
     } catch (error) {
       alert(error.message);
       render();
@@ -296,7 +294,7 @@ function bindScheduleEvents(state) {
     const name = input.value.trim();
     if (!name) return input.focus();
     try {
-      await mutateTournament(state.selectedTournamentId, (tournament) => addDraftPlayer(tournament, name), { retryOnConflict: true });
+      await executeTournamentAction(state.selectedTournamentId, 'add_player', { player: name });
     } catch (error) {
       alert(error.message);
     }
@@ -305,7 +303,7 @@ function bindScheduleEvents(state) {
     const player = button.dataset.removeDraftPlayer;
     if (!confirm(`確定要從本賽事名單移除「${player}」嗎？\n只有資料錯誤、重複報名或取消資格時才建議移除。`)) return;
     try {
-      await mutateTournament(state.selectedTournamentId, (tournament) => removeDraftPlayer(tournament, player), { retryOnConflict: true });
+      await executeTournamentAction(state.selectedTournamentId, 'remove_player', { player });
     } catch (error) {
       alert(error.message);
     }
@@ -369,8 +367,7 @@ function bindScheduleEvents(state) {
 
 async function beginSwissQualifier(tournamentId, candidates) {
   try {
-    await mutateTournament(tournamentId, (tournament) => startSwissQualifier(tournament, candidates));
-    render();
+    await executeTournamentAction(tournamentId, 'start_swiss_qualifier', { players: candidates });
   } catch (error) {
     alert(error.message);
   }
@@ -378,8 +375,7 @@ async function beginSwissQualifier(tournamentId, candidates) {
 
 async function beginSwissFinal(tournamentId, finalists) {
   try {
-    await mutateTournament(tournamentId, (tournament) => startSwissFinal(tournament, finalists));
-    render();
+    await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists });
   } catch (error) {
     alert(error.message);
   }
@@ -391,8 +387,7 @@ function escapeText(value) {
 
 async function drawSeeds(tournamentId) {
   try {
-    await mutateTournament(tournamentId, drawRandomSeeds);
-    render();
+    await executeTournamentAction(tournamentId, 'draw_seeds');
   } catch (error) {
     alert(error.message);
   }
@@ -400,8 +395,7 @@ async function drawSeeds(tournamentId) {
 
 async function randomizeBracket(tournamentId) {
   try {
-    await mutateTournament(tournamentId, randomizeDraftTournament);
-    render();
+    await executeTournamentAction(tournamentId, 'randomize_bracket');
   } catch (error) {
     alert(error.message);
   }
@@ -409,8 +403,7 @@ async function randomizeBracket(tournamentId) {
 
 async function beginTournament(tournamentId) {
   try {
-    await mutateTournament(tournamentId, startTournament);
-    render();
+    await executeTournamentAction(tournamentId, 'start_tournament');
   } catch (error) {
     alert(error.message);
   }
@@ -441,7 +434,7 @@ async function copyTournament(tournamentId) {
 
 async function replayMatch(tournamentId, roundIndex, matchIndex) {
   try {
-    await mutateTournament(tournamentId, (tournament) => resetCompletedMatch(tournament, roundIndex, matchIndex));
+    await executeTournamentAction(tournamentId, 'replay_match', { roundIndex, matchIndex });
     selectMatch(null, null);
     render();
   } catch (error) {
@@ -451,11 +444,7 @@ async function replayMatch(tournamentId, roundIndex, matchIndex) {
 
 async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB) {
   try {
-    await mutateTournament(
-      tournamentId,
-      (tournament) => recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB),
-      { retryOnConflict: true },
-    );
+    await executeTournamentAction(tournamentId, 'record_match', { roundIndex, matchIndex, scoreA, scoreB });
     selectMatch(null, null);
     render();
   } catch (error) {
@@ -467,11 +456,7 @@ async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, score
 
 async function completeForfeit(tournamentId, roundIndex, matchIndex, player) {
   try {
-    await mutateTournament(
-      tournamentId,
-      (tournament) => forfeitMatch(tournament, roundIndex, matchIndex, player),
-      { retryOnConflict: true },
-    );
+    await executeTournamentAction(tournamentId, 'forfeit_match', { roundIndex, matchIndex, player });
     selectMatch(null, null);
     render();
   } catch (error) {
@@ -483,32 +468,69 @@ async function completeForfeit(tournamentId, roundIndex, matchIndex, player) {
 
 async function updateParticipantStatus(tournamentId, player, status) {
   try {
-    await mutateTournament(tournamentId, (tournament) => withdrawPlayer(tournament, player, status), { retryOnConflict: true });
-    render();
+    await executeTournamentAction(tournamentId, 'withdraw_player', { player, status });
   } catch (error) {
-    render();
     alert(error.message);
   }
 }
 
 function migrateTournamentData() {
   if (!getState().isAdmin) return;
-  updateState((current) => ({
-    ...current,
-    tournaments: current.tournaments.map(normalizeTournament),
-  }));
+  const current = getState();
+  const tournaments = current.tournaments.map(normalizeTournament);
+  const changed = tournaments.some((tournament, index) =>
+    JSON.stringify(tournament) !== JSON.stringify(current.tournaments[index]));
+  if (changed) updateState((latest) => ({ ...latest, tournaments }));
 }
 
-onRouteChange(render);
-subscribe(render);
+let renderQueued = false;
+let resetScrollOnRender = false;
+
+function requestRender(resetScroll = false) {
+  resetScrollOnRender ||= resetScroll;
+  if (renderQueued) return;
+  renderQueued = true;
+  queueMicrotask(() => {
+    renderQueued = false;
+    const shouldResetScroll = resetScrollOnRender;
+    resetScrollOnRender = false;
+    render(shouldResetScroll);
+  });
+}
+
+onRouteChange(() => requestRender(true));
+subscribe(() => requestRender());
 await initializeStore();
 migrateTournamentData();
-render();
+requestRender();
 
-setInterval(() => {
-  // 記分與編輯期間不輪詢，避免裁判尚未送出的內容被畫面更新蓋掉。
+let pollTimer = null;
+
+async function pollForUpdates() {
+  clearTimeout(pollTimer);
   const route = currentRoute();
   const current = getState();
-  if (document.visibilityState !== 'visible' || route === 'scoreboard' || route === 'manage' || current.selectedMatch) return;
-  refreshTournaments();
-}, 3000);
+  let delay = 15_000;
+
+  if (document.visibilityState === 'visible') {
+    // 賽程頁只抓目前賽事；首頁才抓完整清單。ETag 未變時不下載 JSON。
+    if (route === 'schedule' && current.selectedTournamentId && !current.selectedMatch) {
+      await refreshTournament(current.selectedTournamentId);
+      delay = 4_000;
+    } else if (route === 'home') {
+      await refreshTournaments();
+    }
+  } else {
+    delay = 30_000;
+  }
+
+  pollTimer = setTimeout(pollForUpdates, delay);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  clearTimeout(pollTimer);
+  pollForUpdates();
+});
+
+pollTimer = setTimeout(pollForUpdates, 4_000);
