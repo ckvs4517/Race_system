@@ -32,15 +32,15 @@ export const swiss = {
   getStandings(tournament) {
     const preliminaryRounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary');
     const preliminaryStats = deriveStats(tournament.players, preliminaryRounds);
-    const preliminary = rankByWins(tournament.players, preliminaryStats);
+    const preliminary = rankByRecordAndPoints(tournament.players, preliminaryStats);
 
     if (!tournament.finalists?.length) {
-      return addRanks(preliminary, tournament, (row) => row.wins);
+      return addRanks(preliminary, tournament, rankingKey);
     }
 
     const finalRounds = tournament.rounds.filter((round) => round.phase === 'final');
     const finalStats = deriveStats(tournament.finalists, finalRounds);
-    const finalists = rankByWinsAndPoints(tournament.finalists, finalStats);
+    const finalists = rankByRecordAndPoints(tournament.finalists, finalStats);
     const finalistSet = new Set(tournament.finalists);
     const remaining = preliminary.filter((row) => !finalistSet.has(row.player));
     return [...finalists, ...remaining].map((row, index) => ({
@@ -64,7 +64,7 @@ export const swiss = {
     const rounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === phase
       && (!qualifierSeriesId || round.seriesId === qualifierSeriesId));
     const stats = deriveStats(players, rounds);
-    return addRanks(rankByWins(players, stats), tournament, (row) => row.wins);
+    return addRanks(rankByRecordAndPoints(players, stats), tournament, rankingKey);
   },
 
   rebuildStats(players, rounds) {
@@ -109,7 +109,7 @@ export const swiss = {
 
     if (phase === 'final') {
       const finalStats = deriveStats(tournament.finalists, rounds.filter((item) => item.phase === 'final'));
-      const finalRanking = rankByWinsAndPoints(tournament.finalists, finalStats);
+      const finalRanking = rankByRecordAndPoints(tournament.finalists, finalStats);
       return { rounds, champion: finalRanking[0]?.player || null, swissStage: 'completed' };
     }
 
@@ -121,7 +121,7 @@ export const swiss = {
     }
 
     const history = pairingHistory(preliminaryRounds);
-    const orderedPlayers = rankByWins(activePlayers, preliminaryStats).map((row) => row.player);
+    const orderedPlayers = rankByRecordAndPoints(activePlayers, preliminaryStats).map((row) => row.player);
     const nextRound = createSwissRound(orderedPlayers, preliminaryRounds.length + 1, history, preliminaryStats);
     applyBye(nextRound, preliminaryStats);
     rounds.push(nextRound);
@@ -271,14 +271,18 @@ function deriveStats(players = [], rounds = []) {
   return stats;
 }
 
-function rankByWins(players, stats) {
+function rankByRecordAndPoints(players, stats) {
   const order = new Map(players.map((player, index) => [player, index]));
-  return rowsFor(players, stats).sort((a, b) => b.wins - a.wins || order.get(a.player) - order.get(b.player));
+  return rowsFor(players, stats).sort((a, b) => (
+    b.wins - a.wins
+    || a.losses - b.losses
+    || b.totalPoints - a.totalPoints
+    || order.get(a.player) - order.get(b.player)
+  ));
 }
 
-function rankByWinsAndPoints(players, stats) {
-  const order = new Map(players.map((player, index) => [player, index]));
-  return rowsFor(players, stats).sort((a, b) => b.wins - a.wins || b.totalPoints - a.totalPoints || order.get(a.player) - order.get(b.player));
+function rankingKey(row) {
+  return `${row.wins}:${row.losses}:${row.totalPoints}`;
 }
 
 function rowsFor(players, stats) {

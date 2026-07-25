@@ -36,7 +36,7 @@ function bracketView(tournament, canManage) {
       : `<span><i class="draft-dot"></i>${seedsReady ? '目前為預覽賽程，開始前可重新抽選種子' : `需要先抽選 ${seedCount} 位種子選手`}</span><span>按下「賽事開始」後種子與名單都會鎖定</span>`
     : `<span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>${isSwiss ? swissStageGuide(tournament) : '輪空選手已自動晉級'}</span>`;
   const seedPanel = seedCount > 0 ? `<div class="seed-panel ${seedsReady ? 'is-drawn' : ''}"><div class="seed-panel-copy"><span>INITIAL SEED</span><b>${seedsReady ? '已抽出首輪種子選手' : '本賽事首輪需要 1 位種子選手'}</b><p>${seedsReady ? (isDraft ? '種子選手首輪輪空；賽事開始前仍可重新抽選。' : '首輪種子與參賽名單已隨賽事開始鎖定。') : '請使用上方按鈕隨機抽選，完成後才會產生正式預覽賽程。'}</p></div><div class="seed-list">${seedsReady ? seedNames.map((name) => `<span>${escapeText(name)}<i>SEED</i></span>`).join('') : '<em>等待抽選</em>'}</div></div>` : '';
-  const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}"><div class="round-heading"><span>${roundPhaseLabel(round, roundIndex)}</span><b>${escapeText(round.name)}</b></div><div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, allSeedNames, isSwiss)}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${tournament.players.length ? '等待賽程產生' : '等待參賽名單'}</h2><p>${tournament.players.length ? '主辦方完成設定後，正式賽程會顯示在這裡。' : '可以手動加入選手，或前往報名管理開放公開報名。'}</p></div>`;
+  const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => roundColumnView(tournament, round, roundIndex, canManage, isDraft, allSeedNames, isSwiss, arenaCount)).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${tournament.players.length ? '等待賽程產生' : '等待參賽名單'}</h2><p>${tournament.players.length ? '主辦方完成設定後，正式賽程會顯示在這裡。' : '可以手動加入選手，或前往報名管理開放公開報名。'}</p></div>`;
   const swissDecision = isSwiss && !isDraft ? swissDecisionPanel(tournament, canManage) : '';
   const leaderboard = (isSwiss && !isDraft) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
   const preliminaryCount = rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length;
@@ -125,16 +125,30 @@ function swissDecisionPanel(tournament, canManage) {
   if (!canManage) {
     return '<section class="swiss-decision-panel"><p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認中</h2><p>主辦方正在確認直接晉級名單，或安排同分選手進行資格積分決定賽。</p></section>';
   }
-  const choices = rows.map((row) => `<label class="swiss-player-choice"><input type="checkbox" value="${escapeAttribute(row.player)}"><span><b>${escapeText(row.player)}</b><small>${row.wins} 勝 ${row.losses} 敗 · 總得分 ${row.totalPoints}</small></span></label>`).join('');
+  const qualifierChoices = swissPlayerChoices(rows, 'candidate');
+  const directFinalRows = getDirectFinalRows(rows, latestQualifier);
+  const directFinalChoices = swissPlayerChoices(directFinalRows, 'finalist', true);
   return `<section class="swiss-decision-panel">
     <p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認</h2>
     <p>四輪預賽已完成。你可以選 2～6 位建立資格積分決定賽，完成後再回來確認；也可以直接選取正好 4 位進入四強循環決賽。</p>
     ${latestQualifier.length ? `<div class="swiss-latest-qualifier"><h3>最近一組資格加賽結果</h3>${swissMiniStandings(latestQualifier)}</div>` : ''}
     <div class="swiss-decision-grid">
-      <form data-swiss-qualifier-form><h3>資格積分決定賽</h3><div class="swiss-player-choices">${choices.replaceAll('type="checkbox"', 'type="checkbox" name="candidate"')}</div><button class="button button-secondary" type="submit">建立資格加賽</button></form>
-      <form data-swiss-final-form><h3>直接確認四強</h3><div class="swiss-player-choices">${choices.replaceAll('type="checkbox"', 'type="checkbox" name="finalist"')}</div><button class="button button-primary" type="submit">建立前四循環決賽</button></form>
+      <form data-swiss-qualifier-form><h3>資格積分決定賽</h3><div class="swiss-player-choices">${qualifierChoices}</div><button class="button button-secondary" type="submit">建立資格加賽</button></form>
+      <form data-swiss-final-form><h3>直接確認四強</h3><p class="swiss-choice-note">只列出目前排行榜前四名；確認無誤後即可建立決賽。</p><div class="swiss-player-choices">${directFinalChoices}</div><button class="button button-primary" type="submit">建立前四循環決賽</button></form>
     </div>
   </section>`;
+}
+
+function swissPlayerChoices(rows, name, checked = false) {
+  return rows.map((row) => `<label class="swiss-player-choice"><input type="checkbox" name="${name}" value="${escapeAttribute(row.player)}" ${checked ? 'checked' : ''}><span><b>${escapeText(row.player)}</b><small>${row.wins} 勝 ${row.losses} 敗 · 總得分 ${row.totalPoints}</small></span></label>`).join('');
+}
+
+function getDirectFinalRows(preliminaryRows, latestQualifierRows) {
+  if (!latestQualifierRows.length) return preliminaryRows.slice(0, 4);
+  const qualifierPlayers = new Set(latestQualifierRows.map((row) => row.player));
+  const automaticRows = preliminaryRows.slice(0, 4).filter((row) => !qualifierPlayers.has(row.player));
+  const openSlots = Math.max(0, 4 - automaticRows.length);
+  return [...automaticRows, ...latestQualifierRows.slice(0, openSlots)];
 }
 
 function swissMiniStandings(rows) {
@@ -158,9 +172,18 @@ function roundPhaseLabel(round, roundIndex) {
   return `ROUND ${String(roundIndex + 1).padStart(2, '0')}`;
 }
 
+function roundColumnView(tournament, round, roundIndex, canManage, isDraft, seedNames, isSwiss, arenaCount) {
+  const completed = round.matches.every((match) => ['已完成', '輪空晉級'].includes(match.status));
+  const toggle = completed ? '<i class="round-toggle" aria-hidden="true"></i>' : '';
+  return `<details class="round-column ${completed ? 'is-completed' : ''} ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}" ${completed ? '' : 'open'}>
+    <summary class="round-heading"><span>${roundPhaseLabel(round, roundIndex)}</span><b>${escapeText(round.name)}</b>${toggle}</summary>
+    <div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, seedNames, isSwiss)}</div>
+  </details>`;
+}
+
 function leaderboardView(rows, isSwiss) {
   const metric = '總得分';
-  const description = isSwiss ? '瑞士預賽依勝場分組；總得分清楚列出供現場確認' : '依冠軍、勝場、總分與得失分差排序';
+  const description = isSwiss ? '依勝場、敗場、總得分依序排名' : '依冠軍、勝場、總分與得失分差排序';
   return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'FINAL STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => `<div class="leaderboard-row ${row.isChampion ? 'is-champion' : ''} ${row.participantStatus !== 'active' ? 'is-inactive' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${row.isChampion ? '<small>CHAMPION</small>' : ''}${row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : ''}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></div>`).join('')}</div></section>`;
 }
 

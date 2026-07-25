@@ -34,21 +34,56 @@ tournament = startTournament(tournament);
 assert.match(scheduleView([tournament], tournament.id, true), /瑞士制/);
 assert.match(scheduleView([tournament], tournament.id, true), /LIVE STANDINGS/);
 
+const rankingProbe = {
+  ...createTournament('同戰績排序', ['高分選手', '低分選手', '全勝選手', '未勝選手'], 'swiss'),
+  status: '進行中',
+  swissStage: 'qualification',
+  rounds: [
+    {
+      name: '測試第一輪',
+      phase: 'preliminary',
+      matches: [
+        completedMatch('probe-1', '全勝選手', '高分選手', 5, 3),
+        completedMatch('probe-2', '低分選手', '未勝選手', 4, 0),
+      ],
+    },
+    {
+      name: '測試第二輪',
+      phase: 'preliminary',
+      matches: [
+        completedMatch('probe-3', '全勝選手', '低分選手', 4, 1),
+        completedMatch('probe-4', '高分選手', '未勝選手', 4, 0),
+      ],
+    },
+  ],
+};
+const rankingProbeRows = getTournamentStandings(rankingProbe);
+assert.deepEqual(rankingProbeRows.map((row) => row.player), ['全勝選手', '高分選手', '低分選手', '未勝選手']);
+assert.deepEqual(rankingProbeRows.map((row) => row.rank), [1, 2, 3, 4], '勝敗相同時以總得分拆分名次');
+
 while (tournament.swissStage === 'preliminary') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '進行中');
 assert.equal(tournament.swissStage, 'qualification');
 assert.equal(tournament.rounds.length, 4);
 assert.equal(tournament.champion, null);
 assertNoRepeatedPairings(tournament.rounds);
-assert.match(scheduleView([tournament], tournament.id, true), /四強資格確認/);
+const qualificationView = scheduleView([tournament], tournament.id, true);
+assert.match(qualificationView, /四強資格確認/);
 
 const preliminary = getTournamentStandings(tournament);
 assert.ok(preliminary.every((row) => Number.isInteger(row.totalPoints)), '排行榜列出總得分');
+assertRecordAndPointsOrder(preliminary);
+const initialFinalForm = qualificationView.match(/<form data-swiss-final-form>[\s\S]*?<\/form>/)?.[0] || '';
+assert.equal((initialFinalForm.match(/name="finalist"/g) || []).length, 4, '直接確認四強只列排行榜前四名');
+assert.ok(preliminary.slice(0, 4).every((row) => initialFinalForm.includes(row.player)), '直接四強包含排行榜前四名');
 const qualifierPlayers = preliminary.slice(2, 6).map((row) => row.player);
 tournament = startSwissQualifier(tournament, qualifierPlayers);
 assert.equal(tournament.swissStage, 'qualifier');
 while (tournament.swissStage === 'qualifier') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.swissStage, 'qualification');
+const postQualifierView = scheduleView([tournament], tournament.id, true);
+const postQualifierFinalForm = postQualifierView.match(/<form data-swiss-final-form>[\s\S]*?<\/form>/)?.[0] || '';
+assert.equal((postQualifierFinalForm.match(/name="finalist"/g) || []).length, 4, '資格加賽後仍只列四位確定晉級者');
 
 const finalists = preliminary.slice(0, 4).map((row) => row.player);
 tournament = startSwissFinal(tournament, finalists);
@@ -63,6 +98,8 @@ assert.match(completedView, /勝者組/);
 assert.match(completedView, /敗者組/);
 assert.match(completedView, /TOP 4 FINAL/);
 assert.match(completedView, /swiss-score-group/);
+assert.match(completedView, /round-column is-completed/);
+assert.doesNotMatch(completedView, /round-column is-completed[^>]*\sopen/);
 
 const reset = resetCompletedMatch(tournament, 0, 0);
 assert.equal(reset.status, '進行中');
@@ -124,4 +161,26 @@ function assertNoRepeatedPairings(rounds) {
     assert.ok(!seen.has(key), `重複配對：${key}`);
     seen.add(key);
   }));
+}
+
+function assertRecordAndPointsOrder(rows) {
+  rows.slice(1).forEach((row, index) => {
+    const previous = rows[index];
+    if (previous.wins === row.wins && previous.losses === row.losses) {
+      assert.ok(previous.totalPoints >= row.totalPoints, '勝敗相同時總得分較高者排前面');
+      if (previous.totalPoints > row.totalPoints) assert.ok(previous.rank < row.rank, '總得分不同時不可並列名次');
+    }
+  });
+}
+
+function completedMatch(id, playerA, playerB, scoreA, scoreB) {
+  return {
+    id,
+    playerA,
+    playerB,
+    scoreA,
+    scoreB,
+    winner: scoreA > scoreB ? playerA : playerB,
+    status: '已完成',
+  };
 }
