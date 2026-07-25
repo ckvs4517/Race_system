@@ -5,7 +5,7 @@ import { pageHeader } from '../ui/shell.js';
 const steps = [
   ['01', '登入主辦方後台', '由主辦方輸入 PIN。觀眾查看賽程與使用獨立記分板不需要登入。'],
   ['02', '建立並確認賽事', '可先建立空白賽事開放公開報名，或直接手動輸入名單；單淘汰支援 2～32 位，瑞士制支援 4～32 位。'],
-  ['03', '處理種子並開始', '奇數人的單淘汰賽需先抽一位首輪種子。確認名單後按下「賽事開始」，設定便會鎖定。'],
+  ['03', '完成報到並開始', '在參賽選手名單勾選已報到者，也可新增現場選手；奇數人的單淘汰賽需再抽一位首輪種子。開賽只會排入已報到選手。'],
   ['04', '點擊節點輸入比分', '點擊綠色「可開始」對戰，使用加減分後確認結果。一般勝方至少 4 分，棄賽則以 4：0 判定。'],
   ['05', '查看排名與保存結果', '完成每場比賽後系統會更新排行榜；瑞士制第四輪後可安排資格加賽或直接確認四強循環決賽。資料會同步保存到雲端。'],
 ];
@@ -15,7 +15,7 @@ export function guideView(isAdmin = false) {
     ${pageHeader('GETTING STARTED', '第一次使用？五步完成一場賽事', '操作會依賽事狀態逐步開放；先確認名單，再開始比賽，就不容易漏掉重要設定。', `<div class="header-actions"><button class="button button-primary" data-route="${isAdmin ? 'manage' : 'control'}">${isAdmin ? '建立賽事' : '主辦方登入'} ${icons.arrow}</button><button class="button button-secondary" data-route="schedule">查看公開賽程</button></div>`)}
     <div class="guide-steps">${steps.map(([number, title, text]) => `<article class="guide-step"><span>${number}</span><div><h2>${title}</h2><p>${text}</p></div></article>`).join('')}</div>
     <div class="guide-notes">
-      <article><p class="kicker">BEFORE START</p><h2>開始前可以調整</h2><ul><li>修改賽事名稱、賽制、戰鬥台數與選手名單</li><li>重新隨機分組或重新抽選首輪種子</li><li>確認未到場選手沒有留在名單中</li></ul></article>
+      <article><p class="kicker">BEFORE START</p><h2>開始前可以調整</h2><ul><li>修改賽事名稱、賽制、戰鬥台數與選手名單</li><li>勾選報到、現場新增或移除錯誤名單</li><li>重新隨機分組或重新抽選首輪種子</li></ul></article>
       <article><p class="kicker">DURING EVENT</p><h2>開始後需要注意</h2><ul><li>設定與名單會鎖定，避免中途改動賽程</li><li>未出席或中途退賽成立後不可恢復</li><li>重新比賽會清除受影響的後續輪次</li></ul></article>
     </div>
     <div class="guide-quick"><div><p class="kicker">QUICK MATCH</p><h2>只想臨時計分？</h2><p>獨立記分板不會連動正式賽事，適合練習或臨時對戰。</p></div><button class="button button-secondary" data-route="scoreboard">開啟獨立記分板</button></div>

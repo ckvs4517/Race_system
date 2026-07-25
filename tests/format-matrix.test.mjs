@@ -7,6 +7,7 @@ import {
   getTournamentStandings,
   recordMatchResult,
   requiredSeedCount,
+  setDraftPlayerCheckedIn,
   startSwissFinal,
   startTournament,
 } from '../src/domain/tournament.js';
@@ -18,7 +19,7 @@ for (const format of ['single_elimination', 'swiss']) {
   for (let playerCount = 2; playerCount <= 32; playerCount += 1) {
     if (format === 'swiss' && playerCount < 4) continue;
     const players = Array.from({ length: playerCount }, (_, index) => `${format}-${playerCount}-${index + 1}`);
-    let tournament = createTournament(`${playerCount} 人矩陣測試`, players, format, Math.min(8, Math.max(1, Math.ceil(playerCount / 4))));
+    let tournament = checkInAll(createTournament(`${playerCount} 人矩陣測試`, players, format, Math.min(8, Math.max(1, Math.ceil(playerCount / 4)))));
 
     assert.equal(new Set(tournament.players).size, playerCount, `${format} ${playerCount} 人名單完整`);
     assert.equal(requiredSeedCount(tournament), format === 'single_elimination' ? playerCount % 2 : 0);
@@ -61,16 +62,20 @@ for (const format of ['single_elimination', 'swiss']) {
   }
 }
 
-assert.throws(() => startTournament(createTournament('人數不足', ['A'])), /2 至 32/);
+assert.throws(() => startTournament(checkInAll(createTournament('人數不足', ['A']))), /2 至 32/);
 assert.throws(() => createTournament('人數超過', Array.from({ length: 33 }, (_, index) => `P${index}`)), /不可超過 32/);
 assert.throws(() => createTournament('重複名稱', ['A', 'A']), /不可重複/);
 assert.throws(() => createTournament('台數不足', ['A', 'B'], 'single_elimination', 0), /1 至 8/);
 assert.throws(() => createTournament('台數超過', ['A', 'B'], 'single_elimination', 9), /1 至 8/);
 
-let validation = startTournament(createTournament('比分驗證', ['A', 'B']));
+let validation = startTournament(checkInAll(createTournament('比分驗證', ['A', 'B'])));
 assert.throws(() => recordMatchResult(validation, 0, 0, 1, 0), /至少為 4/);
 assert.throws(() => recordMatchResult(validation, 0, 0, 4, 4), /比分相同/);
 assert.throws(() => recordMatchResult(validation, 0, 0, -1, 4), /0 以上的整數/);
 assert.throws(() => recordMatchResult(validation, 0, 0, 4.5, 1), /0 以上的整數/);
 
 console.log(`PASS format matrix: ${completedTournaments} tournaments, ${completedMatches} matches`);
+
+function checkInAll(tournament) {
+  return tournament.players.reduce((current, player) => setDraftPlayerCheckedIn(current, player, true), tournament);
+}

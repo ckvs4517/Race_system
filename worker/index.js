@@ -77,9 +77,10 @@ export default {
           rounds: [],
           seedPlayerIndexes: [],
           seedDrawnAt: null,
+          checkInVersion: 1,
           participantStates: {
             ...(tournament.participantStates || {}),
-            [row.display_name]: { status: 'active' },
+            [row.display_name]: { status: 'active', checkedIn: false },
           },
         }), expectedRevision + 1);
         const tournamentResult = await env.DB.prepare('UPDATE tournaments SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND revision = ?')

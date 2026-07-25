@@ -27,6 +27,7 @@ try {
   submit('[data-tournament-form]');
   await waitFor('[data-action="start-tournament"]');
   expectText('完整流程測試賽', '可以從表單建立賽事並開啟預覽賽程');
+  expectText('已報到 0／報名 4 人', '建立賽事後先顯示報到名單');
   expect(document.querySelector('[data-action="edit-tournament"]'), '開始前顯示編輯賽事按鈕');
 
   click('[data-action="edit-tournament"]');
@@ -35,6 +36,15 @@ try {
   submit('[data-tournament-form]');
   await waitFor('[data-action="start-tournament"]');
   expectText('完整流程測試賽（已編輯）', '開始前可以儲存賽事修改');
+  fill('[data-add-draft-player-form] [name="playerName"]', '現場測試選手');
+  submit('[data-add-draft-player-form]');
+  await waitFor('[data-remove-draft-player="現場測試選手"]');
+  expectText('報名 5 人', '報到名單可以新增現場選手');
+  click('[data-remove-draft-player="現場測試選手"]');
+  await waitUntil(() => !document.querySelector('[data-remove-draft-player="現場測試選手"]'));
+  expectText('報名 4 人', '報到名單可以確認移除錯誤選手');
+  await checkInAllPlayers();
+  expectText('已報到 4／報名 4 人', '可以逐一勾選選手完成報到');
 
   click('[data-action="randomize-bracket"]');
   await waitFor('[data-action="start-tournament"]');
@@ -62,6 +72,7 @@ try {
   await waitFor('[data-action="start-tournament"]');
   expectText('（副本）', '複製賽事會建立保留名單的準備中副本');
   expect(records.size === 2, '複製後雲端資料有兩場賽事');
+  await checkInAllPlayers();
   click('[data-action="start-tournament"]');
   await waitFor('[data-no-show-player]');
   click('[data-no-show-player]');
@@ -155,6 +166,16 @@ async function waitUntil(predicate, timeout = 3000) {
 
 function pause() {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function checkInAllPlayers() {
+  while (true) {
+    const input = document.querySelector('[data-check-in-player]:not(:checked)');
+    if (!input) break;
+    input.click();
+    await waitUntil(() => !document.contains(input));
+    await pause();
+  }
 }
 
 async function mockFetch(input, options = {}) {

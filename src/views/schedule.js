@@ -26,15 +26,17 @@ function bracketView(tournament, canManage) {
   const seedCount = requiredSeedCount(tournament);
   const seedIndexes = tournament.seedPlayerIndexes || [];
   const seedsReady = seedCount === 0 || seedIndexes.length === seedCount;
+  const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
+  const minimumPlayers = isSwiss ? 4 : 2;
   const seedNames = seedIndexes.map((index) => tournament.players[index]).filter(Boolean);
   const allSeedNames = new Set(isSwiss ? [] : rounds.map((round) => round.seedPlayer).filter(Boolean));
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? '四強循環賽第一名' : '本屆冠軍'}</span><b>${escapeText(tournament.champion)}</b></div>` : '';
   const eventInfoPanel = eventInfoView(tournament.eventInfo);
-  const participantPanel = !isDraft ? participantManagementView(tournament, canManage) : '';
+  const participantPanel = participantManagementView(tournament, canManage);
   const seedButton = isDraft && seedCount > 0 ? `<button class="button button-seed" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
   const randomizeButton = isDraft ? '<button class="button button-secondary" data-action="randomize-bracket">重新隨機分組</button>' : '';
   const imageButton = tournament.status === '已完成' ? '<button class="button button-primary" data-action="download-tournament-image">下載完整賽程圖</button>' : '';
-  const headerActions = `<div class="header-actions">${imageButton}${canManage && isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady && tournament.players.length >= 2 ? '' : 'disabled'}>賽事開始</button>` : ''}${canManage ? '<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
+  const headerActions = `<div class="header-actions">${imageButton}${canManage && isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady && checkedInCount >= minimumPlayers ? '' : 'disabled'}>賽事開始</button>` : ''}${canManage ? '<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
   const guide = isDraft
     ? isSwiss
       ? `<span><i class="draft-dot"></i>固定進行四輪瑞士制預賽</span><span>四輪後由主辦方確認四強或建立資格積分決定賽</span>`
@@ -45,7 +47,7 @@ function bracketView(tournament, canManage) {
   const swissDecision = isSwiss && !isDraft ? swissDecisionPanel(tournament, canManage) : '';
   const leaderboard = (isSwiss && !isDraft) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
   const preliminaryCount = rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length;
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位參賽者 · ${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${eventInfoPanel}${champion}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${swissDecision}${bracket}${leaderboard}</section>`;
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : ''}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${eventInfoPanel}${champion}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${swissDecision}${bracket}${leaderboard}</section>`;
 }
 
 function eventInfoView(info = {}) {
@@ -99,6 +101,7 @@ function localDateKey(date) {
 }
 
 function participantManagementView(tournament, canManage) {
+  if (tournament.status === '準備中') return draftCheckInView(tournament, canManage);
   const canChange = canManage && tournament.status === '進行中';
   const rows = tournament.players.map((player) => {
     const state = tournament.participantStates?.[player] || { status: 'active' };
@@ -113,6 +116,32 @@ function participantManagementView(tournament, canManage) {
   const activeCount = tournament.players.filter((player) => (tournament.participantStates?.[player]?.status || 'active') === 'active'
     && !(tournament.format === 'single_elimination' && (tournament.playerStats?.[player]?.losses || 0) > 0)).length;
   return `<details class="participant-management"><summary><span>選手狀態</span><b>${activeCount} 位參賽中</b></summary><div class="participant-list">${rows}</div></details>`;
+}
+
+function draftCheckInView(tournament, canManage) {
+  const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
+  const minimumPlayers = tournament.format === 'swiss' ? 4 : 2;
+  const rows = tournament.players.map((player) => {
+    const checkedIn = Boolean(tournament.participantStates?.[player]?.checkedIn);
+    return `<div class="check-in-row ${checkedIn ? 'is-checked-in' : ''}">
+      <label><input type="checkbox" data-check-in-player="${escapeAttribute(player)}" ${checkedIn ? 'checked' : ''} ${canManage ? '' : 'disabled'}><span>${escapeText(player)}</span></label>
+      <i>${checkedIn ? '已報到' : '尚未報到'}</i>
+      ${canManage ? `<button type="button" data-remove-draft-player="${escapeAttribute(player)}" aria-label="移除 ${escapeAttribute(player)}">移除</button>` : ''}
+    </div>`;
+  }).join('');
+  const addForm = canManage ? `<form class="check-in-add" data-add-draft-player-form>
+    <input name="playerName" maxlength="60" autocomplete="off" placeholder="輸入現場報名選手名稱" aria-label="現場報名選手名稱">
+    <button class="button button-secondary" type="submit">＋ 新增選手</button>
+  </form>` : '';
+  const guidance = checkedInCount >= minimumPlayers
+    ? '已達開賽人數；未勾選者在開賽時會保留為未出席並排除賽程。'
+    : `至少需要 ${minimumPlayers} 位選手完成報到才能開始賽事。`;
+  return `<section class="check-in-panel">
+    <div class="check-in-heading"><div><p class="kicker">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
+    <p class="check-in-guidance">${guidance}</p>
+    <div class="check-in-list">${rows || '<div class="check-in-empty">目前沒有參賽選手，可從公開報名核准或在下方現場新增。</div>'}</div>
+    ${addForm}
+  </section>`;
 }
 
 function swissDecisionPanel(tournament, canManage) {

@@ -1,5 +1,5 @@
 /** 瀏覽器領域測試：涵蓋單淘汰、種子、重賽、棄賽、退賽與畫面輸出。 */
-import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startTournament, updateDraftTournament, withdrawPlayer } from '../src/domain/tournament.js';
+import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, setDraftPlayerCheckedIn, startTournament, updateDraftTournament, withdrawPlayer } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
@@ -15,6 +15,8 @@ try {
   let tournament = createTournament('五人測試賽', ['A', 'B', 'C', 'D', 'E']);
   expect(tournament.format === 'single_elimination' && getTournamentFormat(tournament.format).name === '單淘汰賽', '種子與配對規則綁定單淘汰賽制');
   expect(tournament.status === '準備中', '新賽事建立後保持準備中');
+  expect(scheduleView([tournament], tournament.id, true).includes('已報到 0／報名 5 人'), '新賽事先顯示尚未報到的完整選手名單');
+  tournament = checkInAll(tournament);
   expect(requiredSeedCount(tournament) === 1, '奇數五人賽只需要一位首輪種子');
   expect(tournament.rounds.length === 0, '抽選種子前不產生正式預覽賽程');
   const waitingView = scheduleView([tournament], tournament.id, true);
@@ -23,7 +25,7 @@ try {
   expect(waitingView.includes('data-action="randomize-bracket"'), '準備中賽事提供重新隨機分組按鈕');
 
   const originalOrder = ['甲', '乙', '丙', '丁'];
-  const randomized = randomizeDraftTournament(createTournament('隨機分組測試', originalOrder), () => 0);
+  const randomized = randomizeDraftTournament(checkInAll(createTournament('隨機分組測試', originalOrder)), () => 0);
   expect(randomized.players.join(',') === '乙,丙,丁,甲', '隨機分組使用 Fisher-Yates 重新排列參賽者');
   expect(new Set(randomized.players).size === originalOrder.length && originalOrder.every((player) => randomized.players.includes(player)), '隨機分組不會遺失或重複參賽者');
   expect(randomized.rounds[0].matches[0].playerA === '乙' && randomized.rounds[0].matches[0].playerB === '丙', '第一輪對戰依隨機後順序建立');
@@ -86,11 +88,11 @@ try {
   expect(completedView.includes('data-action="copy-current-tournament"'), '賽事內容頁提供複製賽事按鈕');
 
   let lowWinningScoreRejected = false;
-  const scoreValidationTournament = startTournament(createTournament('四分制測試', ['S1', 'S2']));
+  const scoreValidationTournament = startTournament(checkInAll(createTournament('四分制測試', ['S1', 'S2'])));
   try { recordMatchResult(scoreValidationTournament, 0, 0, 3, 1); } catch { lowWinningScoreRejected = true; }
   expect(lowWinningScoreRejected, '正常比賽勝方未達 4 分時不能送出結果');
 
-  let administrativeTournament = startTournament(createTournament('行政判定測試', ['F1', 'F2', 'F3', 'F4']));
+  let administrativeTournament = startTournament(checkInAll(createTournament('行政判定測試', ['F1', 'F2', 'F3', 'F4'])));
   const forfeitedPlayer = administrativeTournament.rounds[0].matches[0].playerA;
   administrativeTournament = forfeitMatch(administrativeTournament, 0, 0, forfeitedPlayer);
   const forfeitedMatch = administrativeTournament.rounds[0].matches[0];
@@ -103,14 +105,14 @@ try {
   const administrativeView = scheduleView([administrativeTournament], administrativeTournament.id, true);
   expect(administrativeView.includes('退賽判定 4：0') && !administrativeView.includes('data-restore-player'), '賽程顯示退賽判定且不提供恢復入口');
 
-  let swissWithdrawal = startTournament(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss'));
+  let swissWithdrawal = startTournament(checkInAll(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss')));
   const swissWithdrawnPlayer = swissWithdrawal.rounds[0].matches[0].playerA;
   swissWithdrawal = withdrawPlayer(swissWithdrawal, swissWithdrawnPlayer);
   const swissRemainingMatchIndex = swissWithdrawal.rounds[0].matches.findIndex((match) => match.status === '可開始');
   swissWithdrawal = forfeitMatch(swissWithdrawal, 0, swissRemainingMatchIndex, swissWithdrawal.rounds[0].matches[swissRemainingMatchIndex].playerB);
   expect(!swissWithdrawal.rounds[1].matches.some((match) => [match.playerA, match.playerB].includes(swissWithdrawnPlayer)), '退賽選手不會進入瑞士制後續配對');
 
-  let evenTournament = createTournament('六人測試賽', ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
+  let evenTournament = checkInAll(createTournament('六人測試賽', ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']));
   expect(requiredSeedCount(evenTournament) === 0, '偶數六人賽首輪不抽種子');
   expect(evenTournament.rounds[0].matches.length === 3 && evenTournament.rounds[0].matches.every((match) => match.status === '可開始'), '六位選手第一輪全部完成三組配對');
   expect(!scheduleView([evenTournament], evenTournament.id, true).includes('data-action="draw-seeds"'), '偶數賽事不顯示首輪抽種子按鈕');
@@ -121,7 +123,7 @@ try {
   expect(evenTournament.rounds[1].seedPlayer === 'P3', '平均得分相同時以得失分差決定後續種子');
 
   const players32 = Array.from({ length: 32 }, (_, index) => `P${index + 1}`);
-  const tournament32 = createTournament('32 人測試賽', players32);
+  const tournament32 = checkInAll(createTournament('32 人測試賽', players32));
   expect(requiredSeedCount(tournament32) === 0 && buildRounds(tournament32).length === 5, '32 人賽不需首輪種子並顯示五輪');
   expect(manageView(tournament32).includes('2–32 位'), '編輯頁顯示 32 人上限');
   let editLocked = false;
@@ -143,4 +145,8 @@ function recordById(tournament, matchId, scoreA, scoreB) {
   const roundIndex = tournament.rounds.findIndex((round) => round.matches.some((match) => match.id === matchId));
   const matchIndex = tournament.rounds[roundIndex].matches.findIndex((match) => match.id === matchId);
   return recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB, () => 0);
+}
+
+function checkInAll(tournament) {
+  return tournament.players.reduce((current, player) => setDraftPlayerCheckedIn(current, player, true), tournament);
 }

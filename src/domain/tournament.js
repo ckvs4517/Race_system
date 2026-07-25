@@ -15,7 +15,7 @@ export function requiredSeedCount(tournamentOrPlayers) {
   const tournament = Array.isArray(tournamentOrPlayers)
     ? { players: tournamentOrPlayers, format: 'single_elimination' }
     : tournamentOrPlayers;
-  return getTournamentFormat(tournament.format).initialSeedCount(tournament.players);
+  return getTournamentFormat(tournament.format).initialSeedCount(draftCompetitionPlayers(tournament));
 }
 
 export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}) {
@@ -24,7 +24,6 @@ export function createTournament(name, players, formatId = 'single_elimination',
   validateDraftPlayers(cleanPlayers);
   const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
-  const seedCount = format.initialSeedCount(cleanPlayers);
   return {
     id: Date.now(),
     name: name.trim() || '未命名賽事',
@@ -36,9 +35,10 @@ export function createTournament(name, players, formatId = 'single_elimination',
     seedPlayerIndexes: [],
     created: new Date().toLocaleDateString('zh-TW'),
     status: '準備中',
+    checkInVersion: 1,
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
-    participantStates: createParticipantStates(cleanPlayers),
-    rounds: seedCount || cleanPlayers.length < 2 ? [] : [format.createOpeningRound(cleanPlayers)],
+    participantStates: createParticipantStates(cleanPlayers, false),
+    rounds: [],
     registrationSettings: createRegistrationSettings(),
     ...(format.initialState?.() || {}),
   };
@@ -50,14 +50,17 @@ export function duplicateTournament(tournament) {
 }
 
 export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}) {
-  if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validateDraftPlayers(cleanPlayers);
   const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
-  const seedCount = format.initialSeedCount(cleanPlayers);
+  const participantStates = normalizeParticipantStates(cleanPlayers, normalized.participantStates, false);
+  const competitionPlayers = cleanPlayers.filter((player) => participantStates[player].checkedIn);
+  const seedCount = format.initialSeedCount(competitionPlayers);
   return {
-    ...tournament,
+    ...normalized,
     name: name.trim() || '未命名賽事',
     bracketVersion: 2,
     format: format.id,
@@ -65,32 +68,70 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
     arenaCount: cleanArenaCount,
     eventInfo: normalizeEventInfo(eventInfo),
     seedPlayerIndexes: [],
-    totalRounds: format.totalRounds?.(cleanPlayers) || null,
-    participantStates: createParticipantStates(cleanPlayers),
-    rounds: seedCount || cleanPlayers.length < 2 ? [] : [format.createOpeningRound(cleanPlayers)],
+    checkInVersion: 1,
+    totalRounds: format.totalRounds?.(competitionPlayers) || null,
+    participantStates,
+    rounds: seedCount || competitionPlayers.length < 2 ? [] : [format.createOpeningRound(competitionPlayers)],
     seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
     ...(format.initialState?.() || {}),
   };
 }
 
+export function setDraftPlayerCheckedIn(tournament, player, checkedIn) {
+  const normalized = normalizeTournament(tournament);
+  assertDraftRosterChange(normalized);
+  if (!normalized.players.includes(player)) throw new Error('找不到這位參賽者。');
+  const participantStates = {
+    ...normalized.participantStates,
+    [player]: { ...normalized.participantStates[player], status: 'active', checkedIn: Boolean(checkedIn) },
+  };
+  return rebuildDraftRoster(normalized, normalized.players, participantStates);
+}
+
+export function addDraftPlayer(tournament, player) {
+  const normalized = normalizeTournament(tournament);
+  assertDraftRosterChange(normalized);
+  const name = String(player || '').trim();
+  if (!name) throw new Error('請輸入選手名稱。');
+  const players = [...normalized.players, name];
+  validateDraftPlayers(players);
+  const participantStates = {
+    ...normalized.participantStates,
+    [name]: { status: 'active', checkedIn: false },
+  };
+  return rebuildDraftRoster(normalized, players, participantStates);
+}
+
+export function removeDraftPlayer(tournament, player) {
+  const normalized = normalizeTournament(tournament);
+  assertDraftRosterChange(normalized);
+  if (!normalized.players.includes(player)) throw new Error('找不到這位參賽者。');
+  const players = normalized.players.filter((candidate) => candidate !== player);
+  const participantStates = { ...normalized.participantStates };
+  delete participantStates[player];
+  return rebuildDraftRoster(normalized, players, participantStates);
+}
+
 export function drawRandomSeeds(tournament, random = Math.random) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '準備中') throw new Error('賽事開始後不能重新抽選種子。');
   const format = getTournamentFormat(normalized.format);
-  const seedCount = format.initialSeedCount(normalized.players);
+  const competitionPlayers = draftCompetitionPlayers(normalized);
+  const seedCount = format.initialSeedCount(competitionPlayers);
   if (seedCount === 0) return normalized;
 
-  const indexes = normalized.players.map((_, index) => index);
+  const indexes = competitionPlayers.map((player) => normalized.players.indexOf(player));
   for (let index = indexes.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1));
     [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
   }
   const seedPlayerIndexes = indexes.slice(0, seedCount);
+  const relativeSeedIndexes = seedPlayerIndexes.map((index) => competitionPlayers.indexOf(normalized.players[index]));
   return {
     ...normalized,
     seedPlayerIndexes,
-    rounds: [format.createOpeningRound(normalized.players, seedPlayerIndexes)],
+    rounds: [format.createOpeningRound(competitionPlayers, relativeSeedIndexes)],
     seedDrawnAt: new Date().toISOString(),
   };
 }
@@ -104,13 +145,14 @@ export function randomizeDraftTournament(tournament, random = Math.random) {
     [players[index], players[swapIndex]] = [players[swapIndex], players[index]];
   }
   const format = getTournamentFormat(normalized.format);
-  const seedCount = format.initialSeedCount(players);
+  const competitionPlayers = players.filter((player) => normalized.participantStates[player]?.checkedIn);
+  const seedCount = format.initialSeedCount(competitionPlayers);
   return {
     ...normalized,
     players,
     seedPlayerIndexes: [],
-    totalRounds: format.totalRounds?.(players) || null,
-    rounds: seedCount || players.length < 2 ? [] : [format.createOpeningRound(players)],
+    totalRounds: format.totalRounds?.(competitionPlayers) || null,
+    rounds: seedCount || competitionPlayers.length < 2 ? [] : [format.createOpeningRound(competitionPlayers)],
     seedDrawnAt: null,
     randomizedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -121,17 +163,25 @@ export function startTournament(tournament) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (normalized.status !== '準備中') throw new Error('這場賽事已經開始或完成。');
-  validatePlayers(normalized.players);
-  if (format.id === 'swiss' && normalized.players.length < 4) throw new Error('四輪瑞士制至少需要 4 位選手。');
-  if (normalized.seedPlayerIndexes.length !== format.initialSeedCount(normalized.players)) {
+  const competitionPlayers = draftCompetitionPlayers(normalized);
+  validatePlayers(competitionPlayers);
+  if (format.id === 'swiss' && competitionPlayers.length < 4) throw new Error('四輪瑞士制至少需要 4 位已報到選手。');
+  if (normalized.seedPlayerIndexes.length !== format.initialSeedCount(competitionPlayers)) {
     throw new Error('請先完成種子選手抽選再開始賽事。');
   }
-  const openingRound = normalized.rounds[0] || format.createOpeningRound(normalized.players);
+  const relativeSeedIndexes = normalized.seedPlayerIndexes.map((index) => competitionPlayers.indexOf(normalized.players[index]));
+  const openingRound = format.createOpeningRound(competitionPlayers, relativeSeedIndexes);
   const stats = format.initializeStats(normalized.players);
+  const participantStates = Object.fromEntries(normalized.players.map((player) => [player, {
+    ...normalized.participantStates[player],
+    status: normalized.participantStates[player].checkedIn ? 'active' : 'no_show',
+  }]));
   return {
     ...normalized,
     status: '進行中',
-    rounds: normalized.rounds.length ? normalized.rounds : [openingRound],
+    participantStates,
+    totalRounds: format.totalRounds?.(competitionPlayers) || normalized.totalRounds,
+    rounds: [openingRound],
     playerStats: format.activateOpeningRound(openingRound, stats),
     startedAt: new Date().toISOString(),
   };
@@ -150,6 +200,7 @@ export function normalizeTournament(tournament) {
         ? format.totalRounds(tournament.players || [])
         : tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
       participantStates: normalizeParticipantStates(tournament.players || [], tournament.participantStates),
+      checkInVersion: 1,
       registrationSettings: normalizeRegistrationSettings(tournament.registrationSettings),
       ...(format.id === 'swiss' && tournament.status === '準備中' && tournament.swissVersion !== 2 ? format.initialState() : {}),
     };
@@ -166,14 +217,19 @@ export function normalizeTournament(tournament) {
       arenaCount: 1,
       eventInfo: normalizeEventInfo(tournament.eventInfo),
       bracketVersion: 1,
-      participantStates: normalizeParticipantStates(players, tournament.participantStates),
+      participantStates: normalizeParticipantStates(players, tournament.participantStates, true),
+      checkInVersion: 1,
       status: tournament.status === '已完成' ? '已完成' : '進行中',
       rounds: hasRounds ? advanceLegacyWins(tournament.rounds) : [],
     };
   }
 
   const migrated = createTournament(tournament.name, players, 'single_elimination');
-  return { ...migrated, id: tournament.id, created: tournament.created || migrated.created };
+  return rebuildDraftRoster(
+    { ...migrated, id: tournament.id, created: tournament.created || migrated.created },
+    players,
+    createParticipantStates(players, true),
+  );
 }
 
 export function buildRounds(tournament) {
@@ -359,20 +415,50 @@ function validateDraftPlayers(players) {
   if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
 }
 
+function assertDraftRosterChange(tournament) {
+  if (tournament.status !== '準備中') throw new Error('賽事開始後不能再修改報到名單。');
+}
+
+function draftCompetitionPlayers(tournament) {
+  if (tournament.status !== '準備中' || tournament.checkInVersion !== 1) return tournament.players || [];
+  return (tournament.players || []).filter((player) => tournament.participantStates?.[player]?.checkedIn);
+}
+
+function rebuildDraftRoster(tournament, players, participantStates) {
+  validateDraftPlayers(players);
+  const format = getTournamentFormat(tournament.format);
+  const normalizedStates = normalizeParticipantStates(players, participantStates, false);
+  const competitionPlayers = players.filter((player) => normalizedStates[player].checkedIn);
+  const seedCount = format.initialSeedCount(competitionPlayers);
+  return {
+    ...tournament,
+    players,
+    checkInVersion: 1,
+    participantStates: normalizedStates,
+    seedPlayerIndexes: [],
+    seedDrawnAt: null,
+    totalRounds: format.totalRounds?.(competitionPlayers) || null,
+    rounds: seedCount || competitionPlayers.length < 2 ? [] : [format.createOpeningRound(competitionPlayers)],
+    updatedAt: new Date().toISOString(),
+    ...(format.initialState?.() || {}),
+  };
+}
+
 function validateFinalScore(scoreA, scoreB) {
   if (![scoreA, scoreB].every((score) => Number.isInteger(score) && score >= 0)) throw new Error('比分必須是 0 以上的整數。');
   if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');
   if (Math.max(scoreA, scoreB) < 4) throw new Error('勝方最終比分必須至少為 4 分。');
 }
 
-function createParticipantStates(players) {
-  return Object.fromEntries(players.map((player) => [player, { status: 'active' }]));
+function createParticipantStates(players, checkedIn = true) {
+  return Object.fromEntries(players.map((player) => [player, { status: 'active', checkedIn }]));
 }
 
-function normalizeParticipantStates(players, states = {}) {
+function normalizeParticipantStates(players, states = {}, defaultCheckedIn = true) {
   return Object.fromEntries(players.map((player) => [player, {
     ...(states?.[player] || {}),
     status: ['active', 'withdrawn', 'no_show'].includes(states?.[player]?.status) ? states[player].status : 'active',
+    checkedIn: typeof states?.[player]?.checkedIn === 'boolean' ? states[player].checkedIn : defaultCheckedIn,
   }]));
 }
 

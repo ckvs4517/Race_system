@@ -138,6 +138,7 @@ const approved = await request(`/api/registrations/${registrations[0].id}`, {
 const approvedData = await approved.json();
 assert.equal(approved.status, 200);
 assert.deepEqual(approvedData.tournament.players, ['選手甲']);
+assert.equal(approvedData.tournament.participantStates['選手甲'].checkedIn, false);
 assert.equal(approvedData.registration.status, 'approved');
 
 console.log('PASS registration flow');

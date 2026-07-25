@@ -9,6 +9,7 @@ import {
   recordMatchResult,
   requiredSeedCount,
   resetCompletedMatch,
+  setDraftPlayerCheckedIn,
   startSwissFinal,
   startSwissQualifier,
   startTournament,
@@ -25,6 +26,10 @@ let tournament = createTournament('八人瑞士賽', players, 'swiss');
 assert.equal(tournament.format, 'swiss');
 assert.equal(tournament.totalRounds, 4);
 assert.equal(requiredSeedCount(tournament), 0);
+assert.equal(tournament.rounds.length, 0);
+assert.match(scheduleView([tournament], tournament.id, true), /參賽選手名單/);
+assert.match(scheduleView([tournament], tournament.id, true), /已報到 0／報名 8 人/);
+tournament = checkInAll(tournament);
 assert.equal(tournament.rounds.length, 1);
 assert.equal(tournament.rounds[0].matches.length, 4);
 assert.equal(buildRounds(tournament).length, 1, '瑞士制不應投影尚未配對的輪次');
@@ -115,14 +120,14 @@ assert.equal(reset.status, '進行中');
 assert.equal(reset.rounds.length, 1);
 assert.equal(reset.rounds[0].matches[0].status, '可開始');
 
-let odd = startTournament(createTournament('五人瑞士賽', ['A', 'B', 'C', 'D', 'E'], 'swiss'));
+let odd = startTournament(checkInAll(createTournament('五人瑞士賽', ['A', 'B', 'C', 'D', 'E'], 'swiss')));
 const firstBye = odd.rounds[0].seedPlayer;
 assert.ok(firstBye);
 assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
 odd = finishCurrentRound(odd);
 assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
 
-let swissWithdrawal = startTournament(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss'));
+let swissWithdrawal = startTournament(checkInAll(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss')));
 const withdrawalMatch = swissWithdrawal.rounds[0].matches[0];
 swissWithdrawal = withdrawPlayer(swissWithdrawal, withdrawalMatch.playerA);
 assert.equal(swissWithdrawal.rounds[0].matches[0].outcome, 'withdrawal');
@@ -138,7 +143,7 @@ assert.match(manageView(changed), /option value="swiss" selected/);
 assert.match(manageView(), /瑞士制/);
 assert.match(manageView(), /name="arenaCount"/);
 
-const multiArena = createTournament('雙台瑞士賽', players, 'swiss', 2);
+const multiArena = checkInAll(createTournament('雙台瑞士賽', players, 'swiss', 2));
 assert.equal(multiArena.arenaCount, 2);
 const multiArenaView = scheduleView([multiArena], multiArena.id, true);
 assert.match(multiArenaView, /戰鬥台 1/);
@@ -192,4 +197,8 @@ function completedMatch(id, playerA, playerB, scoreA, scoreB) {
     winner: scoreA > scoreB ? playerA : playerB,
     status: '已完成',
   };
+}
+
+function checkInAll(tournament) {
+  return tournament.players.reduce((current, player) => setDraftPlayerCheckedIn(current, player, true), tournament);
 }

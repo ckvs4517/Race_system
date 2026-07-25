@@ -4,7 +4,7 @@
  */
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { createTournamentRecord, deleteTournamentRecord, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
-import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startSwissFinal, startSwissQualifier, startTournament, updateRegistrationSettings, withdrawPlayer } from './domain/tournament.js';
+import { addDraftPlayer, drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, removeDraftPlayer, requiredSeedCount, resetCompletedMatch, setDraftPlayerCheckedIn, startSwissFinal, startSwissQualifier, startTournament, updateRegistrationSettings, withdrawPlayer } from './domain/tournament.js';
 import { downloadTournamentImage } from './export/tournament-image.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
@@ -281,6 +281,35 @@ function bindScheduleEvents(state) {
       button.textContent = '下載完整賽程圖';
     }
   });
+  app.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', async () => {
+    input.disabled = true;
+    try {
+      await mutateTournament(state.selectedTournamentId, (tournament) => setDraftPlayerCheckedIn(tournament, input.dataset.checkInPlayer, input.checked), { retryOnConflict: true });
+    } catch (error) {
+      alert(error.message);
+      render();
+    }
+  }));
+  app.querySelector('[data-add-draft-player-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = event.currentTarget.elements.playerName;
+    const name = input.value.trim();
+    if (!name) return input.focus();
+    try {
+      await mutateTournament(state.selectedTournamentId, (tournament) => addDraftPlayer(tournament, name), { retryOnConflict: true });
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+  app.querySelectorAll('[data-remove-draft-player]').forEach((button) => button.addEventListener('click', async () => {
+    const player = button.dataset.removeDraftPlayer;
+    if (!confirm(`確定要從本賽事名單移除「${player}」嗎？\n只有資料錯誤、重複報名或取消資格時才建議移除。`)) return;
+    try {
+      await mutateTournament(state.selectedTournamentId, (tournament) => removeDraftPlayer(tournament, player), { retryOnConflict: true });
+    } catch (error) {
+      alert(error.message);
+    }
+  }));
   app.querySelectorAll('[data-replay-round]').forEach((button) => button.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const roundIndex = Number(button.dataset.replayRound);
@@ -315,7 +344,9 @@ function bindScheduleEvents(state) {
   });
   app.querySelector('[data-action="start-tournament"]')?.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
-    if (!confirm(`確定開始「${tournament.name}」嗎？\n開始後將鎖定 ${tournament.players.length} 位參賽者，無法再編輯名單。`)) return;
+    const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
+    const absentCount = tournament.players.length - checkedInCount;
+    if (!confirm(`確定開始「${tournament.name}」嗎？\n${checkedInCount} 位已報到選手會進入賽程，${absentCount} 位未報到者會標記為未出席。開始後將鎖定名單。`)) return;
     beginTournament(tournament.id);
   });
   app.querySelector('[data-action="draw-seeds"]')?.addEventListener('click', () => {
