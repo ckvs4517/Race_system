@@ -15,6 +15,7 @@ import {
   updateDraftTournament,
   withdrawPlayer,
 } from '../src/domain/tournament.js';
+import { createTournamentImageModel } from '../src/export/tournament-image.js';
 import { manageView } from '../src/views/manage.js';
 import { scheduleView } from '../src/views/schedule.js';
 
@@ -99,9 +100,15 @@ assert.ok(tournament.champion);
 assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
 const completedView = scheduleView([tournament], tournament.id, true);
 assert.match(completedView, /TOP 4 FINAL/);
+assert.match(completedView, /下載完整賽程圖/);
 assert.doesNotMatch(completedView, /勝者組|敗者組|QUALIFIER|ROUND 01/, '四強決賽後不再顯示前面的預賽與資格賽');
 assert.match(completedView, /round-column is-completed/);
 assert.doesNotMatch(completedView, /round-column is-completed[^>]*\sopen/);
+const imageModel = createTournamentImageModel(tournament);
+assert.equal(imageModel.rounds.length, tournament.rounds.length, '賽程圖保留畫面已隱藏的全部歷史輪次');
+assert.ok(imageModel.rounds.some((round) => round.phase === '資格加賽'));
+assert.ok(imageModel.rounds.some((round) => round.phase === '四強決賽'));
+assert.ok(imageModel.rounds.every((round) => round.matches.every((match) => match.playerA && match.playerB)));
 
 const reset = resetCompletedMatch(tournament, 0, 0);
 assert.equal(reset.status, '進行中');

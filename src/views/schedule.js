@@ -33,7 +33,8 @@ function bracketView(tournament, canManage) {
   const participantPanel = !isDraft ? participantManagementView(tournament, canManage) : '';
   const seedButton = isDraft && seedCount > 0 ? `<button class="button button-seed" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
   const randomizeButton = isDraft ? '<button class="button button-secondary" data-action="randomize-bracket">重新隨機分組</button>' : '';
-  const headerActions = `<div class="header-actions">${canManage && isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady && tournament.players.length >= 2 ? '' : 'disabled'}>賽事開始</button>` : ''}${canManage ? '<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
+  const imageButton = tournament.status === '已完成' ? '<button class="button button-primary" data-action="download-tournament-image">下載完整賽程圖</button>' : '';
+  const headerActions = `<div class="header-actions">${imageButton}${canManage && isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady && tournament.players.length >= 2 ? '' : 'disabled'}>賽事開始</button>` : ''}${canManage ? '<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
   const guide = isDraft
     ? isSwiss
       ? `<span><i class="draft-dot"></i>固定進行四輪瑞士制預賽</span><span>四輪後由主辦方確認四強或建立資格積分決定賽</span>`

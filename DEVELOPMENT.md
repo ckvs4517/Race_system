@@ -184,6 +184,12 @@ Cloudflare D1
 - `phase: 'final'` 的四強循環輪次固定以 `arenaCount: 1` 呈現；這是顯示與執行安排，不會覆寫賽事原本的預賽台數設定。
 - `swissVersion: 2` 用於區分新版資料；舊的已完成賽事仍可讀取。
 
+### 完整賽程圖片
+
+- `src/export/tournament-image.js` 使用瀏覽器原生 Canvas 產生固定 1600px 寬的 PNG，不依賴目前頁面寬度或截圖套件。
+- 圖片資料直接讀取 `tournament.rounds`，因此即使四強畫面隱藏預賽與資格加賽，匯出仍包含全部輪次、選手、比分、狀態及冠軍。
+- 圖片只在使用者按下完賽畫面的下載按鈕時產生，不會增加平常同步與畫面更新的負擔。
+
 ### 公開報名模型
 
 報名不放進賽事 JSON，而是使用獨立的 `registrations` 表，避免參賽者送出表單時與裁判記分共用 tournament revision。

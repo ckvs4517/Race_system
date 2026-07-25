@@ -5,6 +5,7 @@
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { createTournamentRecord, deleteTournamentRecord, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { drawRandomSeeds, duplicateTournament, forfeitMatch, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, startSwissFinal, startSwissQualifier, startTournament, updateRegistrationSettings, withdrawPlayer } from './domain/tournament.js';
+import { downloadTournamentImage } from './export/tournament-image.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { guideView } from './views/guide.js';
@@ -265,6 +266,20 @@ function bindScheduleEvents(state) {
   });
   app.querySelector('[data-action="copy-current-tournament"]')?.addEventListener('click', () => {
     copyTournament(state.selectedTournamentId);
+  });
+  app.querySelector('[data-action="download-tournament-image"]')?.addEventListener('click', async (event) => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = '正在產生圖片…';
+    try {
+      await downloadTournamentImage(tournament);
+      button.textContent = '圖片已下載';
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
+      button.textContent = '下載完整賽程圖';
+    }
   });
   app.querySelectorAll('[data-replay-round]').forEach((button) => button.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
