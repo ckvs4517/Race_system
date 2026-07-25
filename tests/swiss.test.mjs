@@ -86,8 +86,12 @@ const postQualifierFinalForm = postQualifierView.match(/<form data-swiss-final-f
 assert.equal((postQualifierFinalForm.match(/name="finalist"/g) || []).length, 4, '資格加賽後仍只列四位確定晉級者');
 
 const finalists = preliminary.slice(0, 4).map((row) => row.player);
+tournament = { ...tournament, arenaCount: 2 };
 tournament = startSwissFinal(tournament, finalists);
 assert.equal(tournament.swissStage, 'final');
+const finalView = scheduleView([tournament], tournament.id, true);
+assert.match(finalView, /1 台戰鬥台/, '四強頁面標示單一戰鬥台');
+assert.doesNotMatch(finalView, /戰鬥台 2|battle-stations/, '四強循環決賽固定使用一台戰鬥台');
 while (tournament.swissStage === 'final') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '已完成');
 assert.equal(tournament.swissStage, 'completed');
