@@ -59,7 +59,7 @@ function eventInfoView(info = {}) {
   ].filter(Boolean).map(([label, value]) => `<div class="event-info-fact"><span>${label}</span><b>${escapeText(value)}</b></div>`).join('');
   const links = `${mapUrl ? `<a href="${escapeAttribute(mapUrl)}" target="_blank" rel="noopener noreferrer">開啟地圖</a>` : ''}${postUrl ? `<a href="${escapeAttribute(postUrl)}" target="_blank" rel="noopener noreferrer">查看原始貼文</a>` : ''}`;
   const notes = info.notes ? `<div class="event-info-notes"><span>活動備註</span><p>${escapeText(info.notes).replaceAll('\n', '<br>')}</p></div>` : '';
-  return `<section class="event-info-panel"><div class="event-info-heading"><div><p class="kicker">EVENT INFORMATION</p><h2>賽事資訊</h2></div>${links ? `<div class="event-info-links">${links}</div>` : ''}</div>${facts ? `<div class="event-info-facts">${facts}</div>` : ''}${notes}</section>`;
+  return `<details class="event-info-panel"><summary class="event-info-heading"><div><p class="kicker">EVENT INFORMATION</p><h2>賽事資訊</h2></div><span class="event-info-toggle" aria-hidden="true"><i></i></span></summary><div class="event-info-content">${links ? `<div class="event-info-links">${links}</div>` : ''}${facts ? `<div class="event-info-facts">${facts}</div>` : ''}${notes}</div></details>`;
 }
 
 function formatEventDate(value) {

@@ -21,6 +21,9 @@ assert.deepEqual(tournament.eventInfo, eventInfo);
 
 const publicView = scheduleView([tournament], tournament.id, false);
 assert.match(publicView, /賽事資訊/);
+assert.match(publicView, /<details class="event-info-panel">/);
+assert.doesNotMatch(publicView, /<details class="event-info-panel" open/);
+assert.match(publicView, /event-info-toggle/);
 assert.match(publicView, /2026\/7\/25/);
 assert.match(publicView, /12:30–13:00/);
 assert.match(publicView, /88coffee&amp;tarttoo/);
