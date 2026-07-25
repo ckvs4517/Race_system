@@ -96,11 +96,14 @@ export function createCsv(tournaments) {
 }
 
 export function createOverviewCsv(tournaments) {
-  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '參賽者人數', '戰鬥台數', '對戰總數', '已完成對戰', '冠軍／第一名', '參賽者名單']];
+  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '比賽日期', '報到開始', '報到截止', '開賽時間', '比賽地點', '地址', '地圖連結', '原始貼文', '活動備註', '參賽者人數', '戰鬥台數', '對戰總數', '已完成對戰', '冠軍／第一名', '參賽者名單']];
   tournaments.forEach((tournament) => {
     const matches = (tournament.rounds || []).flatMap((round) => round.matches || []);
+    const info = tournament.eventInfo || {};
     rows.push([
-      tournament.name, getTournamentFormat(tournament.format).name, tournament.status, tournament.created, tournament.players?.length || 0, tournament.arenaCount || 1, matches.length,
+      tournament.name, getTournamentFormat(tournament.format).name, tournament.status, tournament.created,
+      info.date || '', info.checkInStart || '', info.checkInEnd || '', info.startTime || '', info.venueName || '', info.address || '', info.mapUrl || '', info.postUrl || '', info.notes || '',
+      tournament.players?.length || 0, tournament.arenaCount || 1, matches.length,
       matches.filter((match) => match.status === '已完成').length, tournament.champion || '', (tournament.players || []).join('、'),
     ]);
   });

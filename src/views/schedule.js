@@ -7,7 +7,8 @@ import { getTournamentFormat } from '../formats/registry.js';
 export function scheduleView(tournaments, selectedId, canManage = false) {
   const selected = tournaments.find((item) => item.id === selectedId);
   if (selected) return bracketView(selected, canManage);
-  const cards = tournaments.map((item) => `<article class="event-card"><button class="event-open" data-tournament-id="${item.id}"><span class="event-status"><i></i>${item.status || '準備中'}</span><div class="event-icon">${icons.trophy}</div><h2>${item.name}</h2><p>${item.players.length} 位選手 · ${getTournamentFormat(item.format).name} · ${item.arenaCount || 1} 台 · ${item.created}</p><span class="event-action">查看完整賽程 ${icons.arrow}</span></button>${canManage ? `<div class="event-card-actions"><button class="event-copy" data-copy-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}">複製賽事</button><button class="event-delete" data-delete-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}" aria-label="刪除 ${escapeAttribute(item.name)}">刪除賽事</button></div>` : ''}</article>`).join('');
+  const orderedTournaments = [...tournaments].sort(compareEventDates);
+  const cards = orderedTournaments.map((item) => `<article class="event-card"><button class="event-open" data-tournament-id="${item.id}"><span class="event-status"><i></i>${item.status || '準備中'}</span><div class="event-icon">${icons.trophy}</div><h2>${item.name}</h2><p>${item.players.length} 位選手 · ${getTournamentFormat(item.format).name} · ${item.arenaCount || 1} 台 · ${formatEventDate(item.eventInfo?.date) || item.created}</p>${item.eventInfo?.venueName ? `<small class="event-card-venue">${escapeText(item.eventInfo.venueName)}</small>` : ''}<span class="event-action">查看完整賽程 ${icons.arrow}</span></button>${canManage ? `<div class="event-card-actions"><button class="event-copy" data-copy-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}">複製賽事</button><button class="event-delete" data-delete-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}" aria-label="刪除 ${escapeAttribute(item.name)}">刪除賽事</button></div>` : ''}</article>`).join('');
   const createButton = canManage ? '<button class="button button-primary" data-route="manage">＋ 建立新賽事</button>' : '<button class="button button-secondary" data-route="control">主辦方登入</button>';
   return `<section class="section-wrap page-section">${pageHeader('TOURNAMENTS', '賽程表', '公開查看已建立的賽事、每輪對戰與即時排名。', createButton)} ${cards ? `<div class="event-grid">${cards}</div>` : `<div class="empty-state"><div>${icons.bracket}</div><h2>還沒有任何賽事</h2><p>主辦方建立賽事後，公開賽程會顯示在這裡。</p>${createButton}</div>`}</section>`;
 }
@@ -24,6 +25,7 @@ function bracketView(tournament, canManage) {
   const seedNames = seedIndexes.map((index) => tournament.players[index]).filter(Boolean);
   const allSeedNames = new Set(isSwiss ? [] : rounds.map((round) => round.seedPlayer).filter(Boolean));
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? '瑞士制第一名' : '本屆冠軍'}</span><b>${tournament.champion}</b></div>` : '';
+  const eventInfoPanel = eventInfoView(tournament.eventInfo);
   const participantPanel = !isDraft ? participantManagementView(tournament, canManage) : '';
   const seedButton = isDraft && seedCount > 0 ? `<button class="button button-seed" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
   const randomizeButton = isDraft ? '<button class="button button-secondary" data-action="randomize-bracket">重新隨機分組</button>' : '';
@@ -36,7 +38,57 @@ function bracketView(tournament, canManage) {
   const seedPanel = seedCount > 0 ? `<div class="seed-panel ${seedsReady ? 'is-drawn' : ''}"><div class="seed-panel-copy"><span>INITIAL SEED</span><b>${seedsReady ? '已抽出首輪種子選手' : '本賽事首輪需要 1 位種子選手'}</b><p>${seedsReady ? (isDraft ? '種子選手首輪輪空；賽事開始前仍可重新抽選。' : '首輪種子與參賽名單已隨賽事開始鎖定。') : '請使用上方按鈕隨機抽選，完成後才會產生正式預覽賽程。'}</p></div><div class="seed-list">${seedsReady ? seedNames.map((name) => `<span>${escapeText(name)}<i>SEED</i></span>`).join('') : '<em>等待抽選</em>'}</div></div>` : '';
   const bracket = rounds.length ? `<div class="bracket-shell"><div class="bracket-flow">${rounds.map((round, roundIndex) => `<section class="round-column ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}"><div class="round-heading"><span>ROUND ${String(roundIndex + 1).padStart(2, '0')}</span><b>${round.name}</b></div><div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, allSeedNames, isSwiss)}</div></section>`).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>等待種子抽選</h2><p>主辦方完成抽選後，完整對戰分支圖會顯示在這裡。</p></div>`;
   const leaderboard = (isSwiss && !isDraft) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位參賽者 · ${format.name} · ${arenaCount} 台戰鬥台 · ${isSwiss ? `${rounds.length}/${tournament.totalRounds} 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${champion}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}${leaderboard}</section>`;
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位參賽者 · ${format.name} · ${arenaCount} 台戰鬥台 · ${isSwiss ? `${rounds.length}/${tournament.totalRounds} 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${eventInfoPanel}${champion}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${bracket}${leaderboard}</section>`;
+}
+
+function eventInfoView(info = {}) {
+  const date = formatEventDate(info.date);
+  const checkIn = info.checkInStart || info.checkInEnd
+    ? `${info.checkInStart || '未定'}${info.checkInEnd ? `–${info.checkInEnd}` : ''}`
+    : '';
+  const location = [info.venueName, info.address].filter(Boolean).join(' · ');
+  const mapUrl = safeHref(info.mapUrl);
+  const postUrl = safeHref(info.postUrl);
+  const hasContent = date || checkIn || info.startTime || location || mapUrl || postUrl || info.notes;
+  if (!hasContent) return '';
+  const facts = [
+    date ? ['比賽日期', date] : null,
+    checkIn ? ['報到時間', checkIn] : null,
+    info.startTime ? ['正式開賽', info.startTime] : null,
+    location ? ['比賽地點', location] : null,
+  ].filter(Boolean).map(([label, value]) => `<div class="event-info-fact"><span>${label}</span><b>${escapeText(value)}</b></div>`).join('');
+  const links = `${mapUrl ? `<a href="${escapeAttribute(mapUrl)}" target="_blank" rel="noopener noreferrer">開啟地圖</a>` : ''}${postUrl ? `<a href="${escapeAttribute(postUrl)}" target="_blank" rel="noopener noreferrer">查看原始貼文</a>` : ''}`;
+  const notes = info.notes ? `<div class="event-info-notes"><span>活動備註</span><p>${escapeText(info.notes).replaceAll('\n', '<br>')}</p></div>` : '';
+  return `<section class="event-info-panel"><div class="event-info-heading"><div><p class="kicker">EVENT INFORMATION</p><h2>賽事資訊</h2></div>${links ? `<div class="event-info-links">${links}</div>` : ''}</div>${facts ? `<div class="event-info-facts">${facts}</div>` : ''}${notes}</section>`;
+}
+
+function formatEventDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${Number(match[1])}/${Number(match[2])}/${Number(match[3])}` : '';
+}
+
+function safeHref(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function compareEventDates(left, right) {
+  const today = localDateKey(new Date());
+  const leftDate = left.eventInfo?.date || '';
+  const rightDate = right.eventInfo?.date || '';
+  const group = (date) => !date ? 1 : date >= today ? 0 : 2;
+  const groupDifference = group(leftDate) - group(rightDate);
+  if (groupDifference) return groupDifference;
+  if (leftDate && rightDate && leftDate !== rightDate) return group(leftDate) === 2 ? rightDate.localeCompare(leftDate) : leftDate.localeCompare(rightDate);
+  return Number(right.id) - Number(left.id);
+}
+
+function localDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function participantManagementView(tournament, canManage) {

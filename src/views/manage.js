@@ -12,6 +12,7 @@ export function manageView(tournament = null) {
     : '先建立準備中的賽事，確認參賽名單後再正式開始。';
   const backButton = `<div class="header-actions">${isEditing ? '<button class="button button-secondary" data-action="cancel-edit">← 返回賽程</button>' : ''}<button class="button button-secondary" data-route="guide">查看操作說明</button></div>`;
   const playerText = tournament?.players?.join('\n') || '';
+  const eventInfo = tournament?.eventInfo || {};
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
 
@@ -24,7 +25,23 @@ export function manageView(tournament = null) {
         <label class="field"><span>賽事名稱</span><input name="name" maxlength="40" value="${escapeAttribute(tournament?.name || '')}" placeholder="例如：夏季陀螺公開賽" required></label>
         <label class="field"><span>比賽賽制</span><select name="format">${formatOptions}</select></label>
         <label class="field"><span>戰鬥台數</span><input name="arenaCount" type="number" inputmode="numeric" min="1" max="8" step="1" value="${tournament?.arenaCount || 1}" required><small>可設定 1 至 8 台；賽程會平均分配到各戰鬥台。</small></label>
-        <div class="step-heading"><span>02</span><div><b>參賽者名單</b><small>一行輸入一位，支援 2–32 位</small></div></div>
+        <div class="step-heading"><span>02</span><div><b>活動資訊</b><small>選填；填寫後會顯示在公開賽事頁</small></div></div>
+        <div class="field-grid field-grid-time">
+          <label class="field"><span>比賽日期</span><input name="eventDate" type="date" value="${escapeAttribute(eventInfo.date || '')}"></label>
+          <label class="field"><span>報到開始</span><input name="checkInStart" type="time" value="${escapeAttribute(eventInfo.checkInStart || '')}"></label>
+          <label class="field"><span>報到截止</span><input name="checkInEnd" type="time" value="${escapeAttribute(eventInfo.checkInEnd || '')}"></label>
+          <label class="field"><span>正式開賽</span><input name="startTime" type="time" value="${escapeAttribute(eventInfo.startTime || '')}"></label>
+        </div>
+        <div class="field-grid">
+          <label class="field"><span>比賽地點</span><input name="venueName" maxlength="80" value="${escapeAttribute(eventInfo.venueName || '')}" placeholder="例如：88coffee&tarttoo"></label>
+          <label class="field"><span>地址</span><input name="address" maxlength="160" value="${escapeAttribute(eventInfo.address || '')}" placeholder="完整地址"></label>
+        </div>
+        <div class="field-grid">
+          <label class="field"><span>地圖連結</span><input name="mapUrl" type="url" maxlength="500" value="${escapeAttribute(eventInfo.mapUrl || '')}" placeholder="https://maps.google.com/..."></label>
+          <label class="field"><span>原始貼文連結</span><input name="postUrl" type="url" maxlength="500" value="${escapeAttribute(eventInfo.postUrl || '')}" placeholder="https://www.instagram.com/..."></label>
+        </div>
+        <label class="field"><span>活動備註</span><textarea class="event-notes" name="notes" maxlength="2000" placeholder="可貼上禁用清單、報名費、參賽規則、獎品及其他注意事項。">${escapeText(eventInfo.notes || '')}</textarea><small>保留換行，最多 2,000 字。</small></label>
+        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>一行輸入一位，支援 2–32 位</small></div></div>
         <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼" required>${escapeText(playerText)}</textarea></label>
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立預覽賽程'} ${icons.arrow}</button></div>
       </div>
@@ -45,9 +62,20 @@ export function bindManage(root, options) {
     const playerList = getPlayers();
     if (playerList.length < 2 || playerList.length > 32) return alert('參賽者人數需要介於 2 至 32 位。');
     try {
+      const eventInfo = {
+        date: form.elements.eventDate.value,
+        checkInStart: form.elements.checkInStart.value,
+        checkInEnd: form.elements.checkInEnd.value,
+        startTime: form.elements.startTime.value,
+        venueName: form.elements.venueName.value,
+        address: form.elements.address.value,
+        mapUrl: form.elements.mapUrl.value,
+        postUrl: form.elements.postUrl.value,
+        notes: form.elements.notes.value,
+      };
       const result = options.tournament
-        ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value)
-        : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value);
+        ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo)
+        : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo);
       options.onSubmit(result);
     } catch (error) {
       alert(error.message);

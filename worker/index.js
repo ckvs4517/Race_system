@@ -101,6 +101,13 @@ function validateTournament(value) {
   if (!Number.isFinite(Number(value.id))) throw new Error('Invalid tournament id');
   if (typeof value.name !== 'string' || value.name.length < 1 || value.name.length > 80) throw new Error('Invalid tournament name');
   if (!Array.isArray(value.players) || value.players.length < 2 || value.players.length > 32) throw new Error('Invalid players');
+  if (value.eventInfo != null) {
+    if (typeof value.eventInfo !== 'object' || Array.isArray(value.eventInfo)) throw new Error('Invalid event info');
+    const limits = { date: 10, checkInStart: 5, checkInEnd: 5, startTime: 5, venueName: 80, address: 160, mapUrl: 500, postUrl: 500, notes: 2000 };
+    for (const [key, limit] of Object.entries(limits)) {
+      if (value.eventInfo[key] != null && (typeof value.eventInfo[key] !== 'string' || value.eventInfo[key].length > limit)) throw new Error(`Invalid event info: ${key}`);
+    }
+  }
   return value;
 }
 

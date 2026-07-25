@@ -83,6 +83,17 @@ Cloudflare D1
   bracketVersion: 2,
   players: ['A', 'B', 'C', 'D'],
   arenaCount: 2,
+  eventInfo: {
+    date: '2026-07-25',
+    checkInStart: '12:30',
+    checkInEnd: '13:00',
+    startTime: '13:15',
+    venueName: '88coffee&tarttoo',
+    address: '活動地址',
+    mapUrl: 'https://maps.google.com/...',
+    postUrl: 'https://www.instagram.com/...',
+    notes: '禁用清單、費用、獎品與其他注意事項'
+  },
   status: '準備中',             // 準備中、進行中、已完成
   revision: 1,                 // 後端多人同步版本
   participantStates: {
