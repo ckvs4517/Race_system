@@ -100,9 +100,18 @@ Cloudflare D1
 ├─ .openai/
 │  ├─ hosting.json                 # Sites project 與 D1 binding
 │  └─ drizzle/                     # D1 migration
+├─ AGENTS.md                       # AI 維護工具的全域短規則
+├─ .agents/skills/                 # Debug、測試、部署、備份的漸進式工作流程
 ├─ scripts/
+│  ├─ agent-context.mjs            # 依任務輸出最小檔案／測試集合
+│  ├─ test-fast.mjs                # 常用快速回歸
+│  ├─ test-full.mjs                # 全 Node／瀏覽器／建置驗證
+│  ├─ preview-local.mjs            # 真實 Worker＋隔離式本機資料庫
+│  ├─ validate-backup.mjs          # 備份只讀一致性檢查
+│  ├─ project-health.mjs           # Sites 身分與必要檔案檢查
 │  ├─ build-site.mjs               # 產生 Sites artifact
-│  └─ verify-deployment.mjs        # 正式網站 smoke test
+│  ├─ verify-deployment.mjs        # 正式網站 smoke test
+│  └─ lib/                         # 測試 runner 與本機 D1 模擬器
 ├─ tests/                          # Node 與瀏覽器測試
 ├─ build.ps1                       # Windows／CI 建置入口
 └─ .github/workflows/
@@ -799,23 +808,50 @@ WHERE id = ? AND revision = ?
 
 ## 23. 本地預覽
 
-ES Modules 不應直接以 `file://` 開啟。可使用 VS Code Live Server，或執行：
+ES Modules 不應直接以 `file://` 開啟。專案提供兩種本機伺服器。
+
+### 隔離式完整預覽
+
+```bash
+node scripts/preview-local.mjs
+```
+
+開啟 `http://127.0.0.1:8765/`。此伺服器：
+
+- 直接執行目前的 `worker/index.js`；
+- 使用 `scripts/lib/local-d1.mjs` 模擬 Worker 所需的 D1 API；
+- 將本機資料保存到 `.dev-data/local-d1.json`；
+- 預設綁定 `0.0.0.0`，同一 Wi-Fi 的手機可用畫面列出的 LAN URL 測試；
+- 不會代理、讀取或修改正式網站與正式 D1。
+
+本機管理 PIN 預設為 `2468`。可設定：
+
+```bash
+LOCAL_ADMIN_PIN=1357 node scripts/preview-local.mjs
+```
+
+Windows PowerShell：
+
+```powershell
+$env:LOCAL_ADMIN_PIN = '1357'
+node scripts/preview-local.mjs
+```
+
+以備份建立隔離資料庫：
+
+```bash
+node scripts/preview-local.mjs --reset --backup path/to/spin-league-backup.json
+```
+
+`--backup` 只匯入到 `.dev-data/`，不會呼叫正式 restore API。`--reset` 也只刪除本機測試資料。
+
+### 純靜態測試伺服器
 
 ```bash
 node tests/local-test-server.mjs
 ```
 
-開啟：
-
-```text
-http://127.0.0.1:8765/
-```
-
-這個伺服器只提供靜態檔案，沒有 Worker／D1 API，因此：
-
-- 首頁與靜態畫面可載入。
-- 完整雲端賽事、PIN 登入、報名與正式儲存無法單靠它運作。
-- 完整前端流程測試會使用 mock API。
+此伺服器僅供 Headless Chrome 測試頁面與靜態資源載入，不提供 API。
 
 ## 24. ChatGPT Sites 建置
 
@@ -881,7 +917,30 @@ node scripts/verify-deployment.mjs https://your-domain.example
 
 ## 26. 測試
 
-### Node 測試
+### 統一測試入口
+
+常用快速回歸：
+
+```bash
+node scripts/test-fast.mjs
+```
+
+完整檢查會自動發現全部 `*.test.mjs`，最後建立 Sites artifact。為避免不同桌面環境的 Chrome 啟動差異，瀏覽器流程預設略過：
+
+```bash
+node scripts/test-full.mjs
+```
+
+選項：
+
+```bash
+node scripts/test-full.mjs --browser=required
+node scripts/test-full.mjs --skip-build
+```
+
+成功測試只輸出一行摘要；失敗時才顯示該指令的完整 stdout／stderr，避免 CI 與 AI 上下文充滿成功 log。
+
+個別 Node 測試仍可直接執行：
 
 ```bash
 node tests/swiss.test.mjs
@@ -919,12 +978,11 @@ CI 在 Ubuntu runner 使用 Headless Chrome 開啟兩份 HTML，並搜尋 `PASS`
 
 `ci.yml` 在 Push 到 `main`、Pull Request 與手動執行時：
 
-1. 執行 Node tests。
-2. 執行 format matrix。
-3. 執行 Headless Chrome browser tests。
-4. 建立 Sites artifact。
-5. 驗證 artifact 結構。
-6. 上傳可部署 tar，保留 14 天。
+1. 執行 `scripts/project-health.mjs` 檢查 AI 規則、Sites 身分與 Worker 建置 import。
+2. 執行 `scripts/test-full.mjs`，涵蓋全部 Node tests、format matrix 與 Sites build。
+3. 使用 CI 既有的 Headless Chrome 指令執行兩份瀏覽器流程。
+4. 驗證 artifact 結構。
+5. 上傳可部署 tar，保留 14 天。
 
 `production-smoke.yml` 每日與手動檢查正式網站。
 
@@ -978,6 +1036,31 @@ src/views/schedule.js
 - 尚未支援暫停賽事、指定後續配對、雙淘汰或完整官方規則自動判定。
 - 自動測試不能涵蓋所有瀏覽器差異、斷線、D1 故障與惡意流量。
 
-## 30. 授權
+## 30. AI 輔助維護結構
+
+Repository 將人類文件、AI 短規則、任務工作流程與可執行腳本分開：
+
+| 位置 | 用途 |
+| --- | --- |
+| `README.md` | 一般使用者功能與操作 |
+| `DEVELOPMENT.md` | 完整架構與技術設計 |
+| `AGENTS.md` | 每次 AI 任務都應遵守的短規則與安全邊界 |
+| `src/formats/AGENTS.md` | 賽制目錄的局部規則 |
+| `worker/AGENTS.md` | API、權限、revision、個資局部規則 |
+| `.agents/skills/` | Debug、測試、部署、備份等特定任務才需要的詳細流程 |
+| `scripts/agent-context.mjs` | 依任務關鍵字輸出最小相關檔案、測試與 invariant |
+| `scripts/*` | 將重複推理轉為固定、可驗證的命令 |
+
+範例：
+
+```bash
+node scripts/agent-context.mjs "四強 排行榜 未報到"
+node scripts/project-health.mjs
+node scripts/test-fast.mjs
+```
+
+這些文件不應複製完整程式碼或整份 DEVELOPMENT。業務 invariant 只保存一份於 `.agents/skills/spin-league-debug/references/invariants.md`，新增重要規則時應同步更新相關測試。
+
+## 31. 授權
 
 Repository 目前沒有明確 `LICENSE`。公開可讀不等於允許修改、再散布或商業使用。若要開放第三方使用，請由擁有者選擇並加入適合的授權，例如 MIT、Apache-2.0 或其他條款。
