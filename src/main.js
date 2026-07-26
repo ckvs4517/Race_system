@@ -19,6 +19,39 @@ import { bindRegistrationAdmin, registrationAdminView } from './views/registrati
 
 const app = document.querySelector('#app');
 let publicRegistrationState = { key: '', loading: false, data: null, error: '', success: false };
+let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
+let toastTimer = null;
+
+function showToast(message, type = 'success') {
+  document.querySelector('.action-toast')?.remove();
+  const toast = document.createElement('div');
+  toast.className = `action-toast is-${type}`;
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  toast.textContent = message;
+  document.body.append(toast);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.remove(), 2600);
+}
+
+function registrationUrl(tournamentId, token) {
+  return `${location.origin}${location.pathname}#register/${encodeURIComponent(tournamentId)}/${encodeURIComponent(token)}`;
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = text;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.append(input);
+  input.select();
+  document.execCommand('copy');
+  input.remove();
+}
 
 function render(resetScroll = false) {
   // 每次狀態或網址改變都重新產生畫面，再綁定該頁需要的事件。
@@ -227,6 +260,55 @@ async function saveTournamentChanges(updatedTournament) {
   }
 }
 
+function prepareRosterUi(tournamentId) {
+  if (rosterUiState.tournamentId === tournamentId) return;
+  rosterUiState = { tournamentId, filter: 'all', query: '', removing: false, selected: new Set() };
+}
+
+function applyRosterUi() {
+  const panel = app.querySelector('.check-in-panel');
+  if (!panel) return;
+  panel.classList.toggle('is-remove-mode', rosterUiState.removing);
+  const search = panel.querySelector('[data-roster-search]');
+  if (search && search.value !== rosterUiState.query) search.value = rosterUiState.query;
+  panel.querySelectorAll('[data-roster-filter]').forEach((button) => {
+    button.classList.toggle('is-active', button.dataset.rosterFilter === rosterUiState.filter);
+  });
+  let visibleCount = 0;
+  panel.querySelectorAll('[data-roster-player]').forEach((row) => {
+    const nameMatches = row.dataset.rosterPlayer.toLocaleLowerCase('zh-Hant').includes(rosterUiState.query.toLocaleLowerCase('zh-Hant'));
+    const checked = row.dataset.checkedIn === 'true';
+    const stateMatches = rosterUiState.filter === 'all'
+      || (rosterUiState.filter === 'checked' && checked)
+      || (rosterUiState.filter === 'unchecked' && !checked);
+    row.hidden = !(nameMatches && stateMatches);
+    if (!row.hidden) visibleCount += 1;
+    const selector = row.querySelector('[data-remove-player-select]');
+    if (selector) selector.checked = rosterUiState.selected.has(selector.dataset.removePlayerSelect);
+  });
+  const count = rosterUiState.selected.size;
+  const countNode = panel.querySelector('[data-remove-count]');
+  const confirmButton = panel.querySelector('[data-confirm-remove-players]');
+  if (countNode) countNode.textContent = String(count);
+  if (confirmButton) confirmButton.disabled = count === 0;
+  const empty = panel.querySelector('.roster-filter-empty');
+  if (empty) empty.hidden = visibleCount > 0 || panel.querySelectorAll('[data-roster-player]').length === 0;
+}
+
+async function shareRegistration(tournament) {
+  const url = registrationUrl(tournament.id, tournament.registrationSettings?.token || '');
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: `${tournament.name} 公開報名`, text: `報名「${tournament.name}」`, url });
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+    }
+  }
+  await copyText(url);
+  showToast('報名連結已複製，可以直接貼給選手。');
+}
+
 function bindScheduleEvents(state) {
   // selectedMatch 存在時，schedule 路由會暫時顯示正式比賽記分板。
   if (state.selectedMatch) {
@@ -242,6 +324,7 @@ function bindScheduleEvents(state) {
     });
     return;
   }
+  prepareRosterUi(state.selectedTournamentId);
   app.querySelectorAll('[data-tournament-id]').forEach((card) => card.addEventListener('click', () => {
     selectTournament(card.dataset.tournamentId);
     render();
@@ -279,12 +362,97 @@ function bindScheduleEvents(state) {
       button.textContent = '下載完整賽程圖';
     }
   });
+  app.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => button.closest('dialog')?.close()));
+  app.querySelector('[data-open-registration-setup]')?.addEventListener('click', () => app.querySelector('[data-registration-setup-dialog]')?.showModal());
+  app.querySelector('[data-open-add-player]')?.addEventListener('click', () => {
+    const dialog = app.querySelector('[data-add-player-dialog]');
+    dialog?.showModal();
+    queueMicrotask(() => dialog?.querySelector('input[name="playerName"]')?.focus());
+  });
+  app.querySelector('[data-quick-registration-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    submit.textContent = '正在建立…';
+    try {
+      await executeTournamentAction(tournament.id, 'update_registration_settings', {
+        settings: {
+          enabled: true,
+          capacity: Number(event.currentTarget.elements.capacity.value),
+          deadline: event.currentTarget.elements.deadline.value,
+        },
+      });
+      await copyText(registrationUrl(tournament.id, tournament.registrationSettings.token));
+      showToast('公開報名已開放，連結也已複製。');
+    } catch (error) {
+      showToast(error.message, 'error');
+      submit.disabled = false;
+      submit.textContent = '開放報名並複製連結';
+    }
+  });
+  app.querySelector('[data-share-registration]')?.addEventListener('click', async () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    try {
+      await shareRegistration(tournament);
+    } catch (error) {
+      showToast(`無法分享連結：${error.message}`, 'error');
+    }
+  });
+  app.querySelector('[data-manage-registration]')?.addEventListener('click', async () => {
+    try {
+      await loadTournamentRegistrations(state.selectedTournamentId);
+      navigate('registration');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
+  app.querySelector('[data-roster-search]')?.addEventListener('input', (event) => {
+    rosterUiState.query = event.currentTarget.value;
+    applyRosterUi();
+  });
+  app.querySelectorAll('[data-roster-filter]').forEach((button) => button.addEventListener('click', () => {
+    rosterUiState.filter = button.dataset.rosterFilter;
+    applyRosterUi();
+  }));
+  app.querySelector('[data-enter-remove-mode]')?.addEventListener('click', () => {
+    rosterUiState.removing = true;
+    rosterUiState.selected.clear();
+    applyRosterUi();
+  });
+  app.querySelector('[data-cancel-remove-mode]')?.addEventListener('click', () => {
+    rosterUiState.removing = false;
+    rosterUiState.selected.clear();
+    applyRosterUi();
+  });
+  app.querySelectorAll('[data-remove-player-select]').forEach((input) => input.addEventListener('change', () => {
+    if (input.checked) rosterUiState.selected.add(input.dataset.removePlayerSelect);
+    else rosterUiState.selected.delete(input.dataset.removePlayerSelect);
+    applyRosterUi();
+  }));
+  app.querySelector('[data-confirm-remove-players]')?.addEventListener('click', async () => {
+    const players = [...rosterUiState.selected];
+    if (!players.length) return;
+    const preview = players.length <= 5 ? players.join('、') : `${players.slice(0, 5).join('、')} 等 ${players.length} 位`;
+    if (!confirm(`確定要從這場賽事移除「${preview}」嗎？\n移除後，這些選手的報到狀態也會一併刪除。`)) return;
+    rosterUiState.removing = false;
+    rosterUiState.selected.clear();
+    try {
+      await executeTournamentAction(state.selectedTournamentId, 'remove_players', { players });
+      showToast(`已移除 ${players.length} 位選手。`);
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
   app.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', async () => {
+    const player = input.dataset.checkInPlayer;
+    const checkedIn = input.checked;
     input.disabled = true;
     try {
-      await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player: input.dataset.checkInPlayer, checkedIn: input.checked });
+      await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player, checkedIn });
+      showToast(`${player}${checkedIn ? ' 已報到' : ' 已取消報到'}。`);
     } catch (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
       render();
     }
   }));
@@ -295,19 +463,12 @@ function bindScheduleEvents(state) {
     if (!name) return input.focus();
     try {
       await executeTournamentAction(state.selectedTournamentId, 'add_player', { player: name });
+      showToast(`已將 ${name} 加入參賽名單。`);
     } catch (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
     }
   });
-  app.querySelectorAll('[data-remove-draft-player]').forEach((button) => button.addEventListener('click', async () => {
-    const player = button.dataset.removeDraftPlayer;
-    if (!confirm(`確定要從本賽事名單移除「${player}」嗎？\n只有資料錯誤、重複報名或取消資格時才建議移除。`)) return;
-    try {
-      await executeTournamentAction(state.selectedTournamentId, 'remove_player', { player });
-    } catch (error) {
-      alert(error.message);
-    }
-  }));
+  applyRosterUi();
   app.querySelectorAll('[data-replay-round]').forEach((button) => button.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const roundIndex = Number(button.dataset.replayRound);

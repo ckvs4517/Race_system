@@ -5,6 +5,7 @@ import {
   removeDraftPlayer,
   setDraftPlayerCheckedIn,
   startTournament,
+  updateRegistrationSettings,
 } from '../src/domain/tournament.js';
 import { scheduleView } from '../src/views/schedule.js';
 
@@ -17,8 +18,19 @@ let view = scheduleView([tournament], tournament.id, true);
 assert.match(view, /參賽選手名單/);
 assert.match(view, /已報到 0／報名 4 人/);
 assert.match(view, /data-add-draft-player-form/);
-assert.match(view, /data-remove-draft-player="甲"/);
+assert.match(view, /data-enter-remove-mode/);
+assert.match(view, /data-remove-player-select="甲"/);
+assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯示單列移除按鈕');
+assert.match(view, /data-roster-search/);
+assert.match(view, /data-roster-filter="unchecked"/);
+assert.match(view, /建立公開報名連結/);
 assert.match(view, /data-action="start-tournament" disabled/);
+
+const registrationOpen = updateRegistrationSettings(tournament, { enabled: true });
+view = scheduleView([registrationOpen], registrationOpen.id, true);
+assert.match(view, /公開報名中/);
+assert.match(view, /data-share-registration/);
+assert.match(view, /data-manage-registration/);
 
 tournament = addDraftPlayer(tournament, '現場選手');
 assert.equal(tournament.players.length, 5);

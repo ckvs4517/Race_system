@@ -3,20 +3,21 @@ import { icons } from '../ui/icons.js';
 import { pageHeader } from '../ui/shell.js';
 
 const steps = [
-  ['01', '登入主辦方後台', '由主辦方輸入 PIN。觀眾查看賽程與使用獨立記分板不需要登入。'],
-  ['02', '建立並確認賽事', '可先建立空白賽事開放公開報名，或直接手動輸入名單；單淘汰支援 2～32 位，瑞士制支援 4～32 位。'],
-  ['03', '完成報到並開始', '在參賽選手名單勾選已報到者，也可新增現場選手；奇數人的單淘汰賽需再抽一位首輪種子。開賽只會排入已報到選手。'],
-  ['04', '點擊節點輸入比分', '點擊綠色「可開始」對戰，使用加減分後確認結果。一般勝方至少 4 分，棄賽則以 4：0 判定。'],
-  ['05', '查看排名與保存結果', '完成每場比賽後系統會更新排行榜；瑞士制第四輪後可安排資格加賽或直接確認四強循環決賽。資料會同步保存到雲端。'],
+  ['01', '建立賽事', '登入主辦方後台，填寫賽事資訊、選擇賽制與戰鬥台數。名單可以先留空；單淘汰支援 2～32 位，瑞士制支援 4～32 位。'],
+  ['02', '開放公開報名', '進入剛建立的賽事，按「建立公開報名連結」，設定名額與截止時間後即可複製或用手機分享。新報名會先進入待審名單。'],
+  ['03', '整理參賽名單', '核准線上報名，或按「新增選手」加入現場選手。需要刪除時先按「管理名單」，勾選後再一次確認，避免手機誤觸。'],
+  ['04', '完成選手報到', '在名單直接勾選已到場選手，也能用搜尋及「全部／未報到／已報到」快速篩選。開賽只會排入已報到選手。'],
+  ['05', '產生賽程並開始', '依畫面上方的賽事進度操作；單淘汰需要種子時先抽選，確認報到人數後按「開始賽事」。'],
+  ['06', '記分、完賽與備份', '點擊「可開始」的節點輸入比分。瑞士制固定四輪，再確認四強或加賽，最後進行前四循環決賽；後台可匯出完整資料。'],
 ];
 
 export function guideView(isAdmin = false) {
   return `<section class="section-wrap page-section guide-page">
-    ${pageHeader('GETTING STARTED', '第一次使用？五步完成一場賽事', '操作會依賽事狀態逐步開放；先確認名單，再開始比賽，就不容易漏掉重要設定。', `<div class="header-actions"><button class="button button-primary" data-route="${isAdmin ? 'manage' : 'control'}">${isAdmin ? '建立賽事' : '主辦方登入'} ${icons.arrow}</button><button class="button button-secondary" data-route="schedule">查看公開賽程</button></div>`)}
+    ${pageHeader('GETTING STARTED', '第一次使用？六步完成一場賽事', '每場賽事都會顯示目前進度與下一個主要操作；照順序完成，就能快速從報名一路進行到完賽。', `<div class="header-actions"><button class="button button-primary" data-route="${isAdmin ? 'manage' : 'control'}">${isAdmin ? '建立賽事' : '主辦方登入'} ${icons.arrow}</button><button class="button button-secondary" data-route="schedule">查看公開賽程</button></div>`)}
     <div class="guide-steps">${steps.map(([number, title, text]) => `<article class="guide-step"><span>${number}</span><div><h2>${title}</h2><p>${text}</p></div></article>`).join('')}</div>
     <div class="guide-notes">
-      <article><p class="kicker">BEFORE START</p><h2>開始前可以調整</h2><ul><li>修改賽事名稱、賽制、戰鬥台數與選手名單</li><li>勾選報到、現場新增或移除錯誤名單</li><li>重新隨機分組或重新抽選首輪種子</li></ul></article>
-      <article><p class="kicker">DURING EVENT</p><h2>開始後需要注意</h2><ul><li>設定與名單會鎖定，避免中途改動賽程</li><li>未出席或中途退賽成立後不可恢復</li><li>重新比賽會清除受影響的後續輪次</li></ul></article>
+      <article><p class="kicker">BEFORE START</p><h2>開始前一定要確認</h2><ul><li>公開報名連結只提供收件，核准後才會進入正式名單</li><li>檢查賽制、戰鬥台與報到人數；未報到者不會排入賽程</li><li>名單移除一定要進入管理模式並再次確認</li></ul></article>
+      <article><p class="kicker">DURING EVENT</p><h2>比賽中操作原則</h2><ul><li>裁判各自只開自己戰鬥台的待打節點</li><li>畫面出現「已儲存」後再前往下一場；其他裁判的結果會自動同步</li><li>未出席或中途退賽成立後不可恢復；重打會清除受影響的後續輪次</li></ul></article>
     </div>
     <div class="guide-quick"><div><p class="kicker">QUICK MATCH</p><h2>只想臨時計分？</h2><p>獨立記分板不會連動正式賽事，適合練習或臨時對戰。</p></div><button class="button button-secondary" data-route="scoreboard">開啟獨立記分板</button></div>
   </section>`;

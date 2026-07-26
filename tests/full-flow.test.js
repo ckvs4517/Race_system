@@ -54,10 +54,12 @@ try {
   expectText('完整流程測試賽（已編輯）', '開始前可以儲存賽事修改');
   fill('[data-add-draft-player-form] [name="playerName"]', '現場測試選手');
   submit('[data-add-draft-player-form]');
-  await waitFor('[data-remove-draft-player="現場測試選手"]');
+  await waitFor('[data-remove-player-select="現場測試選手"]');
   expectText('報名 5 人', '報到名單可以新增現場選手');
-  click('[data-remove-draft-player="現場測試選手"]');
-  await waitUntil(() => !document.querySelector('[data-remove-draft-player="現場測試選手"]'));
+  click('[data-enter-remove-mode]');
+  click('[data-remove-player-select="現場測試選手"]');
+  click('[data-confirm-remove-players]');
+  await waitUntil(() => !document.querySelector('[data-remove-player-select="現場測試選手"]'));
   expectText('報名 4 人', '報到名單可以確認移除錯誤選手');
   await checkInAllPlayers();
   expectText('已報到 4／報名 4 人', '可以逐一勾選選手完成報到');
@@ -242,6 +244,7 @@ function applyAction(tournament, type, payload) {
     set_check_in: () => setDraftPlayerCheckedIn(source, payload.player, payload.checkedIn),
     add_player: () => addDraftPlayer(source, payload.player),
     remove_player: () => removeDraftPlayer(source, payload.player),
+    remove_players: () => payload.players.reduce((current, player) => removeDraftPlayer(current, player), source),
     draw_seeds: () => drawRandomSeeds(source),
     randomize_bracket: () => randomizeDraftTournament(source),
     start_tournament: () => startTournament(source),

@@ -21,7 +21,7 @@ try {
   expect(tournament.rounds.length === 0, '抽選種子前不產生正式預覽賽程');
   const waitingView = scheduleView([tournament], tournament.id, true);
   expect(waitingView.includes('data-action="draw-seeds"') && waitingView.includes('等待種子抽選'), '分支圖顯示隨機抽選種子入口');
-  expect(waitingView.includes('data-action="start-tournament" disabled'), '尚未抽選種子時不能開始賽事');
+  expect(!waitingView.includes('data-action="start-tournament"'), '尚未抽選種子時只顯示下一步的抽選種子操作');
   expect(waitingView.includes('data-action="randomize-bracket"'), '準備中賽事提供重新隨機分組按鈕');
 
   const originalOrder = ['甲', '乙', '丙', '丁'];

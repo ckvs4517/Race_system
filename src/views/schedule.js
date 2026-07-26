@@ -32,11 +32,19 @@ function bracketView(tournament, canManage) {
   const allSeedNames = new Set(isSwiss ? [] : rounds.map((round) => round.seedPlayer).filter(Boolean));
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? '四強循環賽第一名' : '本屆冠軍'}</span><b>${escapeText(tournament.champion)}</b></div>` : '';
   const eventInfoPanel = eventInfoView(tournament.eventInfo);
+  const workflowPanel = tournamentWorkflowView(tournament, canManage, { checkedInCount, minimumPlayers, seedsReady });
+  const registrationPanel = isDraft ? registrationQuickView(tournament, canManage) : '';
   const participantPanel = participantManagementView(tournament, canManage);
-  const seedButton = isDraft && seedCount > 0 ? `<button class="button button-seed" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
+  const seedButton = isDraft && seedCount > 0 ? `<button class="button button-secondary" data-action="draw-seeds">${seedsReady ? '重新抽選種子' : '隨機抽選種子'}（${seedCount} 位）</button>` : '';
   const randomizeButton = isDraft ? '<button class="button button-secondary" data-action="randomize-bracket">重新隨機分組</button>' : '';
   const imageButton = tournament.status === '已完成' ? '<button class="button button-primary" data-action="download-tournament-image">下載完整賽程圖</button>' : '';
-  const headerActions = `<div class="header-actions">${imageButton}${canManage && isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedButton}<button class="button button-primary" data-action="start-tournament" ${seedsReady && checkedInCount >= minimumPlayers ? '' : 'disabled'}>賽事開始</button>` : ''}${canManage ? '<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button>' : ''}<button class="button button-secondary" data-action="back-events">← 返回列表</button></div>`;
+  const primaryDraftAction = !seedsReady
+    ? `<button class="button button-primary" data-action="draw-seeds">抽選 ${seedCount} 位種子</button>`
+    : `<button class="button button-primary" data-action="start-tournament" ${checkedInCount >= minimumPlayers ? '' : 'disabled'}>開始賽事</button>`;
+  const moreActions = canManage
+    ? `<details class="schedule-more"><summary class="button button-secondary">⋯ 更多</summary><div class="schedule-more-menu">${isDraft ? `<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>${randomizeButton}${seedsReady ? seedButton : ''}` : ''}<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button></div></details>`
+    : '';
+  const headerActions = `<div class="schedule-header-actions"><button class="button button-secondary" data-action="back-events">← 返回列表</button>${imageButton}${canManage && isDraft ? primaryDraftAction : ''}${moreActions}</div>`;
   const guide = isDraft
     ? isSwiss
       ? `<span><i class="draft-dot"></i>固定進行四輪瑞士制預賽</span><span>四輪後由主辦方確認四強或建立資格積分決定賽</span>`
@@ -47,7 +55,46 @@ function bracketView(tournament, canManage) {
   const swissDecision = isSwiss && !isDraft ? swissDecisionPanel(tournament, canManage) : '';
   const leaderboard = (isSwiss && !isDraft) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
   const preliminaryCount = rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length;
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : ''}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${eventInfoPanel}${champion}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${swissDecision}${bracket}${leaderboard}</section>`;
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'SCHEDULE PREVIEW' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : ''}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${isDraft ? '準備中' : tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}${seedPanel}<div class="bracket-guide">${guide}</div>${swissDecision}${bracket}${leaderboard}</section>`;
+}
+
+function tournamentWorkflowView(tournament, canManage, readiness) {
+  if (!canManage) return '';
+  const steps = ['建立賽事', '招募選手', '選手報到', '產生賽程', '進行比賽', '完成'];
+  let current = 0;
+  if (tournament.status === '已完成') current = 5;
+  else if (tournament.status === '進行中') current = 4;
+  else if (!tournament.players.length) current = 1;
+  else if (readiness.checkedInCount < readiness.minimumPlayers) current = 2;
+  else if (!readiness.seedsReady) current = 3;
+  else current = 3;
+  return `<nav class="tournament-workflow" aria-label="賽事進度">${steps.map((step, index) => `<span class="${index < current ? 'is-done' : index === current ? 'is-current' : ''}"><i>${index < current ? '✓' : index + 1}</i>${step}</span>`).join('')}</nav>`;
+}
+
+function registrationQuickView(tournament, canManage) {
+  if (!canManage) return '';
+  const settings = tournament.registrationSettings || {};
+  if (settings.enabled) {
+    return `<section class="registration-quick is-open">
+      <div><p class="kicker">PUBLIC REGISTRATION</p><h2>公開報名中</h2><p>報名連結已啟用，可直接分享給選手；收到的新報名會先進入待審名單。</p></div>
+      <div class="registration-quick-actions"><button class="button button-primary" data-share-registration data-registration-token="${escapeAttribute(settings.token || '')}">分享報名連結</button><button class="button button-secondary" data-manage-registration>查看報名名單</button></div>
+    </section>`;
+  }
+  const capacity = Math.max(tournament.players.length, Number(settings.capacity) || 32);
+  const deadline = String(settings.deadline || '').slice(0, 16);
+  return `<section class="registration-quick">
+    <div><p class="kicker">PUBLIC REGISTRATION</p><h2>需要招募選手嗎？</h2><p>從這場賽事直接建立公開表單，選手填寫後由主辦方核准加入名單。</p></div>
+    <button class="button button-primary" data-open-registration-setup>建立公開報名連結</button>
+    <dialog class="mobile-sheet" data-registration-setup-dialog>
+      <form method="dialog" class="mobile-sheet-card" data-quick-registration-form>
+        <div class="mobile-sheet-heading"><div><p class="kicker">PUBLIC REGISTRATION</p><h2>開放公開報名</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
+        <p>設定名額與截止時間後，系統會立即建立這場賽事專用的報名連結。</p>
+        <label><span>報名人數上限</span><input type="number" name="capacity" min="${Math.max(1, tournament.players.length)}" max="32" value="${capacity}" required></label>
+        <label><span>截止時間（可不填）</span><input type="datetime-local" name="deadline" value="${escapeAttribute(deadline)}"></label>
+        <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button type="submit" class="button button-primary">開放報名並複製連結</button></div>
+      </form>
+    </dialog>
+  </section>`;
 }
 
 function eventInfoView(info = {}) {
@@ -123,24 +170,35 @@ function draftCheckInView(tournament, canManage) {
   const minimumPlayers = tournament.format === 'swiss' ? 4 : 2;
   const rows = tournament.players.map((player) => {
     const checkedIn = Boolean(tournament.participantStates?.[player]?.checkedIn);
-    return `<div class="check-in-row ${checkedIn ? 'is-checked-in' : ''}">
-      <label><input type="checkbox" data-check-in-player="${escapeAttribute(player)}" ${checkedIn ? 'checked' : ''} ${canManage ? '' : 'disabled'}><span>${escapeText(player)}</span></label>
+    return `<div class="check-in-row ${checkedIn ? 'is-checked-in' : ''}" data-roster-player="${escapeAttribute(player)}" data-checked-in="${checkedIn}">
+      <label class="check-in-choice"><input type="checkbox" data-check-in-player="${escapeAttribute(player)}" ${checkedIn ? 'checked' : ''} ${canManage ? '' : 'disabled'}><span>${escapeText(player)}</span></label>
       <i>${checkedIn ? '已報到' : '尚未報到'}</i>
-      ${canManage ? `<button type="button" data-remove-draft-player="${escapeAttribute(player)}" aria-label="移除 ${escapeAttribute(player)}">移除</button>` : ''}
+      ${canManage ? `<label class="roster-remove-choice"><input type="checkbox" data-remove-player-select="${escapeAttribute(player)}"><span>選取 ${escapeText(player)}</span></label>` : ''}
     </div>`;
   }).join('');
-  const addForm = canManage ? `<form class="check-in-add" data-add-draft-player-form>
-    <input name="playerName" maxlength="60" autocomplete="off" placeholder="輸入現場報名選手名稱" aria-label="現場報名選手名稱">
-    <button class="button button-secondary" type="submit">＋ 新增選手</button>
-  </form>` : '';
+  const tools = canManage ? `<div class="check-in-tools">
+    <label class="roster-search"><span class="sr-only">搜尋選手</span><input type="search" data-roster-search autocomplete="off" placeholder="搜尋選手名稱"></label>
+    <div class="roster-filters" aria-label="名單篩選"><button type="button" class="is-active" data-roster-filter="all">全部</button><button type="button" data-roster-filter="unchecked">未報到</button><button type="button" data-roster-filter="checked">已報到</button></div>
+    <div class="roster-tools-actions"><button type="button" class="button button-secondary" data-open-add-player>＋ 新增選手</button><button type="button" class="button button-secondary button-danger-quiet" data-enter-remove-mode>管理名單</button></div>
+  </div>` : '';
+  const dialogs = canManage ? `<dialog class="mobile-sheet" data-add-player-dialog>
+      <form method="dialog" class="mobile-sheet-card" data-add-draft-player-form>
+        <div class="mobile-sheet-heading"><div><p class="kicker">ADD PLAYER</p><h2>新增現場選手</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
+        <label><span>選手名稱</span><input name="playerName" maxlength="60" autocomplete="off" placeholder="輸入選手名稱" aria-label="現場報名選手名稱" required></label>
+        <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button class="button button-primary" type="submit">新增到名單</button></div>
+      </form>
+    </dialog>
+    <div class="roster-remove-bar" aria-live="polite"><span>已選取 <b data-remove-count>0</b> 位選手</span><div><button type="button" class="button button-secondary" data-cancel-remove-mode>取消</button><button type="button" class="button button-danger" data-confirm-remove-players disabled>移除選取選手</button></div></div>` : '';
   const guidance = checkedInCount >= minimumPlayers
     ? '已達開賽人數；未勾選者在開賽時會保留為未出席並排除賽程。'
     : `至少需要 ${minimumPlayers} 位選手完成報到才能開始賽事。`;
   return `<section class="check-in-panel">
     <div class="check-in-heading"><div><p class="kicker">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
     <p class="check-in-guidance">${guidance}</p>
-    <div class="check-in-list">${rows || '<div class="check-in-empty">目前沒有參賽選手，可從公開報名核准或在下方現場新增。</div>'}</div>
-    ${addForm}
+    ${tools}
+    <div class="check-in-list">${rows || '<div class="check-in-empty">目前沒有參賽選手，可從公開報名核准或新增現場選手。</div>'}</div>
+    <div class="check-in-empty roster-filter-empty" hidden>找不到符合條件的選手。</div>
+    ${dialogs}
   </section>`;
 }
 

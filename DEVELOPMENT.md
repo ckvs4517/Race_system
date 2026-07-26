@@ -71,7 +71,7 @@ Cloudflare D1
 各層責任：
 
 - `views`：輸出 HTML、讀取表單、綁定單純 UI 事件。
-- `main.js`：協調路由、畫面與操作，不直接計算正式賽果。
+- `main.js`：協調路由、畫面與操作，不直接計算正式賽果；搜尋、篩選、對話框與暫時選取等不需保存的狀態只留在前端。
 - `data/store.js`：管理前端狀態、登入權杖、ETag、API 與衝突重試。
 - `domain/tournament.js`：前後端共用的賽事生命週期與規則；正式操作由 Worker 呼叫。
 - `formats`：處理各賽制特有的配對、統計與排名。
@@ -146,8 +146,9 @@ Cloudflare D1
 ```text
 建立賽事
   → 準備中：可改名稱、賽制、台數與名單
-  → 可開放公開報名，後台核准後加入正式名單
-  → 賽前報到：勾選到場、現場新增或移除錯誤名單
+  → 從賽事頁開放／分享公開報名，後台核准後加入正式名單
+  → 賽前報到：搜尋或篩選名單、勾選到場、現場新增
+  → 名單管理模式：先勾選再一次批次移除，避免手機誤觸
   → 依已報到名單抽種子／隨機分組
   → 賽事開始：只將已報到選手排入賽程，未報到者保留並標記未出席
   → 進行中：記分、棄賽、退賽與重賽
@@ -256,7 +257,7 @@ SET data = ?, revision = ?
 WHERE id = ? AND revision = ?
 ```
 
-若資料已被其他裁判修改，更新筆數會是 0，API 回傳 `409 Conflict` 與最新賽事。記分、判負、重賽、退賽、報到、增刪選手、抽種子、隨機分組、開賽、瑞士制晉級與報名設定都只傳 `type + payload + expectedRevision`；Worker 讀取最新版後套用共用 domain 規則。前端會保留最新版，並對可重試的指令重試一次。同一場比賽已被完成時，領域規則仍會拒絕再次覆寫。
+若資料已被其他裁判修改，更新筆數會是 0，API 回傳 `409 Conflict` 與最新賽事。記分、判負、重賽、退賽、報到、增刪選手、抽種子、隨機分組、開賽、瑞士制晉級與報名設定都只傳 `type + payload + expectedRevision`；Worker 讀取最新版後套用共用 domain 規則。前端會保留最新版，並對可重試的指令重試一次。同一場比賽已被完成時，領域規則仍會拒絕再次覆寫。批次移除使用單一 `remove_players` 指令，全部選取的選手會在同一個 revision 中完成，避免逐筆寫入造成額外同步與中間狀態。
 
 賽程頁每 4 秒只查目前選取的單一賽事，首頁每 15 秒更新完整清單；記分畫面暫停輪詢，避免尚未送出的比分被清除。GET 會附帶 `If-None-Match`，資料未變時 Worker 回傳 `304`，前端不解析 JSON、不更新狀態，也不重繪。瀏覽器分頁隱藏時會降低檢查頻率。
 
@@ -312,6 +313,9 @@ node tests/api.test.mjs
 node tests/registration.test.mjs
 node tests/data-management.test.mjs
 node tests/navigation.test.mjs
+node tests/check-in.test.mjs
+node tests/guide.test.mjs
+node tests/responsive-ui.test.mjs
 node tests/sync.test.mjs
 node tests/action-sync.test.mjs
 node tests/format-matrix.test.mjs

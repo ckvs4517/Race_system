@@ -355,6 +355,11 @@ function applyTournamentAction(tournament, type, payload) {
       return addDraftPlayer(tournament, String(payload.player || ''));
     case 'remove_player':
       return removeDraftPlayer(tournament, String(payload.player || ''));
+    case 'remove_players': {
+      const players = Array.isArray(payload.players) ? [...new Set(payload.players.map(String))] : [];
+      if (!players.length || players.length > 32) throw new Error('請選擇要移除的選手。');
+      return players.reduce((current, player) => removeDraftPlayer(current, player), tournament);
+    }
     case 'draw_seeds':
       return drawRandomSeeds(tournament);
     case 'randomize_bracket':

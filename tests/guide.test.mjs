@@ -9,10 +9,12 @@ assert.match(home, />32<\/b><span>最多參賽人數/, '首頁顯示最多 32 �
 assert.match(home, /data-route="guide"/, '首頁提供第一次使用入口');
 
 const guide = guideView(false);
-assert.match(guide, /五步完成一場賽事/, '說明頁提供五步流程');
+assert.match(guide, /六步完成一場賽事/, '說明頁提供六步流程');
 assert.match(guide, /單淘汰支援 2～32 位，瑞士制支援 4～32 位/, '說明頁說明兩種賽制的人數範圍');
 assert.match(guide, /未出席或中途退賽成立後不可恢復/, '說明頁標示不可逆退賽規則');
 assert.match(guide, /開賽只會排入已報到選手/, '說明頁包含賽前報到規則');
+assert.match(guide, /建立公開報名連結/, '說明頁包含賽事內快速開放報名');
+assert.match(guide, /管理名單/, '說明頁說明安全移除模式');
 assert.match(shell('guide', guide, { isAdmin: false }), /nav-item active[^>]*data-route="guide"/, '導覽列可開啟並標示使用說明頁');
 
 console.log('PASS getting started guide');

@@ -103,6 +103,21 @@ const action = (type, payload, expectedRevision) => request('/api/tournaments/2/
   headers: authorizedHeaders,
   body: JSON.stringify({ type, payload, expectedRevision }),
 });
+
+const bulkDraft = { ...createTournament('批次名單測試', ['A', 'B', 'C']), id: 3 };
+await request('/api/tournaments', {
+  method: 'POST',
+  headers: authorizedHeaders,
+  body: JSON.stringify({ tournament: bulkDraft }),
+});
+const bulkRemovedResponse = await request('/api/tournaments/3/actions', {
+  method: 'POST',
+  headers: authorizedHeaders,
+  body: JSON.stringify({ type: 'remove_players', payload: { players: ['B', 'C'] }, expectedRevision: 1 }),
+});
+const bulkRemoved = (await bulkRemovedResponse.json()).tournament;
+assert(bulkRemovedResponse.status === 200 && bulkRemoved.revision === 2 && bulkRemoved.players.join(',') === 'A', '批次移除選手只寫入一個新版本');
+
 await action('set_check_in', { player: '甲', checkedIn: true }, 1);
 const secondCheckIn = await action('set_check_in', { player: '乙', checkedIn: true }, 2);
 assert(secondCheckIn.status === 200 && (await secondCheckIn.json()).tournament.revision === 3, '報到由後端依序套用並增加版本');
@@ -128,7 +143,7 @@ assert(staleAction.status === 409 && (await staleAction.json()).tournament.revis
 const session = await request('/api/admin/session', { headers: { authorization: `Bearer ${token}` } });
 assert((await session.json()).authenticated === true, '有效登入權杖可以恢復後台工作階段');
 
-console.log('PASS 16 API tests');
+console.log('PASS 17 API tests');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

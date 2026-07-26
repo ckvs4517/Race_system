@@ -19,6 +19,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 button, input, textarea { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
@@ -62,6 +63,9 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .button-primary:hover { background: linear-gradient(135deg, #ff645a, var(--red-deep)); }
 .button-secondary { background: #131923; border-color: var(--line-bright); }
 .button-secondary:hover { background: #1a2230; border-color: #556174; }
+.button-danger { background: #a5252b; border-color: #d33d43; }
+.button-danger:hover { background: #c72c33; }
+.button-danger-quiet { color: #ff8b84; border-color: #ff493d55; }
 .button-seed { background: #f2c94c12; color: #f7d967; border-color: #f2c94c55; }
 .button-seed:hover { background: #f2c94c20; border-color: var(--yellow); }
 .button:disabled { background: #151922; color: #5c6471; border-color: #252b35; box-shadow: none; cursor: not-allowed; transform: none; }
@@ -89,6 +93,12 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .tools-section { content-visibility: auto; contain-intrinsic-size: 620px; }
 .section-title, .page-header { display: flex; justify-content: space-between; align-items: end; gap: 30px; }
 .header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.schedule-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.schedule-more { position: relative; }
+.schedule-more > summary { list-style: none; }
+.schedule-more > summary::-webkit-details-marker { display: none; }
+.schedule-more-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 12; width: max-content; min-width: 190px; display: grid; gap: 7px; padding: 9px; background: #111720; border: 1px solid #3a4555; border-radius: 9px; box-shadow: 0 18px 45px #000b; }
+.schedule-more-menu .button { width: 100%; min-height: 44px; }
 .section-title h2, .page-header h1 { margin: 5px 0 0; font-size: 32px; }
 .section-title > span { color: var(--muted); font-size: 12px; }
 .kicker { margin: 0; color: var(--red); font: 800 11px var(--font-body); letter-spacing: 2.5px; }
@@ -241,15 +251,48 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .participant-row { min-height: 48px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 12px 8px 18px; border-bottom: 1px solid var(--line); }.participant-row:nth-child(odd) { border-right: 1px solid var(--line); }.participant-row span { overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 700; }.participant-row i { color: #35dc82; font-size: 9px; font-style: normal; }.participant-row > div { display: flex; gap: 4px; }.participant-row button { padding: 6px 7px; background: transparent; color: #aab2bf; border: 1px solid #333c49; border-radius: 4px; font-size: 8px; font-weight: 800; cursor: pointer; }.participant-row button:hover { color: #fff; border-color: #657084; }
 .participant-row.is-inactive { background: #ff493d08; }.participant-row.is-inactive span { color: #777f8d; text-decoration: line-through; }.participant-row.is-inactive i { color: #ff7168; }
 .check-in-panel { margin: -18px 0 32px; padding: 22px; background: linear-gradient(135deg, #111821, #0b1016); border: 1px solid #344052; border-radius: 12px; }
+.tournament-workflow { min-width: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: -18px 0 32px; overflow: hidden; background: #0b1016; border: 1px solid #2c3542; border-radius: 10px; }
+.tournament-workflow span { min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; color: #667181; border-right: 1px solid #252d38; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.tournament-workflow span:last-child { border-right: 0; }
+.tournament-workflow i { width: 22px; height: 22px; display: grid; place-items: center; background: #161d27; border: 1px solid #343e4c; border-radius: 50%; font-size: 10px; font-style: normal; }
+.tournament-workflow .is-done { color: #8edfb4; }.tournament-workflow .is-done i { background: #35dc8220; color: #35dc82; border-color: #35dc8260; }
+.tournament-workflow .is-current { background: #ff493d0c; color: #fff; }.tournament-workflow .is-current i { background: var(--red); color: #fff; border-color: var(--red); box-shadow: 0 0 16px #ff493d44; }
+.registration-quick { margin: -18px 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 22px; background: linear-gradient(135deg, #15131a, #0d1118); border: 1px solid #ff493d55; border-radius: 12px; }
+.registration-quick.is-open { border-color: #35dc8255; }
+.registration-quick h2 { margin: 5px 0 6px; font-size: 21px; }.registration-quick p:not(.kicker) { max-width: 670px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.registration-quick-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .check-in-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; }.check-in-heading h2 { margin: 4px 0 0; font-size: 24px; }.check-in-heading strong { color: #35dc82; font-size: 14px; }
 .check-in-guidance { margin: 12px 0 16px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.check-in-tools { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px; margin-bottom: 12px; }
+.roster-search input { width: 100%; min-height: 46px; padding: 0 13px; background: #090d13; color: #fff; border: 1px solid #354153; border-radius: 7px; }
+.roster-filters { display: flex; padding: 4px; background: #090d13; border: 1px solid #354153; border-radius: 8px; }
+.roster-filters button { min-height: 36px; padding: 0 13px; background: transparent; color: #8d96a5; border: 0; border-radius: 5px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.roster-filters button.is-active { background: #273142; color: #fff; }
+.roster-tools-actions { display: flex; gap: 8px; }.roster-tools-actions .button { min-height: 46px; padding-inline: 14px; }
 .check-in-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: 9px; }
 .check-in-row { min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 10px 8px 15px; background: #090d13; border-bottom: 1px solid var(--line); }.check-in-row:nth-child(odd) { border-right: 1px solid var(--line); }
 .check-in-row label { min-width: 0; display: flex; align-items: center; gap: 11px; cursor: pointer; }.check-in-row input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: #35dc82; }.check-in-row label span { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .check-in-row i { color: #8b95a4; font-size: 10px; font-style: normal; font-weight: 800; }.check-in-row.is-checked-in { background: #35dc8209; }.check-in-row.is-checked-in i { color: #35dc82; }
-.check-in-row > button { padding: 7px 8px; background: transparent; color: #8d96a5; border: 1px solid #333d4b; border-radius: 5px; font-size: 9px; font-weight: 800; cursor: pointer; }.check-in-row > button:hover { color: #ff7168; border-color: #ff493d66; }
+.roster-remove-choice { display: none !important; grid-column: 1 / -1; }
+.is-remove-mode .check-in-choice, .is-remove-mode .check-in-row > i { display: none; }
+.is-remove-mode .roster-remove-choice { min-height: 38px; display: flex !important; }
+.is-remove-mode .roster-remove-choice input { accent-color: var(--red); }
+.is-remove-mode .check-in-row { grid-template-columns: 1fr; background: #ff493d08; }
 .check-in-empty { grid-column: 1 / -1; padding: 28px 18px; color: var(--muted); font-size: 12px; text-align: center; }
-.check-in-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 14px; }.check-in-add input { min-width: 0; padding: 0 14px; background: #090d13; color: #fff; border: 1px solid #354153; border-radius: 7px; font: 700 13px var(--font-body); }.check-in-add input:focus { outline: 2px solid #367df455; border-color: #568fe8; }
+.roster-filter-empty { margin-top: 10px; padding: 16px; border: 1px dashed #354153; border-radius: 8px; }
+.roster-remove-bar { display: none; }
+.is-remove-mode .roster-remove-bar { position: sticky; bottom: 12px; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding: 12px 14px; background: #171116f2; border: 1px solid #ff493d66; border-radius: 10px; box-shadow: 0 12px 32px #000a; backdrop-filter: blur(14px); }
+.roster-remove-bar > div { display: flex; gap: 8px; }.roster-remove-bar > span { font-size: 13px; }.roster-remove-bar b { color: #ff7168; }
+.mobile-sheet { width: min(520px, calc(100% - 28px)); padding: 0; background: transparent; color: #fff; border: 0; }
+.mobile-sheet::backdrop { background: #020408cc; backdrop-filter: blur(4px); }
+.mobile-sheet-card { display: grid; gap: 18px; padding: 24px; background: #111720; border: 1px solid #3b4657; border-radius: 14px; box-shadow: 0 24px 70px #000d; }
+.mobile-sheet-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }.mobile-sheet-heading h2 { margin: 5px 0 0; font-size: 25px; }.mobile-sheet-heading > button { width: 44px; height: 44px; background: #1b2330; border: 1px solid #3b4657; border-radius: 50%; font-size: 24px; cursor: pointer; }
+.mobile-sheet-card > p { margin: -7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.mobile-sheet-card > label { display: grid; gap: 8px; color: #dce2ec; font-size: 12px; font-weight: 800; }
+.mobile-sheet-card input { width: 100%; min-height: 50px; padding: 0 14px; background: #090d13; color: #fff; border: 1px solid #3b4657; border-radius: 8px; }
+.mobile-sheet-actions { display: flex; justify-content: flex-end; gap: 9px; }
+.action-toast { position: fixed; right: 18px; bottom: 18px; z-index: 100; max-width: min(420px, calc(100% - 36px)); padding: 14px 18px; background: #14251d; color: #dbffeb; border: 1px solid #35dc8270; border-radius: 9px; box-shadow: 0 18px 50px #000c; font-size: 14px; font-weight: 800; }
+.action-toast.is-error { background: #2a1417; color: #ffd8d5; border-color: #ff493d80; }
 .bracket-flow { min-width: max-content; display: flex; gap: 46px; }
 .round-column { width: 245px; display: flex; flex-direction: column; }
 .round-column.has-battle-stations { width: calc(var(--station-count) * 260px); min-width: 520px; }
@@ -539,4 +582,39 @@ footer { font-size: 12px; }
   .registration-row { grid-template-columns: 1fr; }
   .swiss-mini-standings > div { grid-template-columns: 28px 1fr; }
   .swiss-mini-standings i, .swiss-mini-standings strong { grid-column: 2; }
+}
+
+@media (max-width: 760px) {
+  .tournament-workflow { display: flex; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+  .tournament-workflow span { min-width: 118px; flex: 1 0 118px; scroll-snap-align: start; }
+  .registration-quick { align-items: stretch; flex-direction: column; }
+  .registration-quick > .button, .registration-quick-actions .button { flex: 1; }
+  .check-in-tools { grid-template-columns: 1fr; }
+  .roster-tools-actions .button { flex: 1; }
+}
+
+@media (max-width: 620px) {
+  .schedule-header-actions { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) 48px; }
+  .schedule-header-actions > .button { min-width: 0; padding-inline: 12px; white-space: nowrap; }
+  .schedule-header-actions > .button:only-child { grid-column: 1 / -1; }
+  .schedule-more > summary { width: 48px; padding: 0; font-size: 0; }
+  .schedule-more > summary::after { content: '⋯'; font-size: 21px; letter-spacing: 2px; }
+  .schedule-more-menu { right: 0; width: min(250px, calc(100vw - 32px)); }
+  .tournament-workflow { margin-top: -22px; }
+  .registration-quick { padding: 18px 16px; }
+  .registration-quick-actions { display: grid; grid-template-columns: 1fr; }
+  .roster-filters { width: 100%; }
+  .roster-filters button { flex: 1; min-height: 42px; padding-inline: 6px; }
+  .roster-tools-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .check-in-row { min-height: 62px; padding: 10px 12px; }
+  .check-in-row input { width: 24px; height: 24px; }
+  .check-in-row label span { font-size: 15px; }
+  .is-remove-mode .roster-remove-bar { align-items: stretch; flex-direction: column; bottom: 8px; }
+  .roster-remove-bar > div { display: grid; grid-template-columns: .8fr 1.2fr; }
+  .roster-remove-bar .button { min-width: 0; padding-inline: 10px; }
+  .mobile-sheet { width: 100%; max-width: none; margin: auto 0 0; }
+  .mobile-sheet-card { padding: 22px 16px max(18px, env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; }
+  .mobile-sheet-actions { display: grid; grid-template-columns: .8fr 1.2fr; }
+  .mobile-sheet-actions .button { min-width: 0; padding-inline: 10px; }
+  .action-toast { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; max-width: none; text-align: center; }
 }
