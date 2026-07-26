@@ -32,7 +32,12 @@ export const swiss = {
   getStandings(tournament) {
     const preliminaryRounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary');
     const preliminaryStats = deriveStats(tournament.players, preliminaryRounds);
-    const preliminary = rankByRecordAndPoints(tournament.players, preliminaryStats);
+  
+    const preliminary = rankByRecordAndPoints(
+      tournament.players,
+      preliminaryStats,
+      tournament,
+    );
 
     if (!tournament.finalists?.length) {
       return addRanks(preliminary, tournament, rankingKey);
@@ -40,7 +45,13 @@ export const swiss = {
 
     const finalRounds = tournament.rounds.filter((round) => round.phase === 'final');
     const finalStats = deriveStats(tournament.finalists, finalRounds);
-    const finalists = rankByRecordAndPoints(tournament.finalists, finalStats);
+
+    const finalists = rankByRecordAndPoints(
+      tournament.finalists,
+      finalStats,
+      tournament,
+    );
+
     const finalistSet = new Set(tournament.finalists);
     const remaining = preliminary.filter((row) => !finalistSet.has(row.player));
     return [...finalists, ...remaining].map((row, index) => ({
@@ -64,7 +75,11 @@ export const swiss = {
     const rounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === phase
       && (!qualifierSeriesId || round.seriesId === qualifierSeriesId));
     const stats = deriveStats(players, rounds);
-    return addRanks(rankByRecordAndPoints(players, stats), tournament, rankingKey);
+    return addRanks(
+      rankByRecordAndPoints(players, stats, tournament),
+      tournament,
+      rankingKey,
+    );
   },
 
   rebuildStats(players, rounds) {
@@ -271,14 +286,34 @@ function deriveStats(players = [], rounds = []) {
   return stats;
 }
 
-function rankByRecordAndPoints(players, stats) {
-  const order = new Map(players.map((player, index) => [player, index]));
+function rankByRecordAndPoints(
+  players,
+  stats,
+  tournament = null,
+) {
+  const order = new Map(
+    players.map((player, index) => [player, index])
+  );
+
   return rowsFor(players, stats).sort((a, b) => (
-    b.wins - a.wins
+    participantRankingGroup(tournament, a.player)
+      - participantRankingGroup(tournament, b.player)
+    || b.wins - a.wins
     || a.losses - b.losses
     || b.totalPoints - a.totalPoints
     || order.get(a.player) - order.get(b.player)
   ));
+}
+
+// 未報到者保留在完整報名名單中，
+// 但排行榜必須排在所有實際報到參賽者之後。
+function participantRankingGroup(tournament, player) {
+  const state = tournament?.participantStates?.[player];
+
+  return state?.status === 'no_show'
+    || state?.checkedIn === false
+    ? 1
+    : 0;
 }
 
 function rankingKey(row) {
@@ -302,7 +337,9 @@ function addRanks(rows, tournament, scoreKey) {
   let previousScore = null;
   let previousRank = 0;
   return rows.map((row, index) => {
-    const score = scoreKey(row);
+    const score = `${
+      participantRankingGroup(tournament, row.player)
+    }:${scoreKey(row)}`;
     const rank = index === 0 || score !== previousScore ? index + 1 : previousRank;
     previousScore = score;
     previousRank = rank;
