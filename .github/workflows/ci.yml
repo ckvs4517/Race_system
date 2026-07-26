@@ -76,8 +76,8 @@ jobs:
           test -f dist/server/index.js
           test -f dist/client/index.html
           test -f dist/client/src/main.js
-          test -f dist/src/domain/tournament.js
-          test -f dist/src/formats/registry.js
+          test -f dist/server/domain/tournament.js
+          test -f dist/server/formats/registry.js
           test -f dist/.openai/hosting.json
           tar -cf spin-league-sites.tar dist
 

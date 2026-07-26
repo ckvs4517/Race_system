@@ -288,7 +288,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 - `dist/client`：前端靜態檔案。
 - `dist/server/index.js`：Worker。
-- `dist/src/domain`、`dist/src/formats`：Worker 共用的賽事規則模組。
+- `dist/server/domain`、`dist/server/formats`：隨 Worker 一起封裝的共用賽事規則模組。
 - `dist/.openai/hosting.json`：Sites 設定。
 - `dist/.openai/drizzle`：D1 migration。
 
