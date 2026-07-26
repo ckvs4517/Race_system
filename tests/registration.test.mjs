@@ -1,6 +1,7 @@
 /** 公開報名 API：公開表單、重複防護、個資邊界與後台核准加入名單。 */
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
+import { createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';
 import { registrationAdminView } from '../src/views/registration-admin.js';
 
 globalThis.location = new URL('https://example.com/');
@@ -149,12 +150,23 @@ assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時
 const navigationEntryView = registrationAdminView([approvedData.tournament], approvedData.tournament.id, registrations, false);
 assert.match(navigationEntryView, /← 選擇其他賽事/, '從上方報名管理進入時提供選擇其他賽事按鈕');
 
-const stored = env.DB.tournaments.get('901');
-const startedTournament = { ...JSON.parse(stored.data), status: '進行中' };
-env.DB.tournaments.set('901', { ...stored, data: JSON.stringify(startedTournament) });
-const closedAfterStart = await request(publicPath);
-assert.equal(closedAfterStart.status, 400, '未設定截止時間的報名連結仍會在賽事開始後停止收件');
-assert.match((await closedAfterStart.json()).error, /停止報名/);
+const manuallyClosed = await request('/api/tournaments/901/actions', {
+  method: 'POST',
+  headers: adminHeaders,
+  body: JSON.stringify({ type: 'update_registration_settings', payload: { settings: { enabled: false } }, expectedRevision: 2 }),
+});
+const manuallyClosedTournament = (await manuallyClosed.json()).tournament;
+assert.notEqual(manuallyClosedTournament.registrationSettings.token, tournament.registrationSettings.token, '手動關閉報名會撤銷舊 token');
+const revokedPublicPath = await request(publicPath);
+assert.equal(revokedPublicPath.status, 404, '撤銷後的舊報名網址會直接失效');
+
+let secureStart = createTournament('開賽撤銷測試', ['A', 'B', 'C', 'D'], 'swiss');
+secureStart = updateRegistrationSettings(secureStart, { enabled: true });
+const oldStartToken = secureStart.registrationSettings.token;
+for (const player of secureStart.players) secureStart = setDraftPlayerCheckedIn(secureStart, player, true);
+secureStart = prepareTournamentSchedule(secureStart);
+assert.equal(secureStart.registrationSettings.enabled, false);
+assert.notEqual(secureStart.registrationSettings.token, oldStartToken, '進入排程時會關閉報名並撤銷舊網址');
 
 console.log('PASS registration flow');
 

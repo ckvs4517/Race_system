@@ -122,28 +122,38 @@ await action('set_check_in', { player: '甲', checkedIn: true }, 1);
 const secondCheckIn = await action('set_check_in', { player: '乙', checkedIn: true }, 2);
 assert(secondCheckIn.status === 200 && (await secondCheckIn.json()).tournament.revision === 3, '報到由後端依序套用並增加版本');
 
-const startedResponse = await action('start_tournament', {}, 3);
+const preparedResponse = await action('prepare_tournament_schedule', {}, 3);
+const preparedTournament = (await preparedResponse.json()).tournament;
+assert(preparedResponse.status === 200 && preparedTournament.status === '排程中' && preparedTournament.rounds.length === 0, '確認報到後先進入無賽程的排程階段');
+const randomizedResponse = await action('randomize_schedule', {}, 4);
+const randomizedTournament = (await randomizedResponse.json()).tournament;
+assert(randomizedResponse.status === 200 && randomizedTournament.rounds[0].matches[0].status === '可開始', '隨機分組由後端產生首輪賽程');
+const openingMatch = randomizedTournament.rounds[0].matches[0];
+const adjustedResponse = await action('update_opening_pairings', { pairs: [[openingMatch.playerB, openingMatch.playerA]] }, 5);
+const adjustedTournament = (await adjustedResponse.json()).tournament;
+assert(adjustedResponse.status === 200 && adjustedTournament.rounds[0].matches[0].playerA === openingMatch.playerB, '首輪對戰可在後端驗證後手動調整');
+const startedResponse = await action('confirm_tournament_schedule', {}, 6);
 const startedTournament = (await startedResponse.json()).tournament;
-assert(startedResponse.status === 200 && startedTournament.rounds[0].matches[0].status === '可開始', '開賽與賽程產生由後端執行');
+assert(startedResponse.status === 200 && startedTournament.status === '進行中', '確認目前配對後才正式開賽');
 
-const completedResponse = await action('record_match', { roundIndex: 0, matchIndex: 0, scoreA: 4, scoreB: 2 }, 4);
+const completedResponse = await action('record_match', { roundIndex: 0, matchIndex: 0, scoreA: 4, scoreB: 2 }, 7);
 const completedTournament = (await completedResponse.json()).tournament;
-assert(completedResponse.status === 200 && completedTournament.status === '已完成' && completedTournament.revision === 5, '後端記分後完成賽事並保存新版本');
+assert(completedResponse.status === 200 && completedTournament.status === '已完成' && completedTournament.revision === 8, '後端記分後完成賽事並保存新版本');
 
 const forbiddenFullOverwrite = await request('/api/tournaments/2', {
   method: 'PUT',
   headers: authorizedHeaders,
-  body: JSON.stringify({ tournament: { ...completedTournament, champion: '竄改冠軍' }, expectedRevision: 5 }),
+  body: JSON.stringify({ tournament: { ...completedTournament, champion: '竄改冠軍' }, expectedRevision: 8 }),
 });
 assert(forbiddenFullOverwrite.status === 400, '賽事開始後禁止以前端整包資料覆寫正式賽果');
 
-const staleAction = await action('record_match', { roundIndex: 0, matchIndex: 0, scoreA: 4, scoreB: 1 }, 4);
-assert(staleAction.status === 409 && (await staleAction.json()).tournament.revision === 5, '後端拒絕裁判以舊版本覆蓋最新賽果');
+const staleAction = await action('record_match', { roundIndex: 0, matchIndex: 0, scoreA: 4, scoreB: 1 }, 7);
+assert(staleAction.status === 409 && (await staleAction.json()).tournament.revision === 8, '後端拒絕裁判以舊版本覆蓋最新賽果');
 
 const session = await request('/api/admin/session', { headers: { authorization: `Bearer ${token}` } });
 assert((await session.json()).authenticated === true, '有效登入權杖可以恢復後台工作階段');
 
-console.log('PASS 17 API tests');
+console.log('PASS 20 API tests');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

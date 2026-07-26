@@ -30,13 +30,13 @@ assert.equal(tournament.rounds.length, 0);
 assert.match(scheduleView([tournament], tournament.id, true), /參賽選手名單/);
 assert.match(scheduleView([tournament], tournament.id, true), /已報到 0／報名 8 人/);
 tournament = checkInAll(tournament);
-assert.equal(tournament.rounds.length, 1);
-assert.equal(tournament.rounds[0].matches.length, 4);
-assert.equal(buildRounds(tournament).length, 1, '瑞士制不應投影尚未配對的輪次');
+assert.equal(tournament.rounds.length, 0);
+assert.equal(buildRounds(tournament).length, 0, '瑞士制報到階段不應提前配對');
 
 tournament = randomizeDraftTournament(tournament, () => 0);
 assert.equal(new Set(tournament.players).size, players.length);
 tournament = startTournament(tournament);
+assert.equal(tournament.rounds[0].matches.length, 4);
 assert.match(scheduleView([tournament], tournament.id, true), /瑞士制/);
 assert.match(scheduleView([tournament], tournament.id, true), /LIVE STANDINGS/);
 
@@ -143,7 +143,7 @@ assert.match(manageView(changed), /option value="swiss" selected/);
 assert.match(manageView(), /瑞士制/);
 assert.match(manageView(), /name="arenaCount"/);
 
-const multiArena = checkInAll(createTournament('雙台瑞士賽', players, 'swiss', 2));
+const multiArena = startTournament(checkInAll(createTournament('雙台瑞士賽', players, 'swiss', 2)));
 assert.equal(multiArena.arenaCount, 2);
 const multiArenaView = scheduleView([multiArena], multiArena.id, true);
 assert.match(multiArenaView, /戰鬥台 1/);

@@ -4,9 +4,12 @@
  */
 import {
   addDraftPlayer,
+  confirmTournamentSchedule,
   drawRandomSeeds,
   forfeitMatch,
+  prepareTournamentSchedule,
   randomizeDraftTournament,
+  randomizeTournamentSchedule,
   recordMatchResult,
   removeDraftPlayer,
   resetCompletedMatch,
@@ -14,6 +17,7 @@ import {
   startSwissFinal,
   startSwissQualifier,
   startTournament,
+  updateOpeningPairings,
   updateRegistrationSettings,
   withdrawPlayer,
 } from '../src/domain/tournament.js';
@@ -366,6 +370,14 @@ function applyTournamentAction(tournament, type, payload) {
       return randomizeDraftTournament(tournament);
     case 'start_tournament':
       return startTournament(tournament);
+    case 'prepare_tournament_schedule':
+      return prepareTournamentSchedule(tournament);
+    case 'randomize_schedule':
+      return randomizeTournamentSchedule(tournament);
+    case 'update_opening_pairings':
+      return updateOpeningPairings(tournament, Array.isArray(payload.pairs) ? payload.pairs : []);
+    case 'confirm_tournament_schedule':
+      return confirmTournamentSchedule(tournament);
     case 'record_match':
       return recordMatchResult(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
     case 'forfeit_match':

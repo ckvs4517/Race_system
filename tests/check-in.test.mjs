@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
   addDraftPlayer,
+  confirmTournamentSchedule,
   createTournament,
+  prepareTournamentSchedule,
+  randomizeTournamentSchedule,
   removeDraftPlayer,
   setDraftPlayerCheckedIn,
   startTournament,
@@ -24,7 +27,9 @@ assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯�
 assert.match(view, /data-roster-search/);
 assert.match(view, /data-roster-filter="unchecked"/);
 assert.match(view, /建立公開報名連結/);
-assert.match(view, /data-action="start-tournament" disabled/);
+assert.match(view, /data-action="prepare-tournament-schedule" disabled/);
+assert.match(view, /完成報到後再產生賽程/);
+assert.doesNotMatch(view, /data-action="randomize-schedule"/);
 
 const registrationOpen = updateRegistrationSettings(tournament, { enabled: true });
 view = scheduleView([registrationOpen], registrationOpen.id, true);
@@ -44,7 +49,18 @@ for (const player of ['甲', '乙', '丙', '丁']) tournament = setDraftPlayerCh
 tournament = addDraftPlayer(tournament, '未到選手');
 view = scheduleView([tournament], tournament.id, true);
 assert.match(view, /已報到 4／報名 5 人/);
-assert.doesNotMatch(view.match(/data-action="start-tournament"[^>]*>/)?.[0] || '', /disabled/);
+assert.doesNotMatch(view.match(/data-action="prepare-tournament-schedule"[^>]*>/)?.[0] || '', /disabled/);
+
+let scheduling = prepareTournamentSchedule(tournament);
+assert.equal(scheduling.status, '排程中');
+assert.equal(scheduling.rounds.length, 0, '確認報到後仍等待主辦方按下隨機分組');
+view = scheduleView([scheduling], scheduling.id, true);
+assert.match(view, /data-action="randomize-schedule"/);
+scheduling = randomizeTournamentSchedule(scheduling, () => 0);
+assert.equal(scheduling.rounds.length, 1);
+assert.match(scheduleView([scheduling], scheduling.id, true), /data-opening-pairings-form/);
+const confirmed = confirmTournamentSchedule(scheduling);
+assert.equal(confirmed.status, '進行中');
 
 const started = startTournament(tournament);
 assert.equal(started.status, '進行中');

@@ -1,17 +1,21 @@
 /** 完整 UI 流程測試：使用記憶體 API 模擬主辦方從登入到登出的實際操作。 */
 import {
   addDraftPlayer,
+  confirmTournamentSchedule,
   drawRandomSeeds,
   forfeitMatch,
   randomizeDraftTournament,
+  randomizeTournamentSchedule,
   recordMatchResult,
   removeDraftPlayer,
   resetCompletedMatch,
   setDraftPlayerCheckedIn,
+  prepareTournamentSchedule,
   startSwissFinal,
   startSwissQualifier,
   startTournament,
   updateRegistrationSettings,
+  updateOpeningPairings,
   withdrawPlayer,
 } from '../src/domain/tournament.js';
 
@@ -41,7 +45,7 @@ try {
   fill('[name="players"]', '旋風\n烈焰\n銀河\n雷霆');
   fill('[name="arenaCount"]', '2');
   submit('[data-tournament-form]');
-  await waitFor('[data-action="start-tournament"]');
+  await waitFor('[data-action="prepare-tournament-schedule"]');
   expectText('完整流程測試賽', '可以從表單建立賽事並開啟預覽賽程');
   expectText('已報到 0／報名 4 人', '建立賽事後先顯示報到名單');
   expect(document.querySelector('[data-action="edit-tournament"]'), '開始前顯示編輯賽事按鈕');
@@ -50,7 +54,7 @@ try {
   await waitFor('[data-tournament-form]');
   fill('[name="name"]', '完整流程測試賽（已編輯）');
   submit('[data-tournament-form]');
-  await waitFor('[data-action="start-tournament"]');
+  await waitFor('[data-action="prepare-tournament-schedule"]');
   expectText('完整流程測試賽（已編輯）', '開始前可以儲存賽事修改');
   fill('[data-add-draft-player-form] [name="playerName"]', '現場測試選手');
   submit('[data-add-draft-player-form]');
@@ -64,10 +68,13 @@ try {
   await checkInAllPlayers();
   expectText('已報到 4／報名 4 人', '可以逐一勾選選手完成報到');
 
-  click('[data-action="randomize-bracket"]');
-  await waitFor('[data-action="start-tournament"]');
-  expect(records.size === 1, '重新隨機分組後仍只有一場賽事');
-  click('[data-action="start-tournament"]');
+  click('[data-action="prepare-tournament-schedule"]');
+  await waitFor('[data-action="randomize-schedule"]');
+  expectText('排程中', '確認報到後進入排程階段');
+  click('[data-action="randomize-schedule"]');
+  await waitFor('[data-opening-pairings-form]');
+  expect(document.querySelector('[data-opening-pairings-form]'), '隨機分組後可以手動調整首輪對戰');
+  click('[data-action="confirm-tournament-schedule"]');
   await waitFor('.match-card.is-ready');
   expect(!document.querySelector('[data-action="edit-tournament"]'), '賽事開始後鎖定編輯功能');
 
@@ -87,11 +94,15 @@ try {
 
   await pause();
   click('[data-action="copy-current-tournament"]');
-  await waitFor('[data-action="start-tournament"]');
+  await waitFor('[data-action="prepare-tournament-schedule"]');
   expectText('（副本）', '複製賽事會建立保留名單的準備中副本');
   expect(records.size === 2, '複製後雲端資料有兩場賽事');
   await checkInAllPlayers();
-  click('[data-action="start-tournament"]');
+  click('[data-action="prepare-tournament-schedule"]');
+  await waitFor('[data-action="randomize-schedule"]');
+  click('[data-action="randomize-schedule"]');
+  await waitFor('[data-action="confirm-tournament-schedule"]');
+  click('[data-action="confirm-tournament-schedule"]');
   await waitFor('[data-no-show-player]');
   click('[data-no-show-player]');
   await waitFor('.participant-row.is-inactive');
@@ -248,6 +259,10 @@ function applyAction(tournament, type, payload) {
     draw_seeds: () => drawRandomSeeds(source),
     randomize_bracket: () => randomizeDraftTournament(source),
     start_tournament: () => startTournament(source),
+    prepare_tournament_schedule: () => prepareTournamentSchedule(source),
+    randomize_schedule: () => randomizeTournamentSchedule(source),
+    update_opening_pairings: () => updateOpeningPairings(source, payload.pairs),
+    confirm_tournament_schedule: () => confirmTournamentSchedule(source),
     record_match: () => recordMatchResult(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB),
     forfeit_match: () => forfeitMatch(source, payload.roundIndex, payload.matchIndex, payload.player),
     replay_match: () => resetCompletedMatch(source, payload.roundIndex, payload.matchIndex),

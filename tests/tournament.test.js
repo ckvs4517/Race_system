@@ -1,5 +1,5 @@
 /** 瀏覽器領域測試：涵蓋單淘汰、種子、重賽、棄賽、退賽與畫面輸出。 */
-import { buildRounds, createTournament, drawRandomSeeds, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, randomizeDraftTournament, recordMatchResult, requiredSeedCount, resetCompletedMatch, setDraftPlayerCheckedIn, startTournament, updateDraftTournament, withdrawPlayer } from '../src/domain/tournament.js';
+import { buildRounds, confirmTournamentSchedule, createTournament, duplicateTournament, forfeitMatch, getTournamentStandings, normalizeTournament, prepareTournamentSchedule, randomizeDraftTournament, randomizeTournamentSchedule, recordMatchResult, requiredSeedCount, resetCompletedMatch, setDraftPlayerCheckedIn, startTournament, updateDraftTournament, updateOpeningPairings, withdrawPlayer } from '../src/domain/tournament.js';
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
@@ -17,33 +17,30 @@ try {
   expect(tournament.status === '準備中', '新賽事建立後保持準備中');
   expect(scheduleView([tournament], tournament.id, true).includes('已報到 0／報名 5 人'), '新賽事先顯示尚未報到的完整選手名單');
   tournament = checkInAll(tournament);
-  expect(requiredSeedCount(tournament) === 1, '奇數五人賽只需要一位首輪種子');
-  expect(tournament.rounds.length === 0, '抽選種子前不產生正式預覽賽程');
+  expect(tournament.rounds.length === 0, '報到階段不提前產生正式預覽賽程');
   const waitingView = scheduleView([tournament], tournament.id, true);
-  expect(waitingView.includes('data-action="draw-seeds"') && waitingView.includes('等待種子抽選'), '分支圖顯示隨機抽選種子入口');
-  expect(!waitingView.includes('data-action="start-tournament"'), '尚未抽選種子時只顯示下一步的抽選種子操作');
-  expect(waitingView.includes('data-action="randomize-bracket"'), '準備中賽事提供重新隨機分組按鈕');
+  expect(waitingView.includes('data-action="prepare-tournament-schedule"'), '完成報到後可進入排程階段');
+  expect(waitingView.includes('完成報到後再產生賽程') && !waitingView.includes('MATCH 01'), '開始排程前不顯示對戰節點');
 
   const originalOrder = ['甲', '乙', '丙', '丁'];
   const randomized = randomizeDraftTournament(checkInAll(createTournament('隨機分組測試', originalOrder)), () => 0);
   expect(randomized.players.join(',') === '乙,丙,丁,甲', '隨機分組使用 Fisher-Yates 重新排列參賽者');
   expect(new Set(randomized.players).size === originalOrder.length && originalOrder.every((player) => randomized.players.includes(player)), '隨機分組不會遺失或重複參賽者');
-  expect(randomized.rounds[0].matches[0].playerA === '乙' && randomized.rounds[0].matches[0].playerB === '丙', '第一輪對戰依隨機後順序建立');
-
-  tournament = drawRandomSeeds(tournament, () => 0);
-  expect(tournament.seedPlayerIndexes.length === 1, '首輪隨機抽出一位種子選手');
-  expect(tournament.rounds[0].matches.filter((match) => match.status === '輪空晉級').length === 1, '只有一位首輪種子直接晉級');
-  expect(tournament.rounds[0].matches.filter((match) => match.status === '可開始').length === 2, '其餘四位選手完成兩組配對');
-  expect(buildRounds(tournament).length === 3, '五人賽分支圖顯示三輪結構');
-  expect(scheduleView([tournament], tournament.id, true).includes('重新抽選種子'), '開始前可以重新抽選首輪種子');
+  expect(randomized.rounds.length === 0, '報到階段調整名單順序也不會提前產生賽程');
 
   tournament = updateDraftTournament(tournament, '五人測試賽', ['A', 'B', 'C', 'D', 'E']);
-  expect(tournament.seedPlayerIndexes.length === 0 && tournament.rounds.length === 0, '修改名單後清除舊種子並等待重抽');
-  tournament = startTournament(drawRandomSeeds(tournament, () => 0));
-  expect(tournament.status === '進行中', '完成抽選後可正式開始賽事');
-  let seedLocked = false;
-  try { drawRandomSeeds(tournament); } catch { seedLocked = true; }
-  expect(seedLocked, '賽事開始後首輪種子鎖定');
+  expect(tournament.rounds.length === 0, '修改名單後仍保持無賽程狀態');
+  let scheduling = prepareTournamentSchedule(tournament);
+  expect(scheduling.status === '排程中' && scheduling.rounds.length === 0, '確認報到後進入獨立排程階段');
+  scheduling = randomizeTournamentSchedule(scheduling, () => 0);
+  expect(scheduling.rounds[0].matches.filter((match) => match.status === '輪空晉級').length === 1, '奇數人隨機分組會安排一位輪空');
+  expect(scheduling.rounds[0].matches.filter((match) => match.status === '可開始').length === 2, '其餘四位選手完成兩組配對');
+  expect(buildRounds(scheduling).length === 3, '排程階段可預覽完整單淘汰分支');
+  expect(scheduleView([scheduling], scheduling.id, true).includes('data-opening-pairings-form'), '排程階段提供首輪對戰調整表單');
+  scheduling = updateOpeningPairings(scheduling, [['A', 'B'], ['C', 'D'], ['E', '輪空']]);
+  expect(scheduling.rounds[0].matches[0].playerA === 'A' && scheduling.rounds[0].matches[0].playerB === 'B', '主辦方可自由指定首輪誰對誰');
+  tournament = confirmTournamentSchedule(scheduling);
+  expect(tournament.status === '進行中', '確認目前賽程後才正式開放比賽');
   let randomizeLocked = false;
   try { randomizeDraftTournament(tournament); } catch { randomizeLocked = true; }
   expect(randomizeLocked, '賽事開始後隨機分組鎖定');
@@ -114,9 +111,10 @@ try {
 
   let evenTournament = checkInAll(createTournament('六人測試賽', ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']));
   expect(requiredSeedCount(evenTournament) === 0, '偶數六人賽首輪不抽種子');
-  expect(evenTournament.rounds[0].matches.length === 3 && evenTournament.rounds[0].matches.every((match) => match.status === '可開始'), '六位選手第一輪全部完成三組配對');
+  expect(evenTournament.rounds.length === 0, '六位選手完成報到後仍不提前配對');
   expect(!scheduleView([evenTournament], evenTournament.id, true).includes('data-action="draw-seeds"'), '偶數賽事不顯示首輪抽種子按鈕');
   evenTournament = startTournament(evenTournament);
+  expect(evenTournament.rounds[0].matches.length === 3 && evenTournament.rounds[0].matches.every((match) => match.status === '可開始'), '六位選手正式開始後完成三組配對');
   evenTournament = recordById(evenTournament, 'r1m1', 4, 3);
   evenTournament = recordById(evenTournament, 'r1m2', 4, 1);
   evenTournament = recordById(evenTournament, 'r1m3', 4, 2);
@@ -124,7 +122,8 @@ try {
 
   const players32 = Array.from({ length: 32 }, (_, index) => `P${index + 1}`);
   const tournament32 = checkInAll(createTournament('32 人測試賽', players32));
-  expect(requiredSeedCount(tournament32) === 0 && buildRounds(tournament32).length === 5, '32 人賽不需首輪種子並顯示五輪');
+  expect(requiredSeedCount(tournament32) === 0 && buildRounds(tournament32).length === 0, '32 人賽報到階段也不提前顯示賽程');
+  expect(buildRounds(startTournament(tournament32)).length === 5, '32 人賽確認賽程後顯示五輪');
   expect(manageView(tournament32).includes('2–32 位'), '編輯頁顯示 32 人上限');
   let editLocked = false;
   try { updateDraftTournament(startTournament(tournament32), '不能編輯', players32); } catch { editLocked = true; }

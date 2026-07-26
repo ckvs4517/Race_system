@@ -3,6 +3,7 @@
  * 協調路由、狀態、畫面與事件；賽制規則放在 domain/formats，雲端存取放在 data/store。
  */
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
+import { rosterPlayerMatches } from './core/roster-filter.js';
 import { createTournamentRecord, deleteTournamentRecord, executeTournamentAction, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { duplicateTournament, normalizeTournament, requiredSeedCount } from './domain/tournament.js';
 import { downloadTournamentImage } from './export/tournament-image.js';
@@ -294,12 +295,8 @@ function applyRosterUi() {
   });
   let visibleCount = 0;
   panel.querySelectorAll('[data-roster-player]').forEach((row) => {
-    const nameMatches = row.dataset.rosterPlayer.toLocaleLowerCase('zh-Hant').includes(rosterUiState.query.toLocaleLowerCase('zh-Hant'));
     const checked = row.dataset.checkedIn === 'true';
-    const stateMatches = rosterUiState.filter === 'all'
-      || (rosterUiState.filter === 'checked' && checked)
-      || (rosterUiState.filter === 'unchecked' && !checked);
-    row.hidden = !(nameMatches && stateMatches);
+    row.hidden = !rosterPlayerMatches(row.dataset.rosterPlayer, checked, rosterUiState.filter, rosterUiState.query);
     if (!row.hidden) visibleCount += 1;
     const selector = row.querySelector('[data-remove-player-select]');
     if (selector) selector.checked = rosterUiState.selected.has(selector.dataset.removePlayerSelect);
@@ -520,6 +517,51 @@ function bindScheduleEvents(state) {
     const finalists = [...event.currentTarget.querySelectorAll('input[name="finalist"]:checked')].map((input) => input.value);
     if (!confirm(`確定由這 ${finalists.length} 位選手進入前四循環決賽嗎？`)) return;
     beginSwissFinal(state.selectedTournamentId, finalists);
+  });
+  app.querySelector('[data-opening-pairings-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const pairs = [...event.currentTarget.querySelectorAll('[data-pairing-row]')].map((row) => [
+      row.querySelector('[name="playerA"]').value,
+      row.querySelector('[name="playerB"]').value,
+    ]);
+    try {
+      await executeTournamentAction(state.selectedTournamentId, 'update_opening_pairings', { pairs });
+      showToast('首輪對戰已儲存。');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
+  app.querySelector('[data-action="prepare-tournament-schedule"]')?.addEventListener('click', async () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
+    const absentCount = tournament.players.length - checkedInCount;
+    if (!confirm(`確定以 ${checkedInCount} 位已報到選手進入排程階段嗎？\n${absentCount} 位未報到者會標記為未出席；公開報名網址也會立即撤銷。`)) return;
+    try {
+      await executeTournamentAction(tournament.id, 'prepare_tournament_schedule');
+      showToast('報到名單已鎖定，請進行隨機分組。');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
+  app.querySelectorAll('[data-action="randomize-schedule"]').forEach((button) => button.addEventListener('click', async () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    if (tournament.rounds?.length && !confirm('確定要重新隨機分組嗎？目前手動調整的首輪對戰會被取代。')) return;
+    try {
+      await executeTournamentAction(tournament.id, 'randomize_schedule');
+      showToast('隨機分組完成，仍可手動調整對戰。');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  }));
+  app.querySelector('[data-action="confirm-tournament-schedule"]')?.addEventListener('click', async () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    if (!confirm(`確定使用目前的首輪對戰開始「${tournament.name}」嗎？\n開始後即可由裁判進入節點記分，首輪配對也會鎖定。`)) return;
+    try {
+      await executeTournamentAction(tournament.id, 'confirm_tournament_schedule');
+      showToast('正式賽事已開始。');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
   });
   app.querySelector('[data-action="start-tournament"]')?.addEventListener('click', () => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);

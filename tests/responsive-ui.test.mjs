@@ -13,5 +13,6 @@ assert.match(css, /@media \(max-width: 900px\)/, '具備平板版面');
 assert.match(css, /@media \(max-width: 620px\)[\s\S]*nav\s*\{[^}]*overflow-x:\s*auto/s, '手機導覽可水平滑動');
 assert.match(css, /\.participant-row > div\s*\{[^}]*grid-column:\s*1 \/ -1/s, '手機選手操作移到獨立一列');
 assert.match(css, /\.leaderboard-row\s*\{[^}]*min-width:\s*0/s, '手機排行榜不再強制桌面寬度');
+assert.match(css, /\.check-in-row\[hidden\]\s*\{[^}]*display:\s*none\s*!important/s, '名單篩選結果會真正隱藏不符合的選手');
 
 console.log('PASS responsive UI safeguards');
