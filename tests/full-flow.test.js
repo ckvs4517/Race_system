@@ -88,7 +88,8 @@ try {
 
   click('[data-replay-round="1"]');
   await waitFor('.match-card.is-ready');
-  expect(!document.querySelector('.leaderboard'), '重新比賽會清除冠軍與排行榜完成狀態');
+  expect(!document.querySelector('.champion-banner'), '重新比賽會清除冠軍完成狀態');
+  expect(document.querySelector('.leaderboard'), '進行中的賽事仍保留可查看歷史對戰的排行榜');
   await completeReadyMatch(4, 1);
   await waitFor('.leaderboard');
 

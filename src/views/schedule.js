@@ -17,9 +17,7 @@ function bracketView(tournament, canManage) {
   const rounds = buildRounds(tournament);
   const format = getTournamentFormat(tournament.format);
   const isSwiss = format.id === 'swiss';
-  const visibleRoundEntries = rounds
-    .map((round, roundIndex) => ({ round, roundIndex }))
-    .filter(({ round }) => !isSwiss || !['final', 'completed'].includes(tournament.swissStage) || round.phase === 'final');
+  const visibleRoundEntries = currentRoundEntries(tournament, rounds, isSwiss);
   const arenaCount = tournament.arenaCount || 1;
   const activeArenaCount = isSwiss && ['final', 'completed'].includes(tournament.swissStage) ? 1 : arenaCount;
   const isDraft = tournament.status === '準備中';
@@ -50,12 +48,35 @@ function bracketView(tournament, canManage) {
     ? `<span><i class="draft-dot"></i>目前只確認報到名單，不會提前產生賽程</span><span>確認報到後才會進入隨機分組與手動調整階段</span>`
     : isScheduling
       ? `<span><i class="draft-dot"></i>排程階段尚未開放記分</span><span>${rounds.length ? '可以重新隨機分組或自由調整首輪對戰' : '請按「隨機分組」產生第一版賽程'}</span>`
-    : `<span><i class="ready-dot"></i>可點擊「可開始」的節點進入記分板</span><span>${isSwiss ? swissStageGuide(tournament) : '輪空選手已自動晉級'}</span>`;
+    : `<span><i class="ready-dot"></i>只顯示目前輪次；已完成對戰可在排行榜點選選手查看</span><span>${isSwiss ? swissStageGuide(tournament) : '輪空選手已自動晉級'}</span>`;
   const bracket = visibleRoundEntries.length && !isDraft ? `<div class="bracket-shell"><div class="bracket-flow">${visibleRoundEntries.map(({ round, roundIndex }) => roundColumnView(tournament, round, roundIndex, canManage, isDraft || isScheduling, allSeedNames, isSwiss, round.phase === 'final' ? 1 : arenaCount)).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${isDraft ? '完成報到後再產生賽程' : isScheduling ? '等待隨機分組' : '等待賽程產生'}</h2><p>${isDraft ? '這個階段不會顯示預排對戰，避免現場名單尚未確認就產生錯誤賽程。' : isScheduling ? '按下「隨機分組」後，仍可自由調整首輪誰對誰。' : '正式賽程會顯示在這裡。'}</p></div>`;
   const swissDecision = isSwiss && !isDraft && !isScheduling ? swissDecisionPanel(tournament, canManage) : '';
-  const leaderboard = (isSwiss && !isDraft && !isScheduling) || tournament.champion ? leaderboardView(getTournamentStandings(tournament), isSwiss) : '';
+  const leaderboard = !isDraft && !isScheduling ? leaderboardView(tournament, getTournamentStandings(tournament), isSwiss) : '';
   const preliminaryCount = rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length;
   return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${pairingPanel}${swissDecision}${bracket}${leaderboard}</section>`;
+}
+
+function currentRoundEntries(tournament, projectedRounds, isSwiss) {
+  const entries = projectedRounds.map((round, roundIndex) => ({ round, roundIndex }));
+  if (tournament.status === '準備中' || tournament.status === '排程中') return entries;
+
+  if (isSwiss && tournament.swissStage === 'qualification') return [];
+
+  const activeEntry = entries.find(({ round }) => round.matches.some((match) => match.status === '可開始'));
+  if (activeEntry) return [activeEntry];
+
+  if (isSwiss) {
+    const phase = tournament.swissStage === 'qualifier'
+      ? 'qualifier'
+      : ['final', 'completed'].includes(tournament.swissStage) ? 'final' : 'preliminary';
+    const seriesId = phase === 'qualifier' ? tournament.activeQualifierSeriesId : null;
+    const phaseEntries = entries.filter(({ round }) => (round.phase || 'preliminary') === phase
+      && (!seriesId || round.seriesId === seriesId));
+    return phaseEntries.length ? [phaseEntries.at(-1)] : [];
+  }
+
+  const storedRounds = Array.isArray(tournament.rounds) ? tournament.rounds.length : 0;
+  return storedRounds ? [entries[Math.min(storedRounds - 1, entries.length - 1)]] : [];
 }
 
 function tournamentWorkflowView(tournament, canManage, readiness) {
@@ -293,10 +314,35 @@ function roundColumnView(tournament, round, roundIndex, canManage, isDraft, seed
   </details>`;
 }
 
-function leaderboardView(rows, isSwiss) {
+function leaderboardView(tournament, rows, isSwiss) {
   const metric = '總得分';
   const description = isSwiss ? '依勝場、敗場、總得分依序排名' : '依冠軍、勝場、總分與得失分差排序';
-  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'FINAL STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => `<div class="leaderboard-row ${row.isChampion ? 'is-champion' : ''} ${row.participantStatus !== 'active' ? 'is-inactive' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${row.isChampion ? '<small>CHAMPION</small>' : ''}${row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : ''}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></div>`).join('')}</div></section>`;
+  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row)).join('')}</div></section>`;
+}
+
+function leaderboardPlayerRow(tournament, row) {
+  const status = row.isChampion ? '<small>CHAMPION</small>' : row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : '';
+  const matches = playerCompletedMatches(tournament, row.player);
+  const history = matches.length
+    ? matches.map((entry) => `<li><span>${escapeText(roundPhaseLabel(entry.round, entry.roundIndex))}</span><b>${escapeText(entry.opponent)}</b><i>${escapeText(entry.result)}</i></li>`).join('')
+    : '<li class="player-history-empty">尚無已完成對戰紀錄。</li>';
+  return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''} ${row.participantStatus !== 'active' ? 'is-inactive' : ''}">
+    <summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}<em>對戰紀錄</em></strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary>
+    <div class="player-history"><h3>${escapeText(row.player)}的已完成對戰</h3><ul>${history}</ul></div>
+  </details>`;
+}
+
+function playerCompletedMatches(tournament, player) {
+  return (tournament.rounds || []).flatMap((round, roundIndex) => round.matches
+    .filter((match) => (match.playerA === player || match.playerB === player) && ['已完成', '輪空晉級'].includes(match.status))
+    .map((match) => {
+      const isA = match.playerA === player;
+      const opponent = isA ? match.playerB : match.playerA;
+      const isBye = opponent === '輪空';
+      const score = isBye ? '輪空晉級' : `${isA ? match.scoreA : match.scoreB}：${isA ? match.scoreB : match.scoreA}`;
+      const result = isBye ? score : `${match.winner === player ? '勝' : '敗'} · ${score}`;
+      return { round, roundIndex, opponent: isBye ? '輪空' : opponent, result };
+    }));
 }
 
 function roundMatchesView(tournament, round, roundIndex, scoringEnabled, replayEnabled, seedNames, isSwiss, arenaCount) {
