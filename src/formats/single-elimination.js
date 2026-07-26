@@ -39,10 +39,11 @@ export const singleElimination = {
         difference: playerStats.pointsFor - playerStats.pointsAgainst,
         isChampion: tournament.champion === player,
         participantStatus: tournament.participantStates?.[player]?.status || 'active',
+        checkedIn: tournament.participantStates?.[player]?.checkedIn !== false,
       };
     }).sort((a, b) =>
-      participantRankingGroup(a.participantStatus)
-        - participantRankingGroup(b.participantStatus)
+      participantRankingGroup(a)
+        - participantRankingGroup(b)
       || Number(b.isChampion) - Number(a.isChampion)
       || b.wins - a.wins
       || b.totalPoints - a.totalPoints
@@ -97,8 +98,8 @@ export const singleElimination = {
 };
 
 // 未報到者固定排在所有有報到的參賽者後面
-function participantRankingGroup(status) {
-  return status === 'no_show' ? 1 : 0;
+function participantRankingGroup(row) {
+  return row.participantStatus === 'no_show' || row.checkedIn === false ? 1 : 0;
 }
 
 function createRound(players, seedName, roundNumber, seedReason) {

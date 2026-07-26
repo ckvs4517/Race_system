@@ -99,6 +99,21 @@ try {
   administrativeTournament = withdrawPlayer(administrativeTournament, absentPlayer, 'no_show');
   expect(administrativeTournament.participantStates[absentPlayer].status === 'no_show', '開賽後可將未到選手標記為未出席');
   expect(administrativeTournament.rounds[0].matches[1].outcome === 'withdrawal' && administrativeTournament.rounds.length === 2, '未出席選手的對手不戰勝並正常產生下一輪');
+
+  const rankingStatusTournament = {
+    ...administrativeTournament,
+    participantStates: {
+      '實際參賽 0-4': { checkedIn: true, status: 'active' },
+      '未報到高分': { checkedIn: false, status: 'active' },
+    },
+    players: ['實際參賽 0-4', '未報到高分'],
+    playerStats: {
+      '實際參賽 0-4': { wins: 0, losses: 4, pointsFor: 0, pointsAgainst: 16 },
+      '未報到高分': { wins: 4, losses: 0, pointsFor: 16, pointsAgainst: 0 },
+    },
+  };
+  const rankingRows = getTournamentStandings(rankingStatusTournament);
+  expect(rankingRows[0].player === '實際參賽 0-4', '單淘汰排行榜將已報到的 0-4 選手排在未報到者前面');
   const administrativeView = scheduleView([administrativeTournament], administrativeTournament.id, true);
   expect(administrativeView.includes('退賽判定 4：0') && !administrativeView.includes('data-restore-player'), '賽程顯示退賽判定且不提供恢復入口');
 

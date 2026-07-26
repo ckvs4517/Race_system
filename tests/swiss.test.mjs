@@ -77,6 +77,29 @@ const tiedCutoffProbe = {
 const tiedCutoffView = scheduleView([tiedCutoffProbe], tiedCutoffProbe.id, true);
 assert.match(tiedCutoffView, /data-swiss-qualifier-form/, '前四資格線同分超過四人時顯示資格積分決定賽');
 
+const attendanceRankingProbe = {
+  ...createTournament('報到排序', ['實際參賽 0-4', '未報到高分', '其他甲', '其他乙', '其他丙'], 'swiss'),
+  status: '進行中',
+  swissStage: 'preliminary',
+  participantStates: {
+    '實際參賽 0-4': { checkedIn: true, status: 'active' },
+    '未報到高分': { checkedIn: false, status: 'no_show' },
+    '其他甲': { checkedIn: true, status: 'active' },
+    '其他乙': { checkedIn: true, status: 'active' },
+    '其他丙': { checkedIn: true, status: 'active' },
+  },
+  rounds: [{
+    name: '瑞士制第 1 輪',
+    phase: 'preliminary',
+    matches: [
+      completedMatch('attendance-1', '實際參賽 0-4', '其他甲', 0, 4),
+      completedMatch('attendance-2', '未報到高分', '其他乙', 4, 0),
+    ],
+  }],
+};
+const attendanceRankingRows = getTournamentStandings(attendanceRankingProbe);
+assert.equal(attendanceRankingRows.at(-1).player, '未報到高分', '瑞士排行榜將未報到高分選手排在所有已報到選手後面');
+
 while (tournament.swissStage === 'preliminary') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '進行中');
 assert.equal(tournament.swissStage, 'qualification');
