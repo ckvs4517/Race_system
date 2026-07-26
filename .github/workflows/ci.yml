@@ -13,7 +13,7 @@ permissions:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -23,33 +23,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Test tournament formats and cloud logic
-        shell: bash
-        run: |
-          set -euo pipefail
-          node tests/swiss.test.mjs
-          node tests/api.test.mjs
-          node tests/registration.test.mjs
-          node tests/check-in.test.mjs
-          node tests/data-management.test.mjs
-          node tests/navigation.test.mjs
-          node tests/sync.test.mjs
-          node tests/action-sync.test.mjs
-          node tests/event-info.test.mjs
-          node tests/responsive-ui.test.mjs
-          node tests/guide.test.mjs
+      - name: Validate project instructions and Sites identity
+        run: node scripts/project-health.mjs
 
-      - name: Test all formats from 2 to 32 players
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! matrix_output="$(node tests/format-matrix.test.mjs 2>&1)"; then
-            echo "$matrix_output"
-            annotation="${matrix_output//$'\n'/' | '}"
-            echo "::error title=Format matrix failed::$annotation"
-            exit 1
-          fi
-          echo "$matrix_output"
+      - name: Run all Node tests and build
+        run: node scripts/test-full.mjs
 
       - name: Test browser tournament flows
         shell: bash
@@ -64,10 +42,6 @@ jobs:
             echo "$output"
             echo "$output" | grep -q 'PASS '
           done
-
-      - name: Build Sites artifact
-        shell: pwsh
-        run: ./build.ps1
 
       - name: Validate build structure
         shell: bash

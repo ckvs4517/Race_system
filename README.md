@@ -104,13 +104,32 @@ git clone https://github.com/ckvs4517/Race_system.git
 cd Race_system
 ```
 
-本地前端需透過 HTTP 載入 ES Modules，可使用 VS Code Live Server，或執行專案附帶的測試伺服器：
+完整的隔離式本機測試環境可直接執行：
 
 ```bash
-node tests/local-test-server.mjs
+node scripts/preview-local.mjs
 ```
 
-接著開啟 `http://127.0.0.1:8765/`。本地靜態伺服器不包含正式 Worker 與 D1，因此雲端儲存、登入及公開報名 API 需要部署後才能完整運作。
+接著開啟 `http://127.0.0.1:8765/`。這個預覽會執行實際 Worker 程式，並使用 `.dev-data/` 內的本機檔案型資料庫，不會連線或修改正式 D1。預設本機管理 PIN 為 `2468`，可透過 `LOCAL_ADMIN_PIN` 環境變數更換。
+
+需要先帶入一份正式備份做隔離測試時：
+
+```bash
+node scripts/preview-local.mjs --reset --backup path/to/backup.json
+```
+
+快速測試與完整測試：
+
+```bash
+node scripts/test-fast.mjs
+node scripts/test-full.mjs
+```
+
+Repository 也包含 `AGENTS.md`、`.agents/skills/` 與任務對照腳本，讓 Codex 或其他 AI 維護工具先讀取最小必要的架構、業務規則與測試範圍：
+
+```bash
+node scripts/agent-context.mjs "瑞士制 排名 未報到"
+```
 
 ## 賽事規則參考
 
