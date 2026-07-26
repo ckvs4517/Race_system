@@ -74,7 +74,9 @@ jobs:
         run: |
           set -euo pipefail
           test -f dist/server/index.js
+          test "$(wc -c < dist/server/index.js)" -gt 20000
           test -f dist/client/index.html
+          test "$(wc -c < dist/client/index.html)" -gt 500
           test -f dist/client/src/main.js
           test -f dist/server/domain/tournament.js
           test -f dist/server/formats/registry.js
