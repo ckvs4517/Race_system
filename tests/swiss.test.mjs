@@ -66,6 +66,16 @@ const rankingProbe = {
 const rankingProbeRows = getTournamentStandings(rankingProbe);
 assert.deepEqual(rankingProbeRows.map((row) => row.player), ['全勝選手', '高分選手', '低分選手', '未勝選手']);
 assert.deepEqual(rankingProbeRows.map((row) => row.rank), [1, 2, 3, 4], '勝敗相同時以總得分拆分名次');
+const clearTopFourView = scheduleView([rankingProbe], rankingProbe.id, true);
+assert.doesNotMatch(clearTopFourView, /data-swiss-qualifier-form/, '四強資格明確時不顯示資格積分決定賽');
+
+const tiedCutoffProbe = {
+  ...createTournament('同分四強資格', ['甲', '乙', '丙', '丁', '戊'], 'swiss'),
+  status: '進行中',
+  swissStage: 'qualification',
+};
+const tiedCutoffView = scheduleView([tiedCutoffProbe], tiedCutoffProbe.id, true);
+assert.match(tiedCutoffView, /data-swiss-qualifier-form/, '前四資格線同分超過四人時顯示資格積分決定賽');
 
 while (tournament.swissStage === 'preliminary') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '進行中');

@@ -565,6 +565,7 @@ footer { font-size: 12px; }
 .swiss-decision-panel h2 { margin: 4px 0 8px; font-size: 1.7rem; }
 .swiss-decision-panel > p:not(.kicker) { color: var(--muted); line-height: 1.65; }
 .swiss-decision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+.swiss-decision-grid.is-direct-only { grid-template-columns: minmax(0, 560px); }
 .swiss-decision-grid form { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: rgba(7, 11, 17, .7); }
 .swiss-decision-grid h3 { margin-top: 0; }
 .swiss-choice-note { margin: -4px 0 12px; color: var(--muted); font-size: 10px; line-height: 1.6; }

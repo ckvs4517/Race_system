@@ -255,21 +255,26 @@ function swissDecisionPanel(tournament, canManage) {
 
   const rows = getTournamentStandings(tournament);
   const latestQualifier = tournament.qualifierSeriesCount ? getSwissPhaseStandings(tournament, 'qualifier') : [];
+  const directFinalRows = getDirectFinalRows(rows, latestQualifier);
+  const needsQualifier = !latestQualifier.length && hasTopFourTie(rows);
   if (!canManage) {
-    return '<section class="swiss-decision-panel"><p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認中</h2><p>主辦方正在確認直接晉級名單，或安排同分選手進行資格積分決定賽。</p></section>';
+    return `<section class="swiss-decision-panel"><p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認中</h2><p>${needsQualifier ? '四強資格線有同分選手，主辦方正在安排資格積分決定賽或確認晉級名單。' : '前四名資格已明確，主辦方正在確認四強循環決賽名單。'}</p></section>`;
   }
   const qualifierChoices = swissPlayerChoices(rows, 'candidate');
-  const directFinalRows = getDirectFinalRows(rows, latestQualifier);
   const directFinalChoices = swissPlayerChoices(directFinalRows, 'finalist', true);
   return `<section class="swiss-decision-panel">
     <p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認</h2>
-    <p>四輪預賽已完成。你可以選 2～6 位建立資格積分決定賽，完成後再回來確認；也可以直接選取正好 4 位進入四強循環決賽。</p>
+    <p>${needsQualifier ? '四強資格線出現同分，前四名超過 4 位。可選擇同分選手建立資格積分決定賽，或由主辦方直接確認四強。' : '前四名資格已明確，確認名單後即可直接建立四強循環決賽。'}</p>
     ${latestQualifier.length ? `<div class="swiss-latest-qualifier"><h3>最近一組資格加賽結果</h3>${swissMiniStandings(latestQualifier)}</div>` : ''}
-    <div class="swiss-decision-grid">
-      <form data-swiss-qualifier-form><h3>資格積分決定賽</h3><div class="swiss-player-choices">${qualifierChoices}</div><button class="button button-secondary" type="submit">建立資格加賽</button></form>
+    <div class="swiss-decision-grid ${needsQualifier ? '' : 'is-direct-only'}">
+      ${needsQualifier ? `<form data-swiss-qualifier-form><h3>資格積分決定賽</h3><div class="swiss-player-choices">${qualifierChoices}</div><button class="button button-secondary" type="submit">建立資格加賽</button></form>` : ''}
       <form data-swiss-final-form><h3>直接確認四強</h3><p class="swiss-choice-note">只列出目前排行榜前四名；確認無誤後即可建立決賽。</p><div class="swiss-player-choices">${directFinalChoices}</div><button class="button button-primary" type="submit">建立前四循環決賽</button></form>
     </div>
   </section>`;
+}
+
+function hasTopFourTie(rows) {
+  return rows.filter((row) => row.rank <= 4).length > 4;
 }
 
 function swissPlayerChoices(rows, name, checked = false) {
