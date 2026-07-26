@@ -1,6 +1,9 @@
 /** 公開報名 API：公開表單、重複防護、個資邊界與後台核准加入名單。 */
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
+import { registrationAdminView } from '../src/views/registration-admin.js';
+
+globalThis.location = new URL('https://example.com/');
 
 class MockStatement {
   constructor(database, sql) { this.database = database; this.sql = sql.replace(/\s+/g, ' ').trim(); this.values = []; }
@@ -140,6 +143,18 @@ assert.equal(approved.status, 200);
 assert.deepEqual(approvedData.tournament.players, ['選手甲']);
 assert.equal(approvedData.tournament.participantStates['選手甲'].checkedIn, false);
 assert.equal(approvedData.registration.status, 'approved');
+
+const scheduleEntryView = registrationAdminView([approvedData.tournament], approvedData.tournament.id, registrations, true);
+assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');
+const navigationEntryView = registrationAdminView([approvedData.tournament], approvedData.tournament.id, registrations, false);
+assert.match(navigationEntryView, /← 選擇其他賽事/, '從上方報名管理進入時提供選擇其他賽事按鈕');
+
+const stored = env.DB.tournaments.get('901');
+const startedTournament = { ...JSON.parse(stored.data), status: '進行中' };
+env.DB.tournaments.set('901', { ...stored, data: JSON.stringify(startedTournament) });
+const closedAfterStart = await request(publicPath);
+assert.equal(closedAfterStart.status, 400, '未設定截止時間的報名連結仍會在賽事開始後停止收件');
+assert.match((await closedAfterStart.json()).error, /停止報名/);
 
 console.log('PASS registration flow');
 

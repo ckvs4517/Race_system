@@ -20,6 +20,7 @@ import { bindRegistrationAdmin, registrationAdminView } from './views/registrati
 const app = document.querySelector('#app');
 let publicRegistrationState = { key: '', loading: false, data: null, error: '', success: false };
 let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
+let registrationEntryContext = { source: 'navigation', tournamentId: null };
 let toastTimer = null;
 
 function showToast(message, type = 'success') {
@@ -75,7 +76,12 @@ function render(resetScroll = false) {
   if (route === 'control') view = controlView(state.isAdmin, state.error);
   if (route === 'data') view = state.isAdmin ? dataManagementView(state.tournaments) : controlView(false, '請先登入主辦方後台。');
   if (route === 'registration') view = state.isAdmin
-    ? registrationAdminView(state.tournaments, state.registrationTournamentId, state.registrations)
+    ? registrationAdminView(
+      state.tournaments,
+      state.registrationTournamentId,
+      state.registrations,
+      registrationEntryContext.source === 'schedule' && registrationEntryContext.tournamentId === state.registrationTournamentId,
+    )
     : controlView(false, '請先登入主辦方後台。');
   if (route === 'register') {
     const params = registrationRouteParams();
@@ -146,6 +152,14 @@ function bindRegistrationAdminEvents(state) {
       }
     },
     onBack: () => {
+      if (registrationEntryContext.source === 'schedule' && registrationEntryContext.tournamentId) {
+        const tournamentId = registrationEntryContext.tournamentId;
+        registrationEntryContext = { source: 'navigation', tournamentId: null };
+        updateState((current) => ({ ...current, registrationTournamentId: null, registrations: [] }));
+        selectTournament(tournamentId);
+        navigate('schedule');
+        return;
+      }
       updateState((current) => ({ ...current, registrationTournamentId: null, registrations: [] }));
     },
     onSaveSettings: async (settings) => {
@@ -216,6 +230,10 @@ function bindControlEvents() {
 
 function bindGlobalEvents() {
   app.querySelectorAll('[data-route]').forEach((button) => button.addEventListener('click', () => {
+    if (button.dataset.route === 'registration') {
+      registrationEntryContext = { source: 'navigation', tournamentId: null };
+      updateState((current) => ({ ...current, registrationTournamentId: null, registrations: [] }));
+    }
     selectTournament(null);
     selectEditingTournament(null);
     navigate(button.dataset.route);
@@ -401,9 +419,11 @@ function bindScheduleEvents(state) {
   });
   app.querySelector('[data-manage-registration]')?.addEventListener('click', async () => {
     try {
+      registrationEntryContext = { source: 'schedule', tournamentId: state.selectedTournamentId };
       await loadTournamentRegistrations(state.selectedTournamentId);
       navigate('registration');
     } catch (error) {
+      registrationEntryContext = { source: 'navigation', tournamentId: null };
       showToast(error.message, 'error');
     }
   });

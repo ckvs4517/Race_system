@@ -1,7 +1,7 @@
 /** 主辦方報名管理：開關公開報名、複製連結並審核待處理名單。 */
 import { pageHeader } from '../ui/shell.js';
 
-export function registrationAdminView(tournaments, selectedId, registrations = []) {
+export function registrationAdminView(tournaments, selectedId, registrations = [], returnToTournament = false) {
   const drafts = tournaments.filter((item) => item.status === '準備中');
   const selected = drafts.find((item) => item.id === selectedId) || null;
   const choices = drafts.map((item) => `<button class="registration-event-choice ${item.id === selectedId ? 'active' : ''}" data-registration-tournament="${item.id}"><b>${escapeText(item.name)}</b><span>${item.players.length} 位正式選手</span></button>`).join('');
@@ -22,7 +22,7 @@ export function registrationAdminView(tournaments, selectedId, registrations = [
   </article>`).join('');
 
   return `<section class="section-wrap page-section">
-    ${pageHeader('REGISTRATION', '公開報名管理', selected.name, '<button class="button button-secondary" data-registration-back>← 選擇其他賽事</button>')}
+    ${pageHeader('REGISTRATION', '公開報名管理', selected.name, `<button class="button button-secondary" data-registration-back>${returnToTournament ? '← 返回賽事後台' : '← 選擇其他賽事'}</button>`)}
     <div class="registration-admin-layout">
       <form class="form-panel registration-settings" data-registration-settings>
         <h2>報名設定</h2>

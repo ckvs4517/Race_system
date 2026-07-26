@@ -15,6 +15,8 @@ assert.match(guide, /未出席或中途退賽成立後不可恢復/, '說明頁�
 assert.match(guide, /開賽只會排入已報到選手/, '說明頁包含賽前報到規則');
 assert.match(guide, /建立公開報名連結/, '說明頁包含賽事內快速開放報名');
 assert.match(guide, /管理名單/, '說明頁說明安全移除模式');
+assert.match(guide, /賽事開始時仍會自動停止收件/, '說明頁解釋未填截止時間的關閉規則');
+assert.match(guide, /返回.*回到原賽事/, '說明頁解釋報名管理的返回行為');
 assert.match(shell('guide', guide, { isAdmin: false }), /nav-item active[^>]*data-route="guide"/, '導覽列可開啟並標示使用說明頁');
 
 console.log('PASS getting started guide');
