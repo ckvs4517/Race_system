@@ -123,7 +123,13 @@ function render(resetScroll = false) {
   if (route === 'register') bindPublicRegistrationEvents();
   if (route === 'schedule') bindScheduleEvents(state);
   // 雲端同步只更新內容，不把裁判正在查看的位置強制拉回頁首。
-  if (resetScroll) window.scrollTo({ top: 0, behavior: 'instant' });
+  if (resetScroll) scrollPageToTop();
+}
+
+function scrollPageToTop() {
+  // 使用 auto 與原生 scrollTop 雙重處理，確保手機瀏覽器在切進記分板後立即回到頁首。
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
 }
 
 function bindDataManagementEvents(state) {
@@ -354,7 +360,7 @@ function bindScheduleEvents(state) {
   }));
   app.querySelectorAll('.match-card.is-ready').forEach((card) => card.addEventListener('click', () => {
     selectMatch(card.dataset.roundIndex, card.dataset.matchIndex);
-    render();
+    render(true);
   }));
   app.querySelector('[data-action="edit-tournament"]')?.addEventListener('click', () => {
     selectEditingTournament(state.selectedTournamentId);

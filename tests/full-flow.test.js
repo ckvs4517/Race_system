@@ -22,10 +22,11 @@ import {
 const result = document.querySelector('#result');
 const records = new Map();
 const alerts = [];
+const scrollCalls = [];
 let assertions = 0;
 
 location.hash = 'control';
-window.scrollTo = () => {};
+window.scrollTo = (options) => scrollCalls.push(options);
 window.confirm = () => true;
 window.alert = (message) => alerts.push(String(message));
 window.fetch = mockFetch;
@@ -77,6 +78,12 @@ try {
   click('[data-action="confirm-tournament-schedule"]');
   await waitFor('.match-card.is-ready');
   expect(!document.querySelector('[data-action="edit-tournament"]'), '賽事開始後鎖定編輯功能');
+
+  click('.match-card.is-ready');
+  await waitFor('[data-scoreboard].match-mode');
+  expect(scrollCalls.some((options) => options?.top === 0), '進入正式記分板會回到頁首');
+  click('[data-action="back-bracket"]');
+  await waitFor('.match-card.is-ready');
 
   await completeReadyMatch(4, 2);
   await forfeitReadyMatch();
