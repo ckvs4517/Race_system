@@ -2,8 +2,6 @@
 
 Spin League 是一套為戰鬥陀螺活動設計的網頁賽事管理系統。主辦方可以從報名、報到、排程一路管理到記分與完賽；選手與觀眾則不需登入，就能查看活動資訊、目前賽程、比分與排行榜。
 
-[開啟 Spin League 線上版本](https://spin-league-tournament.ckvs4517.chatgpt.site)
-
 ## 這套系統可以做什麼
 
 ### 給主辦方與裁判
