@@ -547,15 +547,16 @@ stationIndex = matchIndex % arenaCount
 ### 資料模型
 
 - `participantDetails[player]`：保存 `phone`、`notes`、`answers` 與已解析的 `drink`。
-- `drinkSettings`：每場賽事自己的單一飲品項目清單，包含提示、啟用狀態與排序；每一項就是選手可直接選擇的一杯飲品。
+- `drinkSettings`：每場賽事自己的單一飲品項目清單，格式為 `{ enabled, notice, changeNotice, items[] }`；每個 `items[]` 項目都有 `id`、`name`、`active` 與 `order`，且就是選手可直接選擇的一杯飲品。
+- `drink`：新版選擇保存為 `{ category: 'item', itemId, displayName }`。飲品啟用時，公開填寫與主辦方新增／編輯選手都必須選擇一項；介面不提供「暫不選擇」。
 - `drink.displayName`：送出當下保存的完整顯示名稱；日後停用品項仍能正確顯示歷史資料。
-- 舊賽事若沒有這兩個欄位，normalize 會補空物件並保持飲品功能停用。
+- 舊版巢狀咖啡口味／作法資料會在 normalize 時展開為單一飲品項目；舊賽事若沒有飲品欄位，normalize 會補空物件並保持飲品功能停用。
 
 ### 填寫流程
 
 ```text
 私密 GET 只取得活動摘要、欄位與有效飲品菜單
-  → POST 驗證名稱、電話、自訂欄位與飲品組合
+  → POST 驗證名稱、電話、自訂欄位與一個必填的飲品 itemId
   → Worker 讀取最新 tournament revision
   → domain 將選手直接加入正式名單，checkedIn 預設 false
   → D1 以 WHERE revision = ? 樂觀鎖更新 tournament JSON
