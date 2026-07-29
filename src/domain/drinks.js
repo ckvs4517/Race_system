@@ -9,9 +9,9 @@ export function createDefaultDrinkSettings() {
     notice: DEFAULT_NOTICE,
     changeNotice: DEFAULT_CHANGE_NOTICE,
     coffeeFlavors: [
-      flavor('coffee-blueberry', '藍莓', 1, [preparation('no-milk', '無奶', 1), preparation('milk', '加奶', 2)]),
-      flavor('coffee-coconut', '椰子', 2, [preparation('no-milk', '無奶', 1), preparation('milk', '加奶', 2), preparation('cola', '加可樂', 3)]),
-      flavor('coffee-melon', '哈密瓜', 3, [preparation('no-milk', '無奶', 1), preparation('milk', '加奶', 2)]),
+      flavor('coffee-blueberry', '藍莓', 1, [preparation('no-milk', '美式', 1), preparation('milk', '拿鐵', 2)]),
+      flavor('coffee-coconut', '椰子', 2, [preparation('no-milk', '美式', 1), preparation('milk', '拿鐵', 2), preparation('cola', '加可樂', 3)]),
+      flavor('coffee-melon', '哈密瓜', 3, [preparation('no-milk', '美式', 1), preparation('milk', '拿鐵', 2)]),
     ],
     caffeineFreeOptions: [
       option('soft-drink', '汽水', 1),
