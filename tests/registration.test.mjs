@@ -120,7 +120,7 @@ assert.equal('phone' in publicData, false, '公開報名資訊不包含報名者
 const submitted = await request(publicPath, {
   method: 'POST',
   headers: jsonHeaders(),
-  body: JSON.stringify({ displayName: '選手甲', phone: '0912-345-678', notes: '第一次參賽', answers: { teamName: '烈焰隊' }, drink: { category: 'coffee', flavorId: 'coffee-coconut', preparationId: 'cola' } }),
+  body: JSON.stringify({ displayName: '選手甲', phone: '0912-345-678', notes: '第一次參賽', answers: { teamName: '烈焰隊' }, drink: { itemId: 'coffee-coconut-cola' } }),
 });
 const submittedData = await submitted.json();
 assert.equal(submitted.status, 201);
@@ -136,7 +136,7 @@ assert.equal(duplicate.status, 409, '相同選手與電話不可重複報名');
 const invalidDrink = await request(publicPath, {
   method: 'POST',
   headers: jsonHeaders(),
-  body: JSON.stringify({ displayName: '選手乙', phone: '0988-000-000', answers: { teamName: '測試隊' }, drink: { category: 'coffee', flavorId: 'coffee-blueberry', preparationId: 'cola' } }),
+  body: JSON.stringify({ displayName: '選手乙', phone: '0988-000-000', answers: { teamName: '測試隊' }, drink: { itemId: 'not-a-drink' } }),
 });
 assert.equal(invalidDrink.status, 400, '後端拒絕菜單中不存在的飲品組合');
 

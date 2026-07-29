@@ -299,8 +299,8 @@ function validateRegistration(payload, tournament) {
 function validateDrinkSettings(settings) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid drink settings');
   if (typeof settings.enabled !== 'boolean') throw new Error('Invalid drink settings');
-  if (!Array.isArray(settings.coffeeFlavors) || settings.coffeeFlavors.length > 20) throw new Error('Invalid drink settings');
-  if (!Array.isArray(settings.caffeineFreeOptions) || settings.caffeineFreeOptions.length > 30) throw new Error('Invalid drink settings');
+  if (!Array.isArray(settings.items) || settings.items.length > 50) throw new Error('Invalid drink settings');
+  if (settings.items.some((item) => !item || typeof item !== 'object' || typeof item.id !== 'string' || item.id.length > 60 || typeof item.name !== 'string' || item.name.length > 100 || typeof item.active !== 'boolean')) throw new Error('Invalid drink settings');
   if (String(settings.notice || '').length > 500 || String(settings.changeNotice || '').length > 500) throw new Error('Invalid drink settings');
 }
 
@@ -333,7 +333,7 @@ function publicRegistrationSummary(tournament) {
     capacity: tournament.registrationSettings.capacity,
     deadline: tournament.registrationSettings.deadline,
     fields: tournament.registrationSettings.fields || [],
-    drinkSettings: tournament.drinkSettings || { enabled: false, coffeeFlavors: [], caffeineFreeOptions: [] },
+    drinkSettings: tournament.drinkSettings || { enabled: false, items: [] },
   };
 }
 

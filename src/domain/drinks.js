@@ -1,6 +1,6 @@
-/** 每場賽事的飲品菜單、選擇驗證與完整品項統計。 */
+/** 每場賽事的單一飲品菜單、選擇驗證與採購統計。 */
 
-const DEFAULT_NOTICE = '每位參賽者包含一杯飲品，請確認選擇後再送出。';
+const DEFAULT_NOTICE = '每位參賽者包含一杯飲品，請選擇一項後再送出。';
 const DEFAULT_CHANGE_NOTICE = '飲品送出後無法自行修改，如需更改，請於比賽前一天私訊主辦人。';
 
 export function createDefaultDrinkSettings() {
@@ -8,55 +8,38 @@ export function createDefaultDrinkSettings() {
     enabled: true,
     notice: DEFAULT_NOTICE,
     changeNotice: DEFAULT_CHANGE_NOTICE,
-    coffeeFlavors: [
-      flavor('coffee-blueberry', '藍莓', 1, [preparation('no-milk', '美式', 1), preparation('milk', '拿鐵', 2)]),
-      flavor('coffee-coconut', '椰子', 2, [preparation('no-milk', '美式', 1), preparation('milk', '拿鐵', 2), preparation('cola', '加可樂', 3)]),
-      flavor('coffee-melon', '哈密瓜', 3, [preparation('no-milk', '美式', 1), preparation('milk', '拿鐵', 2)]),
-    ],
-    caffeineFreeOptions: [
-      option('soft-drink', '汽水', 1),
-      option('juice', '果汁', 2),
-      option('green-juice-latte', '青汁拿鐵', 3),
+    items: [
+      option('coffee-blueberry-americano', '藍莓咖啡／美式', 1),
+      option('coffee-blueberry-latte', '藍莓咖啡／拿鐵', 2),
+      option('coffee-coconut-americano', '椰子咖啡／美式', 3),
+      option('coffee-coconut-latte', '椰子咖啡／拿鐵', 4),
+      option('coffee-coconut-cola', '椰子咖啡／加可樂', 5),
+      option('coffee-melon-americano', '哈密瓜咖啡／美式', 6),
+      option('coffee-melon-latte', '哈密瓜咖啡／拿鐵', 7),
+      option('soft-drink', '汽水', 8),
+      option('juice', '果汁', 9),
+      option('green-juice-latte', '綠汁拿鐵', 10),
     ],
   };
 }
 
 export function createEmptyDrinkSettings() {
-  return {
-    enabled: false,
-    notice: '',
-    changeNotice: '',
-    coffeeFlavors: [],
-    caffeineFreeOptions: [],
-  };
+  return { enabled: false, notice: '', changeNotice: '', items: [] };
 }
 
 export function normalizeDrinkSettings(value, fallback = createEmptyDrinkSettings()) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return structuredClone(fallback);
-  const coffeeFlavors = normalizeItems(value.coffeeFlavors, 20, (item, index) => ({
-    id: cleanId(item.id, `coffee-${index + 1}`),
-    name: cleanText(item.name, 60),
-    active: item.active !== false,
-    order: normalizeOrder(item.order, index + 1),
-    preparations: normalizeItems(item.preparations, 20, (preparationItem, preparationIndex) => ({
-      id: cleanId(preparationItem.id, `preparation-${preparationIndex + 1}`),
-      name: cleanText(preparationItem.name, 60),
-      active: preparationItem.active !== false,
-      order: normalizeOrder(preparationItem.order, preparationIndex + 1),
-    })),
-  })).filter((item) => item.name && item.preparations.length);
-  const caffeineFreeOptions = normalizeItems(value.caffeineFreeOptions, 30, (item, index) => ({
-    id: cleanId(item.id, `caffeine-free-${index + 1}`),
-    name: cleanText(item.name, 80),
-    active: item.active !== false,
-    order: normalizeOrder(item.order, index + 1),
-  })).filter((item) => item.name);
+  const items = Array.isArray(value.items)
+    ? normalizeItems(value.items, 50, (item, index) => ({
+      id: cleanId(item.id, `drink-${index + 1}`), name: cleanText(item.name, 100),
+      active: item.active !== false, order: normalizeOrder(item.order, index + 1),
+    })).filter((item) => item.name)
+    : legacyItems(value);
   return {
     enabled: Boolean(value.enabled),
     notice: cleanText(value.notice, 500),
     changeNotice: cleanText(value.changeNotice, 500),
-    coffeeFlavors: uniqueIds(coffeeFlavors).sort(byOrder),
-    caffeineFreeOptions: uniqueIds(caffeineFreeOptions).sort(byOrder),
+    items: uniqueIds(items).sort(byOrder),
   };
 }
 
@@ -67,37 +50,17 @@ export function resolveDrinkSelection(settingsValue, selection, { allowMissing =
     if (allowMissing) return null;
     throw new Error('請選擇飲品。');
   }
-  if (selection.category === 'coffee') {
-    const flavorItem = settings.coffeeFlavors.find((item) => item.id === selection.flavorId && item.active);
-    const preparationItem = flavorItem?.preparations.find((item) => item.id === selection.preparationId && item.active);
-    if (!flavorItem || !preparationItem) throw new Error('飲品選項無效或已停用。');
-    return {
-      category: 'coffee',
-      flavorId: flavorItem.id,
-      preparationId: preparationItem.id,
-      displayName: `${flavorItem.name}咖啡／${preparationItem.name}`,
-    };
-  }
-  if (selection.category === 'caffeine-free') {
-    const optionItem = settings.caffeineFreeOptions.find((item) => item.id === selection.optionId && item.active);
-    if (!optionItem) throw new Error('飲品選項無效或已停用。');
-    return {
-      category: 'caffeine-free',
-      optionId: optionItem.id,
-      displayName: optionItem.name,
-    };
-  }
-  throw new Error('飲品選項無效或已停用。');
+  const item = findDrinkItem(settings.items, selection);
+  if (!item || !item.active) throw new Error('飲品選項無效或已停用。');
+  return { category: 'item', itemId: item.id, displayName: item.name };
 }
 
 export function normalizeParticipantDetails(players = [], details = {}) {
   return Object.fromEntries(players.map((player) => {
     const source = details?.[player] && typeof details[player] === 'object' ? details[player] : {};
     return [player, {
-      phone: cleanText(source.phone, 40),
-      notes: cleanText(source.notes, 500),
-      answers: normalizeAnswers(source.answers),
-      drink: normalizeSavedDrink(source.drink),
+      phone: cleanText(source.phone, 40), notes: cleanText(source.notes, 500),
+      answers: normalizeAnswers(source.answers), drink: normalizeSavedDrink(source.drink),
     }];
   }));
 }
@@ -109,14 +72,10 @@ export function normalizePhone(value) {
 }
 
 export function createDrinkSummary(tournament) {
-  const counts = new Map();
-  let missingCount = 0;
+  const counts = new Map(); let missingCount = 0;
   for (const player of tournament.players || []) {
     const displayName = String(tournament.participantDetails?.[player]?.drink?.displayName || '').trim();
-    if (!displayName) {
-      missingCount += 1;
-      continue;
-    }
+    if (!displayName) { missingCount += 1; continue; }
     counts.set(displayName, (counts.get(displayName) || 0) + 1);
   }
   const items = [...counts.entries()].map(([displayName, count]) => ({ displayName, count }));
@@ -127,72 +86,54 @@ export function createDrinkSummary(tournament) {
   return { items, selectedCount, missingCount, copyText: lines.join('\n') };
 }
 
+function legacyItems(value) {
+  const coffee = normalizeItems(value.coffeeFlavors, 20, (flavor, flavorIndex) =>
+    normalizeItems(flavor.preparations, 20, (preparation, preparationIndex) => ({
+      id: `legacy-coffee-${cleanId(flavor.id, String(flavorIndex + 1))}-${cleanId(preparation.id, String(preparationIndex + 1))}`,
+      name: `${cleanText(flavor.name, 60)}咖啡／${cleanText(preparation.name, 60)}`,
+      active: flavor.active !== false && preparation.active !== false,
+      order: (flavorIndex + 1) * 100 + preparationIndex + 1,
+    })).filter((item) => item.name !== '咖啡／'));
+  const caffeineFree = normalizeItems(value.caffeineFreeOptions, 30, (item, index) => ({
+    id: `legacy-option-${cleanId(item.id, String(index + 1))}`, name: cleanText(item.name, 100),
+    active: item.active !== false, order: 3000 + index,
+  })).filter((item) => item.name);
+  return [...coffee.flat(), ...caffeineFree];
+}
+
+function findDrinkItem(items, selection) {
+  if (selection.itemId) return items.find((item) => item.id === selection.itemId);
+  if (selection.category === 'coffee') {
+    const legacyId = `legacy-coffee-${cleanId(selection.flavorId, '')}-${cleanId(selection.preparationId, '')}`;
+    const defaultId = `${cleanId(selection.flavorId, '')}-${cleanId(selection.preparationId, '')}`;
+    return items.find((item) => item.id === legacyId || item.id === defaultId)
+      || items.find((item) => item.name === String(selection.displayName || ''));
+  }
+  if (selection.category === 'caffeine-free') {
+    return items.find((item) => item.id === `legacy-option-${cleanId(selection.optionId, '')}`)
+      || items.find((item) => item.name === String(selection.displayName || ''));
+  }
+  return items.find((item) => item.name === String(selection.displayName || ''));
+}
+
 function normalizeSavedDrink(value) {
   if (!value || typeof value !== 'object' || !String(value.displayName || '').trim()) return null;
-  const displayName = cleanText(value.displayName, 140);
-  if (value.category === 'coffee') {
-    return {
-      category: 'coffee',
-      flavorId: cleanId(value.flavorId, ''),
-      preparationId: cleanId(value.preparationId, ''),
-      displayName,
-    };
-  }
-  if (value.category === 'caffeine-free') {
-    return { category: 'caffeine-free', optionId: cleanId(value.optionId, ''), displayName };
-  }
-  return { category: 'legacy', displayName };
+  return {
+    category: value.category === 'item' ? 'item' : 'legacy',
+    itemId: cleanId(value.itemId, ''), displayName: cleanText(value.displayName, 140),
+  };
 }
 
 function normalizeAnswers(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).slice(0, 20).map(([key, answer]) => [
-    cleanId(key, ''),
-    typeof answer === 'boolean' ? answer : cleanText(answer, 1000),
+    cleanId(key, ''), typeof answer === 'boolean' ? answer : cleanText(answer, 1000),
   ]).filter(([key]) => key));
 }
-
-function normalizeItems(value, maximum, mapper) {
-  return Array.isArray(value)
-    ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)).slice(0, maximum).map(mapper)
-    : [];
-}
-
-function uniqueIds(items) {
-  const ids = new Set();
-  return items.filter((item) => {
-    if (!item.id || ids.has(item.id)) return false;
-    ids.add(item.id);
-    if (item.preparations) item.preparations = uniqueIds(item.preparations);
-    return true;
-  });
-}
-
-function cleanText(value, maximumLength) {
-  return String(value || '').trim().slice(0, maximumLength);
-}
-
-function cleanId(value, fallback) {
-  return String(value || fallback || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60);
-}
-
-function normalizeOrder(value, fallback) {
-  const order = Number(value);
-  return Number.isFinite(order) ? order : fallback;
-}
-
-function byOrder(left, right) {
-  return left.order - right.order;
-}
-
-function flavor(id, name, order, preparations) {
-  return { id, name, active: true, order, preparations };
-}
-
-function preparation(id, name, order) {
-  return { id, name, active: true, order };
-}
-
-function option(id, name, order) {
-  return { id, name, active: true, order };
-}
+function normalizeItems(value, maximum, mapper) { return Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)).slice(0, maximum).map(mapper) : []; }
+function uniqueIds(items) { const ids = new Set(); return items.filter((item) => item.id && !ids.has(item.id) && ids.add(item.id)); }
+function cleanText(value, maximumLength) { return String(value || '').trim().slice(0, maximumLength); }
+function cleanId(value, fallback) { return String(value || fallback || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60); }
+function normalizeOrder(value, fallback) { const order = Number(value); return Number.isFinite(order) ? order : fallback; }
+function byOrder(left, right) { return left.order - right.order; }
+function option(id, name, order) { return { id, name, active: true, order }; }

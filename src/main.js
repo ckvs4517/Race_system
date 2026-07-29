@@ -507,7 +507,7 @@ function bindScheduleEvents(state) {
     form.elements.playerName.value = player;
     form.elements.phone.value = details.phone || '';
     const slot = form.querySelector('[data-edit-drink-slot]');
-    slot.innerHTML = drinkSelectionFields(tournament.drinkSettings, details.drink, { required: false, prefix: 'editDrink' });
+    slot.innerHTML = drinkSelectionFields(tournament.drinkSettings, details.drink, { prefix: 'editDrink' });
     bindDrinkSelectionFields(slot);
     dialog.showModal();
   }));

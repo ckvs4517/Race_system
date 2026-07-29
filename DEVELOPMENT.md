@@ -547,7 +547,7 @@ stationIndex = matchIndex % arenaCount
 ### 資料模型
 
 - `participantDetails[player]`：保存 `phone`、`notes`、`answers` 與已解析的 `drink`。
-- `drinkSettings`：每場賽事自己的菜單，包含提示、咖啡口味／作法、無咖啡因品項、啟用狀態與排序。
+- `drinkSettings`：每場賽事自己的單一飲品項目清單，包含提示、啟用狀態與排序；每一項就是選手可直接選擇的一杯飲品。
 - `drink.displayName`：送出當下保存的完整顯示名稱；日後停用品項仍能正確顯示歷史資料。
 - 舊賽事若沒有這兩個欄位，normalize 會補空物件並保持飲品功能停用。
 

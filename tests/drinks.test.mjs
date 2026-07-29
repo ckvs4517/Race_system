@@ -11,38 +11,32 @@ import { addDraftPlayer, createTournament, updateDraftTournament } from '../src/
 
 const settings = createDefaultDrinkSettings();
 assert.equal(settings.enabled, true);
-assert.equal(settings.coffeeFlavors.length, 3);
-assert.equal(settings.caffeineFreeOptions.length, 3);
+assert.equal(settings.items.length, 10);
 
 const coconutCola = resolveDrinkSelection(settings, {
-  category: 'coffee',
-  flavorId: 'coffee-coconut',
-  preparationId: 'cola',
+  itemId: 'coffee-coconut-cola',
 });
 assert.equal(coconutCola.displayName, '椰子咖啡／加可樂');
 
 assert.throws(() => resolveDrinkSelection(settings, {
-  category: 'coffee',
-  flavorId: 'coffee-blueberry',
-  preparationId: 'cola',
+  itemId: 'not-a-drink',
 }), /飲品選項/);
 
 const disabled = normalizeDrinkSettings({
   ...settings,
-  caffeineFreeOptions: settings.caffeineFreeOptions.map((option) => (
+  items: settings.items.map((option) => (
     option.id === 'juice' ? { ...option, active: false } : option
   )),
 });
 assert.throws(() => resolveDrinkSelection(disabled, {
-  category: 'caffeine-free',
-  optionId: 'juice',
+  itemId: 'juice',
 }), /飲品選項/);
 
 const summary = createDrinkSummary({
   players: ['甲', '乙', '丙'],
   participantDetails: {
     甲: { drink: coconutCola },
-    乙: { drink: { category: 'caffeine-free', optionId: 'juice', displayName: '舊版果汁' } },
+    乙: { drink: { category: 'item', itemId: 'juice', displayName: '舊版果汁' } },
     丙: {},
   },
 });
@@ -58,10 +52,10 @@ assert.equal(normalizePhone('+886 912-345-678'), '0912345678');
 assert.equal(normalizePhone('0912 345 678'), '0912345678');
 
 let menuTournament = createTournament('菜單保護測試', []);
-menuTournament = addDraftPlayer(menuTournament, '甲', { drink: { category: 'caffeine-free', optionId: 'juice' } });
+menuTournament = addDraftPlayer(menuTournament, '甲', { drink: { itemId: 'juice' } });
 const removedSelectedOption = {
   ...menuTournament.drinkSettings,
-  caffeineFreeOptions: menuTournament.drinkSettings.caffeineFreeOptions.filter((item) => item.id !== 'juice'),
+  items: menuTournament.drinkSettings.items.filter((item) => item.id !== 'juice'),
 };
 assert.throws(
   () => updateDraftTournament(menuTournament, menuTournament.name, menuTournament.players, menuTournament.format, menuTournament.arenaCount, menuTournament.eventInfo, removedSelectedOption),

@@ -656,13 +656,7 @@ function assertSelectedDrinkOptionsRemain(participantDetails, settings) {
   for (const details of Object.values(participantDetails || {})) {
     const drink = details?.drink;
     if (!drink || drink.category === 'legacy') continue;
-    if (drink.category === 'coffee') {
-      const flavorItem = settings.coffeeFlavors.find((item) => item.id === drink.flavorId);
-      if (!flavorItem || !flavorItem.preparations.some((item) => item.id === drink.preparationId)) {
-        throw new Error(`飲品「${drink.displayName}」已有選手選擇，不能刪除；可以改為停用。`);
-      }
-    }
-    if (drink.category === 'caffeine-free' && !settings.caffeineFreeOptions.some((item) => item.id === drink.optionId)) {
+    if (!settings.items.some((item) => item.id === drink.itemId || item.name === drink.displayName)) {
       throw new Error(`飲品「${drink.displayName}」已有選手選擇，不能刪除；可以改為停用。`);
     }
   }

@@ -42,7 +42,7 @@ assert.match(view, /data-manage-registration/);
 
 tournament = addDraftPlayer(tournament, '現場選手', {
   phone: '0912345678',
-  drink: { category: 'caffeine-free', optionId: 'juice' },
+  drink: { itemId: 'juice' },
 });
 assert.equal(tournament.players.length, 5);
 assert.equal(tournament.participantStates['現場選手'].checkedIn, false);

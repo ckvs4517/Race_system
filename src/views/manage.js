@@ -79,9 +79,7 @@ export function bindManage(root, options) {
     if (button.dataset.menuAction === 'remove' && row) row.remove();
     if (button.dataset.menuAction === 'up' && row?.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
     if (button.dataset.menuAction === 'down' && row?.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
-    if (button.dataset.menuAction === 'add-flavor') root.querySelector('[data-flavor-list]').insertAdjacentHTML('beforeend', flavorRow({ id: uniqueId('coffee'), name: '', active: true, preparations: [] }));
-    if (button.dataset.menuAction === 'add-caffeine') root.querySelector('[data-caffeine-list]').insertAdjacentHTML('beforeend', optionRow({ id: uniqueId('drink'), name: '', active: true }));
-    if (button.dataset.menuAction === 'add-preparation') row.querySelector('[data-preparation-list]').insertAdjacentHTML('beforeend', preparationRow({ id: uniqueId('style'), name: '', active: true }));
+    if (button.dataset.menuAction === 'add-drink') root.querySelector('[data-drink-list]').insertAdjacentHTML('beforeend', optionRow({ id: uniqueId('drink'), name: '', active: true }));
   });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -116,28 +114,15 @@ function drinkSettingsEditor(settings) {
     <div data-drink-menu ${settings.enabled ? '' : 'hidden'}>
       <label class="field"><span>填寫頁提示</span><textarea name="drinkNotice" maxlength="500">${escapeText(settings.notice)}</textarea></label>
       <label class="field"><span>修改說明</span><textarea name="drinkChangeNotice" maxlength="500">${escapeText(settings.changeNotice)}</textarea></label>
-      <div class="drink-menu-heading"><b>咖啡口味與作法</b><button type="button" class="button button-secondary" data-menu-action="add-flavor">＋ 新增口味</button></div>
-      <div data-flavor-list>${settings.coffeeFlavors.map(flavorRow).join('')}</div>
-      <div class="drink-menu-heading"><b>無咖啡因品項</b><button type="button" class="button button-secondary" data-menu-action="add-caffeine">＋ 新增品項</button></div>
-      <div data-caffeine-list>${settings.caffeineFreeOptions.map(optionRow).join('')}</div>
+      <div class="drink-menu-heading"><b>飲品項目</b><button type="button" class="button button-secondary" data-menu-action="add-drink">＋ 新增飲品</button></div>
+      <p class="drink-menu-help">一個飲品就是一個選項，例如「椰子咖啡／拿鐵」；選手必須從清單選擇一項。</p>
+      <div data-drink-list>${settings.items.map(optionRow).join('')}</div>
     </div>
   </div>`;
 }
 
-function flavorRow(item) {
-  return `<div class="drink-menu-row drink-flavor-row" data-menu-row data-id="${escapeAttribute(item.id)}">
-    <div class="drink-menu-row-main"><input maxlength="60" value="${escapeAttribute(item.name)}" placeholder="口味名稱"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div>
-    <div class="drink-preparation-list" data-preparation-list>${(item.preparations || []).map(preparationRow).join('')}</div>
-    <button type="button" class="button button-secondary" data-menu-action="add-preparation">＋ 新增作法</button>
-  </div>`;
-}
-
-function preparationRow(item) {
-  return `<div class="drink-menu-row drink-preparation-row" data-menu-row data-id="${escapeAttribute(item.id)}"><div class="drink-menu-row-main"><input maxlength="60" value="${escapeAttribute(item.name)}" placeholder="作法名稱"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div></div>`;
-}
-
 function optionRow(item) {
-  return `<div class="drink-menu-row drink-caffeine-row" data-menu-row data-id="${escapeAttribute(item.id)}"><div class="drink-menu-row-main"><input maxlength="80" value="${escapeAttribute(item.name)}" placeholder="品項名稱"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div></div>`;
+  return `<div class="drink-menu-row" data-menu-row data-id="${escapeAttribute(item.id)}"><div class="drink-menu-row-main"><input maxlength="100" value="${escapeAttribute(item.name)}" placeholder="例如：椰子咖啡／拿鐵"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div></div>`;
 }
 
 function rowButtons() {
@@ -149,19 +134,7 @@ function readDrinkSettings(form) {
     enabled: form.querySelector('[data-drink-enabled]').checked,
     notice: form.elements.drinkNotice?.value || '',
     changeNotice: form.elements.drinkChangeNotice?.value || '',
-    coffeeFlavors: [...form.querySelectorAll('[data-flavor-list] > .drink-flavor-row')].map((row, index) => ({
-      id: row.dataset.id,
-      name: row.querySelector(':scope > .drink-menu-row-main > input').value,
-      active: row.querySelector(':scope > .drink-menu-row-main [data-active]').checked,
-      order: index + 1,
-      preparations: [...row.querySelectorAll('[data-preparation-list] > .drink-preparation-row')].map((preparation, preparationIndex) => ({
-        id: preparation.dataset.id,
-        name: preparation.querySelector('.drink-menu-row-main > input').value,
-        active: preparation.querySelector('[data-active]').checked,
-        order: preparationIndex + 1,
-      })),
-    })),
-    caffeineFreeOptions: [...form.querySelectorAll('[data-caffeine-list] > .drink-caffeine-row')].map((row, index) => ({
+    items: [...form.querySelectorAll('[data-drink-list] > .drink-menu-row')].map((row, index) => ({
       id: row.dataset.id,
       name: row.querySelector('.drink-menu-row-main > input').value,
       active: row.querySelector('[data-active]').checked,

@@ -231,7 +231,7 @@ function draftCheckInView(tournament, canManage) {
         <div class="mobile-sheet-heading"><div><p class="kicker">ADD PLAYER</p><h2>新增現場選手</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
         <label><span>選手名稱</span><input name="playerName" maxlength="60" autocomplete="off" placeholder="輸入選手名稱" aria-label="現場報名選手名稱" required></label>
         <label><span>聯絡電話（選填）</span><input name="phone" type="tel" maxlength="40" autocomplete="tel"></label>
-        ${drinkSelectionFields(tournament.drinkSettings, null, { required: false, prefix: 'addDrink' })}
+        ${drinkSelectionFields(tournament.drinkSettings, null, { prefix: 'addDrink' })}
         <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button class="button button-primary" type="submit">新增到名單</button></div>
       </form>
     </dialog>
