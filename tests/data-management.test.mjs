@@ -8,7 +8,7 @@ const tournaments = [{
   created: '2026/07/21',
   players: ['小明', '阿龍'],
   champion: '小明',
-  participantDetails: { 小明: { phone: '0912345678', drink: { displayName: '椰子咖啡／加奶' } } },
+  participantDetails: { 小明: { phone: '0912345678', drink: { displayName: '椰子咖啡／拿鐵' } } },
   participantStates: { 小明: { checkedIn: true, status: 'active' } },
   rounds: [{ name: '冠軍賽', matches: [{ playerA: '小明', playerB: '阿龍', scoreA: 5, scoreB: 3, winner: '小明', status: '已完成' }] }],
 }];
@@ -26,7 +26,7 @@ const overviewCsv = createOverviewCsv(tournaments);
 assert(overviewCsv.split('\r\n').length === 2 && overviewCsv.includes('"2","1","1"'), '賽事總覽 CSV 每場賽事只使用一列');
 const view = dataManagementView(tournaments);
 const participantCsv = createParticipantsCsv(tournaments);
-assert(participantCsv.includes('"0912345678"') && participantCsv.includes('"椰子咖啡／加奶"'), '參賽者 CSV 包含電話與飲品');
+assert(participantCsv.includes('"0912345678"') && participantCsv.includes('"椰子咖啡／拿鐵"'), '參賽者 CSV 包含電話與飲品');
 assert(view.includes('一列代表一場賽事') && view.includes('下載參賽者與飲品 CSV'), '資料頁清楚說明各種 CSV 的列資料意義');
 
 console.log('PASS 9 data management tests');
