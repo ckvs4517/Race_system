@@ -146,7 +146,7 @@ assert.deepEqual(latest.players, ['選手甲'], '送出後直接加入正式名�
 assert.equal(latest.participantStates['選手甲'].checkedIn, false);
 assert.equal(latest.participantDetails['選手甲'].phone, '0912-345-678', '個資只存在後台賽事資料');
 assert.equal(latest.participantDetails['選手甲'].answers.teamName, '烈焰隊', '自訂欄位答案保留擴充性');
-assert.equal(latest.participantDetails['選手甲'].drink.displayName, '椰子咖啡／加可樂', '後端驗證並保存飲品顯示名稱');
+assert.equal(latest.participantDetails['選手甲'].drink.displayName, '椰子美式加汽水', '後端驗證並保存飲品顯示名稱');
 
 const scheduleEntryView = registrationAdminView([latest], latest.id, [], true);
 assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');

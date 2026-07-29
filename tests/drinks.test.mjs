@@ -16,7 +16,7 @@ assert.equal(settings.items.length, 10);
 const coconutCola = resolveDrinkSelection(settings, {
   itemId: 'coffee-coconut-cola',
 });
-assert.equal(coconutCola.displayName, '椰子咖啡／加可樂');
+assert.equal(coconutCola.displayName, '椰子美式加汽水');
 
 assert.throws(() => resolveDrinkSelection(settings, {
   itemId: 'not-a-drink',
@@ -41,7 +41,7 @@ const summary = createDrinkSummary({
   },
 });
 assert.deepEqual(summary.items, [
-  { displayName: '椰子咖啡／加可樂', count: 1 },
+  { displayName: '椰子美式加汽水', count: 1 },
   { displayName: '舊版果汁', count: 1 },
 ]);
 assert.equal(summary.selectedCount, 2);
