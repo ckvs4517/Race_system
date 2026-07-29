@@ -36,6 +36,11 @@ assert.match(editView, /name="eventDate" type="date" value="2026-07-25"/);
 assert.match(editView, /name="venueName"[^>]+88coffee&amp;tarttoo/);
 assert.match(editView, /name="notes"/);
 
+const newTournamentView = manageView();
+assert.match(newTournamentView, /name="venueName"[^>]+88coffee&amp;tattoo/);
+assert.match(newTournamentView, /name="address"[^>]+臺北市中山區中吉里松江路170巷9之5號/);
+assert.match(newTournamentView, /name="mapUrl"[^>]+https:\/\/maps\.app\.goo\.gl\/xtbmRtKcF84CCBec6/);
+
 const updated = updateDraftTournament(tournament, tournament.name, tournament.players, tournament.format, tournament.arenaCount, { ...eventInfo, startTime: '14:00' });
 assert.equal(updated.eventInfo.startTime, '14:00');
 assert.deepEqual(duplicateTournament(tournament).eventInfo, eventInfo);

@@ -5,6 +5,13 @@ import { createTournament, updateDraftTournament } from '../domain/tournament.js
 import { createDefaultDrinkSettings, normalizeDrinkSettings } from '../domain/drinks.js';
 import { listTournamentFormats } from '../formats/registry.js';
 
+const DEFAULT_EVENT_INFO = {
+  venueName: '88coffee&tattoo',
+  address: '臺北市中山區中吉里松江路170巷9之5號',
+  mapUrl: 'https://maps.app.goo.gl/xtbmRtKcF84CCBec6',
+  postUrl: '',
+};
+
 export function manageView(tournament = null) {
   const isEditing = Boolean(tournament);
   const title = isEditing ? '編輯賽事' : '建立新賽事';
@@ -13,7 +20,7 @@ export function manageView(tournament = null) {
     : '先建立準備中的賽事，確認參賽名單後再正式開始。';
   const backButton = `<div class="header-actions">${isEditing ? '<button class="button button-secondary" data-action="cancel-edit">← 返回賽程</button>' : ''}<button class="button button-secondary" data-route="guide">查看操作說明</button></div>`;
   const playerText = tournament?.players?.join('\n') || '';
-  const eventInfo = tournament?.eventInfo || {};
+  const eventInfo = tournament?.eventInfo || DEFAULT_EVENT_INFO;
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
   const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
