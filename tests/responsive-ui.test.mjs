@@ -14,5 +14,7 @@ assert.match(css, /@media \(max-width: 620px\)[\s\S]*nav\s*\{[^}]*overflow-x:\s*
 assert.match(css, /\.participant-row > div\s*\{[^}]*grid-column:\s*1 \/ -1/s, '手機選手操作移到獨立一列');
 assert.match(css, /\.leaderboard-row\s*\{[^}]*min-width:\s*0/s, '手機排行榜不再強制桌面寬度');
 assert.match(css, /\.check-in-row\[hidden\]\s*\{[^}]*display:\s*none\s*!important/s, '名單篩選結果會真正隱藏不符合的選手');
+assert.match(css, /\.mobile-sheet-card \.drink-choice input\[type="radio"\][\s\S]*?min-width:\s*20px/s, '新增選手對話框的飲品單選鈕不會被全寬輸入樣式拉伸');
+assert.match(css, /@media \(max-width: 620px\)[\s\S]*?\.mobile-sheet-card \.drink-dependent[\s\S]*?grid-template-columns:\s*1fr/s, '手機新增選手飲品欄位會單欄排列');
 
 console.log('PASS responsive UI safeguards');

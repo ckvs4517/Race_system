@@ -296,6 +296,12 @@ nav { display: flex; align-self: stretch; gap: 5px; }
 .mobile-sheet-card > p { margin: -7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
 .mobile-sheet-card > label { display: grid; gap: 8px; color: #dce2ec; font-size: 12px; font-weight: 800; }
 .mobile-sheet-card input { width: 100%; min-height: 50px; padding: 0 14px; background: #090d13; color: #fff; border: 1px solid #3b4657; border-radius: 8px; }
+.mobile-sheet-card .drink-fields { min-width: 0; width: 100%; box-sizing: border-box; }
+.mobile-sheet-card .drink-choice { display: flex; align-items: center; min-width: 0; }
+.mobile-sheet-card .drink-choice input[type="radio"] { width: 20px; min-width: 20px; height: 20px; min-height: 20px; padding: 0; flex: 0 0 20px; }
+.mobile-sheet-card .drink-dependent { min-width: 0; width: 100%; box-sizing: border-box; grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 28px; }
+.mobile-sheet-card .drink-dependent .field { min-width: 0; }
+.mobile-sheet-card .drink-dependent select { min-width: 0; width: 100%; min-height: 46px; }
 .mobile-sheet-actions { display: flex; justify-content: flex-end; gap: 9px; }
 .action-toast { position: fixed; right: 18px; bottom: 18px; z-index: 100; max-width: min(420px, calc(100% - 36px)); padding: 14px 18px; background: #14251d; color: #dbffeb; border: 1px solid #35dc8270; border-radius: 9px; box-shadow: 0 18px 50px #000c; font-size: 14px; font-weight: 800; }
 .action-toast.is-error { background: #2a1417; color: #ffd8d5; border-color: #ff493d80; }
@@ -614,6 +620,7 @@ footer { font-size: 12px; }
 }
 
 @media (max-width: 620px) {
+  .mobile-sheet-card .drink-dependent { grid-template-columns: 1fr; padding-left: 0; }
   .schedule-header-actions { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) 48px; }
   .schedule-header-actions > .button { min-width: 0; padding-inline: 12px; white-space: nowrap; }
   .schedule-header-actions > .button:only-child { grid-column: 1 / -1; }
