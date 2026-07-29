@@ -46,9 +46,9 @@ tournament = addDraftPlayer(tournament, '現場選手', {
 });
 assert.equal(tournament.players.length, 5);
 assert.equal(tournament.participantStates['現場選手'].checkedIn, false);
-assert.equal(tournament.participantDetails['現場選手'].drink.displayName, '果汁');
+assert.equal(tournament.participantDetails['現場選手'].drink.displayName, '果汁(無咖啡因)');
 tournament = updateDraftParticipant(tournament, '現場選手', '現場選手（已確認）', { phone: '0987654321' });
-assert.equal(tournament.participantDetails['現場選手（已確認）'].drink.displayName, '果汁', '編輯聯絡資料時保留原飲品');
+assert.equal(tournament.participantDetails['現場選手（已確認）'].drink.displayName, '果汁(無咖啡因)', '編輯聯絡資料時保留原飲品');
 assert.throws(() => addDraftPlayer(tournament, '現場選手（已確認）'), /不可重複/);
 tournament = removeDraftPlayer(tournament, '現場選手（已確認）');
 assert.equal(tournament.players.length, 4);
