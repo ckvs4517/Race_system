@@ -3,6 +3,14 @@
  * 定義共用生命週期；實際配對、統計與排名交給 formats 內的賽制策略。
  */
 import { getTournamentFormat } from '../formats/registry.js';
+import {
+  createDefaultDrinkSettings,
+  createEmptyDrinkSettings,
+  normalizeDrinkSettings,
+  normalizeParticipantDetails,
+  normalizePhone,
+  resolveDrinkSelection,
+} from './drinks.js';
 
 const BYE = '輪空';
 const PENDING = '待定';
@@ -18,7 +26,7 @@ export function requiredSeedCount(tournamentOrPlayers) {
   return getTournamentFormat(tournament.format).initialSeedCount(draftCompetitionPlayers(tournament));
 }
 
-export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}) {
+export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}, drinkSettings = createDefaultDrinkSettings()) {
   // 奇數單淘汰需先抽種子，因此建立時暫不產生首輪；其他情況可立即預覽。
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validateDraftPlayers(cleanPlayers);
@@ -38,18 +46,23 @@ export function createTournament(name, players, formatId = 'single_elimination',
     checkInVersion: 1,
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
     participantStates: createParticipantStates(cleanPlayers, false),
+    participantDetails: normalizeParticipantDetails(cleanPlayers),
     rounds: [],
     registrationSettings: createRegistrationSettings(),
+    drinkSettings: normalizeDrinkSettings(drinkSettings, createDefaultDrinkSettings()),
     ...(format.initialState?.() || {}),
   };
 }
 
 export function duplicateTournament(tournament) {
   const normalized = normalizeTournament(tournament);
-  return createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format, normalized.arenaCount, normalized.eventInfo);
+  return {
+    ...createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format, normalized.arenaCount, normalized.eventInfo, normalized.drinkSettings),
+    participantDetails: normalizeParticipantDetails(normalized.players, normalized.participantDetails),
+  };
 }
 
-export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}) {
+export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}, drinkSettings = tournament.drinkSettings) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
@@ -57,6 +70,9 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
   const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
   const participantStates = normalizeParticipantStates(cleanPlayers, normalized.participantStates, false);
+  const participantDetails = normalizeParticipantDetails(cleanPlayers, normalized.participantDetails);
+  const normalizedDrinkSettings = normalizeDrinkSettings(drinkSettings, normalized.drinkSettings);
+  assertSelectedDrinkOptionsRemain(participantDetails, normalizedDrinkSettings);
   return {
     ...normalized,
     name: name.trim() || '未命名賽事',
@@ -69,6 +85,8 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
     checkInVersion: 1,
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
     participantStates,
+    participantDetails,
+    drinkSettings: normalizedDrinkSettings,
     rounds: [],
     seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
@@ -87,7 +105,7 @@ export function setDraftPlayerCheckedIn(tournament, player, checkedIn) {
   return rebuildDraftRoster(normalized, normalized.players, participantStates);
 }
 
-export function addDraftPlayer(tournament, player) {
+export function addDraftPlayer(tournament, player, details = {}) {
   const normalized = normalizeTournament(tournament);
   assertDraftRosterChange(normalized);
   const name = String(player || '').trim();
@@ -98,7 +116,12 @@ export function addDraftPlayer(tournament, player) {
     ...normalized.participantStates,
     [name]: { status: 'active', checkedIn: false },
   };
-  return rebuildDraftRoster(normalized, players, participantStates);
+  const participantDetails = {
+    ...normalized.participantDetails,
+    [name]: normalizeDraftParticipantDetail(normalized, name, details),
+  };
+  assertUniqueParticipantPhone(players, participantDetails);
+  return rebuildDraftRoster(normalized, players, participantStates, participantDetails);
 }
 
 export function removeDraftPlayer(tournament, player) {
@@ -107,8 +130,63 @@ export function removeDraftPlayer(tournament, player) {
   if (!normalized.players.includes(player)) throw new Error('找不到這位參賽者。');
   const players = normalized.players.filter((candidate) => candidate !== player);
   const participantStates = { ...normalized.participantStates };
+  const participantDetails = { ...normalized.participantDetails };
   delete participantStates[player];
-  return rebuildDraftRoster(normalized, players, participantStates);
+  delete participantDetails[player];
+  return rebuildDraftRoster(normalized, players, participantStates, participantDetails);
+}
+
+export function updateDraftParticipant(tournament, player, nextName, details = {}) {
+  const normalized = normalizeTournament(tournament);
+  assertDraftRosterChange(normalized);
+  if (!normalized.players.includes(player)) throw new Error('找不到這位參賽者。');
+  const name = String(nextName || '').trim();
+  if (!name) throw new Error('請輸入選手名稱。');
+  const players = normalized.players.map((candidate) => candidate === player ? name : candidate);
+  validateDraftPlayers(players);
+  const participantStates = { ...normalized.participantStates };
+  const previousState = participantStates[player];
+  delete participantStates[player];
+  participantStates[name] = previousState;
+  const participantDetails = { ...normalized.participantDetails };
+  const previousDetails = participantDetails[player] || {};
+  delete participantDetails[player];
+  participantDetails[name] = normalizeDraftParticipantDetail(
+    { ...normalized, participantDetails: { ...normalized.participantDetails, [name]: previousDetails } },
+    name,
+    details,
+  );
+  assertUniqueParticipantPhone(players, participantDetails);
+  return rebuildDraftRoster(normalized, players, participantStates, participantDetails);
+}
+
+export function addConfirmedParticipant(tournament, registration) {
+  const normalized = normalizeTournament(tournament);
+  assertDraftRosterChange(normalized);
+  const name = String(registration?.displayName || '').trim();
+  if (!name) throw new Error('請輸入選手名稱。');
+  if (normalized.players.includes(name)) throw new Error('這個選手名稱已經在正式名單中。');
+  if (normalized.players.length >= normalized.registrationSettings.capacity) throw new Error('這場賽事的名額已滿。');
+  const phone = String(registration?.phone || '').trim();
+  if (!normalizePhone(phone)) throw new Error('請輸入聯絡電話。');
+  const drink = resolveDrinkSelection(normalized.drinkSettings, registration?.drink);
+  const players = [...normalized.players, name];
+  validateDraftPlayers(players);
+  const participantStates = {
+    ...normalized.participantStates,
+    [name]: { status: 'active', checkedIn: false },
+  };
+  const participantDetails = {
+    ...normalized.participantDetails,
+    [name]: {
+      phone,
+      notes: String(registration?.notes || '').trim().slice(0, 500),
+      answers: registration?.answers && typeof registration.answers === 'object' ? structuredClone(registration.answers) : {},
+      drink,
+    },
+  };
+  assertUniqueParticipantPhone(players, participantDetails);
+  return rebuildDraftRoster(normalized, players, participantStates, participantDetails);
 }
 
 export function drawRandomSeeds(tournament, random = Math.random) {
@@ -268,8 +346,10 @@ export function normalizeTournament(tournament) {
         : tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
       rounds: tournament.status === '準備中' ? [] : (Array.isArray(tournament.rounds) ? tournament.rounds : []),
       participantStates: normalizeParticipantStates(tournament.players || [], tournament.participantStates),
+      participantDetails: normalizeParticipantDetails(tournament.players || [], tournament.participantDetails),
       checkInVersion: 1,
       registrationSettings: normalizeRegistrationSettings(tournament.registrationSettings),
+      drinkSettings: normalizeDrinkSettings(tournament.drinkSettings, createEmptyDrinkSettings()),
       ...(format.id === 'swiss' && tournament.status === '準備中' && tournament.swissVersion !== 2 ? format.initialState() : {}),
     };
   }
@@ -286,6 +366,8 @@ export function normalizeTournament(tournament) {
       eventInfo: normalizeEventInfo(tournament.eventInfo),
       bracketVersion: 1,
       participantStates: normalizeParticipantStates(players, tournament.participantStates, true),
+      participantDetails: normalizeParticipantDetails(players, tournament.participantDetails),
+      drinkSettings: normalizeDrinkSettings(tournament.drinkSettings, createEmptyDrinkSettings()),
       checkInVersion: 1,
       status: tournament.status === '已完成' ? '已完成' : '進行中',
       rounds: hasRounds ? advanceLegacyWins(tournament.rounds) : [],
@@ -294,7 +376,14 @@ export function normalizeTournament(tournament) {
 
   const migrated = createTournament(tournament.name, players, 'single_elimination');
   return rebuildDraftRoster(
-    { ...migrated, id: tournament.id, created: tournament.created || migrated.created },
+    {
+      ...migrated,
+      id: tournament.id,
+      created: tournament.created || migrated.created,
+      registrationSettings: normalizeRegistrationSettings(tournament.registrationSettings),
+      participantDetails: normalizeParticipantDetails(players, tournament.participantDetails),
+      drinkSettings: normalizeDrinkSettings(tournament.drinkSettings, createEmptyDrinkSettings()),
+    },
     players,
     createParticipantStates(players, true),
   );
@@ -519,7 +608,7 @@ function draftCompetitionPlayers(tournament) {
   return (tournament.players || []).filter((player) => tournament.participantStates?.[player]?.checkedIn);
 }
 
-function rebuildDraftRoster(tournament, players, participantStates) {
+function rebuildDraftRoster(tournament, players, participantStates, participantDetails = tournament.participantDetails) {
   validateDraftPlayers(players);
   const format = getTournamentFormat(tournament.format);
   const normalizedStates = normalizeParticipantStates(players, participantStates, false);
@@ -529,6 +618,7 @@ function rebuildDraftRoster(tournament, players, participantStates) {
     players,
     checkInVersion: 1,
     participantStates: normalizedStates,
+    participantDetails: normalizeParticipantDetails(players, participantDetails),
     seedPlayerIndexes: [],
     seedDrawnAt: null,
     totalRounds: format.totalRounds?.(competitionPlayers) || null,
@@ -536,6 +626,46 @@ function rebuildDraftRoster(tournament, players, participantStates) {
     updatedAt: new Date().toISOString(),
     ...(format.initialState?.() || {}),
   };
+}
+
+function normalizeDraftParticipantDetail(tournament, player, value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const existing = tournament.participantDetails?.[player] || {};
+  const hasDrinkUpdate = Object.prototype.hasOwnProperty.call(source, 'drink');
+  return {
+    phone: String(source.phone ?? existing.phone ?? '').trim().slice(0, 40),
+    notes: String(source.notes ?? existing.notes ?? '').trim().slice(0, 500),
+    answers: source.answers && typeof source.answers === 'object' ? structuredClone(source.answers) : structuredClone(existing.answers || {}),
+    drink: hasDrinkUpdate
+      ? (source.drink ? resolveDrinkSelection(tournament.drinkSettings, source.drink, { allowMissing: true }) : null)
+      : (existing.drink || null),
+  };
+}
+
+function assertUniqueParticipantPhone(players, participantDetails) {
+  const seen = new Set();
+  for (const player of players) {
+    const phone = normalizePhone(participantDetails?.[player]?.phone);
+    if (!phone) continue;
+    if (seen.has(phone)) throw new Error('這支聯絡電話已經在正式名單中。');
+    seen.add(phone);
+  }
+}
+
+function assertSelectedDrinkOptionsRemain(participantDetails, settings) {
+  for (const details of Object.values(participantDetails || {})) {
+    const drink = details?.drink;
+    if (!drink || drink.category === 'legacy') continue;
+    if (drink.category === 'coffee') {
+      const flavorItem = settings.coffeeFlavors.find((item) => item.id === drink.flavorId);
+      if (!flavorItem || !flavorItem.preparations.some((item) => item.id === drink.preparationId)) {
+        throw new Error(`飲品「${drink.displayName}」已有選手選擇，不能刪除；可以改為停用。`);
+      }
+    }
+    if (drink.category === 'caffeine-free' && !settings.caffeineFreeOptions.some((item) => item.id === drink.optionId)) {
+      throw new Error(`飲品「${drink.displayName}」已有選手選擇，不能刪除；可以改為停用。`);
+    }
+  }
 }
 
 function validateFinalScore(scoreA, scoreB) {

@@ -32,14 +32,14 @@ Cloudflare Worker
   ├─ PIN 驗證與 12 小時 HMAC token
   ├─ 賽事 CRUD
   ├─ 正式賽事 command API
-  ├─ 公開報名與後台審核
+  ├─ 私密參賽資料填寫、名單與飲品管理
   ├─ revision 衝突檢查
   └─ ETag / 304 條件式讀取
           │
           ▼
 Cloudflare D1
   ├─ tournaments：每場賽事一筆 JSON＋revision
-  └─ registrations：每筆公開報名獨立一列
+  └─ registrations：僅保留舊版待審核資料；新流程不再寫入
 ```
 
 前端與 Worker 共用 `src/domain` 和 `src/formats` 內的賽事規則。Sites 建置時，這些模組會另外複製到 `dist/server`，讓 Worker 在後端執行同一套規則。
@@ -91,8 +91,8 @@ Cloudflare D1
 │  │  ├─ schedule.js               # 賽事清單、賽程、排行榜、報到、排程
 │  │  ├─ manage.js                 # 建立與編輯草稿賽事
 │  │  ├─ control.js                # PIN 登入與控制中心
-│  │  ├─ registration.js           # 公開報名表
-│  │  ├─ registration-admin.js     # 報名設定與審核
+│  │  ├─ registration.js           # 私密參賽資料填寫表
+│  │  ├─ registration-admin.js     # 填寫連結、正式名單與飲品統計
 │  │  └─ data-management.js        # JSON、CSV 備份與還原
 │  └─ styles/app.css               # 全站與響應式樣式
 ├─ worker/index.js                 # Worker API、驗證、D1 存取
@@ -540,36 +540,31 @@ stationIndex = matchIndex % arenaCount
 
 目前 CSV 對戰明細也是依 tournament-level `arenaCount` 即時計算戰鬥台，因此四強決賽的一台顯示規則沒有另外持久化到 CSV 欄位。
 
-## 16. 公開報名
+## 16. 私密參賽資料填寫與飲品
 
-報名資料與 tournament JSON 分開，避免選手送出表單時與裁判記分共用同一個 revision。
+這不是公開招募或付款流程。主辦方在系統外確認資格與付款後，才把私密連結交給參賽者；送出成功便直接加入 `tournament.players`，不需後台核准。
 
-### 固定欄位
+### 資料模型
 
-- `display_name`：選手名稱／暱稱
-- `phone`：聯絡電話，只在後台顯示
-- `notes`：選填備註
-- `answers`：JSON 自訂欄位答案
-- `status`：`pending`、`approved`、`waitlist`、`rejected`
+- `participantDetails[player]`：保存 `phone`、`notes`、`answers` 與已解析的 `drink`。
+- `drinkSettings`：每場賽事自己的菜單，包含提示、咖啡口味／作法、無咖啡因品項、啟用狀態與排序。
+- `drink.displayName`：送出當下保存的完整顯示名稱；日後停用品項仍能正確顯示歷史資料。
+- 舊賽事若沒有這兩個欄位，normalize 會補空物件並保持飲品功能停用。
 
-### 報名流程
+### 填寫流程
 
 ```text
-公開 GET 取得活動摘要與表單設定
-  → 公開 POST 送出報名
-  → registrations 表建立 pending row
-  → 主辦方後台檢視
-  → approved / waitlist / rejected
-  → approved 時以 tournament revision 安全加入正式名單
+私密 GET 只取得活動摘要、欄位與有效飲品菜單
+  → POST 驗證名稱、電話、自訂欄位與飲品組合
+  → Worker 讀取最新 tournament revision
+  → domain 將選手直接加入正式名單，checkedIn 預設 false
+  → D1 以 WHERE revision = ? 樂觀鎖更新 tournament JSON
+  → 衝突時最多重讀並重試兩次
 ```
 
-核准報名時：
+名稱與正規化電話都不可在同場賽事重複。公開回應只包含剛送出的名稱與飲品，不回傳電話、完整名單或 `participantDetails`。
 
-- 賽事必須仍為 `準備中`。
-- 檢查 `expectedRevision`。
-- 檢查 32 人上限。
-- 檢查正式名單同名。
-- 新選手加入後預設 `checkedIn: false`。
+主辦方可在報到畫面新增選手，或在開賽前編輯名稱、電話與飲品。飲品統計依保存的 `displayName` 分組，可直接複製。
 
 ### 公開連結安全
 
@@ -577,11 +572,11 @@ stationIndex = matchIndex % arenaCount
 - 手動關閉報名，或進入排程時，會更換 token。
 - 舊網址會回傳找不到活動。
 - 可選填 deadline；即使沒有 deadline，只要賽事離開 `準備中` 就停止收件。
-- 同一賽事以正規化「名稱＋電話」產生 `dedupe_key`，避免重複報名。
+- 同一賽事以正式名單名稱與正規化電話避免重複填寫。
 - 表單包含 `website` honeypot；機器人填寫時 API 直接回傳成功但不寫入。
 - 公開 GET 不回傳既有報名者電話或名單。
 
-`registrationSettings.fields` 已支援 `text`、`textarea`、`checkbox` 資料結構，但目前後台沒有圖形化欄位編輯器。
+`registrationSettings.fields` 仍支援 `text`、`textarea`、`checkbox` 擴充欄位。舊版 `registrations` table 與 API 暫時保留以讀取歷史資料，但新版 POST 不再新增 pending row，也不需要 D1 migration。
 
 ## 17. D1 Schema
 
@@ -787,12 +782,14 @@ WHERE id = ? AND revision = ?
 - 驗證賽事 ID、名稱、名單、人數與狀態。
 - 還原 API 會刪除並重建 `tournaments` table 內容。
 - JSON 不包含 `registrations` table。
+- tournament JSON 會包含 `participantDetails`，因此備份可能含電話等個資。
 - 現行還原程式不會刪除 registrations rows；不同 ID 的舊報名資料可能成為孤立資料，部署維護時需留意。
 
 ### CSV
 
 - 賽事總覽：一列一場賽事。
-- 對戰明細：一列一場 match。
+- 參賽者與飲品：一列一位正式參賽者，包含電話、飲品、報到與狀態。
+- 對戰明細：一列一場 match，包含兩邊飲品。
 - 使用 UTF-8 BOM，方便 Excel 開啟中文。
 - 對 CSV 儲存格做雙引號 escaping。
 

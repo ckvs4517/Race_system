@@ -9,6 +9,7 @@ import {
   setDraftPlayerCheckedIn,
   startTournament,
   updateRegistrationSettings,
+  updateDraftParticipant,
 } from '../src/domain/tournament.js';
 import { scheduleView } from '../src/views/schedule.js';
 
@@ -26,22 +27,30 @@ assert.match(view, /data-remove-player-select="甲"/);
 assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯示單列移除按鈕');
 assert.match(view, /data-roster-search/);
 assert.match(view, /data-roster-filter="unchecked"/);
-assert.match(view, /建立公開報名連結/);
+assert.match(view, /建立私密填寫連結/);
+assert.match(view, /飲品統計/);
+assert.match(view, /data-edit-player="甲"/);
 assert.match(view, /data-action="prepare-tournament-schedule" disabled/);
 assert.match(view, /完成報到後再產生賽程/);
 assert.doesNotMatch(view, /data-action="randomize-schedule"/);
 
 const registrationOpen = updateRegistrationSettings(tournament, { enabled: true });
 view = scheduleView([registrationOpen], registrationOpen.id, true);
-assert.match(view, /公開報名中/);
+assert.match(view, /參賽資料填寫連結已啟用/);
 assert.match(view, /data-share-registration/);
 assert.match(view, /data-manage-registration/);
 
-tournament = addDraftPlayer(tournament, '現場選手');
+tournament = addDraftPlayer(tournament, '現場選手', {
+  phone: '0912345678',
+  drink: { category: 'caffeine-free', optionId: 'juice' },
+});
 assert.equal(tournament.players.length, 5);
 assert.equal(tournament.participantStates['現場選手'].checkedIn, false);
-assert.throws(() => addDraftPlayer(tournament, '現場選手'), /不可重複/);
-tournament = removeDraftPlayer(tournament, '現場選手');
+assert.equal(tournament.participantDetails['現場選手'].drink.displayName, '果汁');
+tournament = updateDraftParticipant(tournament, '現場選手', '現場選手（已確認）', { phone: '0987654321' });
+assert.equal(tournament.participantDetails['現場選手（已確認）'].drink.displayName, '果汁', '編輯聯絡資料時保留原飲品');
+assert.throws(() => addDraftPlayer(tournament, '現場選手（已確認）'), /不可重複/);
+tournament = removeDraftPlayer(tournament, '現場選手（已確認）');
 assert.equal(tournament.players.length, 4);
 assert.equal(tournament.participantStates['現場選手'], undefined);
 

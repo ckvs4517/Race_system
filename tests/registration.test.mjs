@@ -1,7 +1,8 @@
-/** 公開報名 API：公開表單、重複防護、個資邊界與後台核准加入名單。 */
+/** 私密參賽資料 API：直入正式名單、重複防護、個資邊界與網址撤銷。 */
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
 import { createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';
+import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { registrationAdminView } from '../src/views/registration-admin.js';
 
 globalThis.location = new URL('https://example.com/');
@@ -90,10 +91,14 @@ const tournament = {
   id: 901,
   name: '公開報名測試',
   format: 'swiss',
+  bracketVersion: 2,
+  swissVersion: 2,
   status: '準備中',
   players: [],
   rounds: [],
   participantStates: {},
+  participantDetails: {},
+  drinkSettings: createDefaultDrinkSettings(),
   registrationSettings: {
     enabled: true,
     token: 'public-registration-token-901',
@@ -115,11 +120,11 @@ assert.equal('phone' in publicData, false, '公開報名資訊不包含報名者
 const submitted = await request(publicPath, {
   method: 'POST',
   headers: jsonHeaders(),
-  body: JSON.stringify({ displayName: '選手甲', phone: '0912-345-678', notes: '第一次參賽', answers: { teamName: '烈焰隊' } }),
+  body: JSON.stringify({ displayName: '選手甲', phone: '0912-345-678', notes: '第一次參賽', answers: { teamName: '烈焰隊' }, drink: { category: 'coffee', flavorId: 'coffee-coconut', preparationId: 'cola' } }),
 });
 const submittedData = await submitted.json();
 assert.equal(submitted.status, 201);
-assert.equal(submittedData.registration.status, 'pending');
+assert.equal(submittedData.participant.displayName, '選手甲');
 
 const duplicate = await request(publicPath, {
   method: 'POST',
@@ -128,26 +133,24 @@ const duplicate = await request(publicPath, {
 });
 assert.equal(duplicate.status, 409, '相同選手與電話不可重複報名');
 
-const list = await request('/api/tournaments/901/registrations', { headers: adminHeaders });
-const registrations = (await list.json()).registrations;
-assert.equal(registrations.length, 1);
-assert.equal(registrations[0].phone, '0912-345-678', '個資只在後台名單提供');
-assert.equal(registrations[0].answers.teamName, '烈焰隊', '自訂欄位答案保留擴充性');
-
-const approved = await request(`/api/registrations/${registrations[0].id}`, {
-  method: 'PUT',
-  headers: adminHeaders,
-  body: JSON.stringify({ status: 'approved', expectedRevision: 1 }),
+const invalidDrink = await request(publicPath, {
+  method: 'POST',
+  headers: jsonHeaders(),
+  body: JSON.stringify({ displayName: '選手乙', phone: '0988-000-000', answers: { teamName: '測試隊' }, drink: { category: 'coffee', flavorId: 'coffee-blueberry', preparationId: 'cola' } }),
 });
-const approvedData = await approved.json();
-assert.equal(approved.status, 200);
-assert.deepEqual(approvedData.tournament.players, ['選手甲']);
-assert.equal(approvedData.tournament.participantStates['選手甲'].checkedIn, false);
-assert.equal(approvedData.registration.status, 'approved');
+assert.equal(invalidDrink.status, 400, '後端拒絕菜單中不存在的飲品組合');
 
-const scheduleEntryView = registrationAdminView([approvedData.tournament], approvedData.tournament.id, registrations, true);
+const latestResponse = await request('/api/tournaments/901');
+const latest = (await latestResponse.json()).tournament;
+assert.deepEqual(latest.players, ['選手甲'], '送出後直接加入正式名單');
+assert.equal(latest.participantStates['選手甲'].checkedIn, false);
+assert.equal(latest.participantDetails['選手甲'].phone, '0912-345-678', '個資只存在後台賽事資料');
+assert.equal(latest.participantDetails['選手甲'].answers.teamName, '烈焰隊', '自訂欄位答案保留擴充性');
+assert.equal(latest.participantDetails['選手甲'].drink.displayName, '椰子咖啡／加可樂', '後端驗證並保存飲品顯示名稱');
+
+const scheduleEntryView = registrationAdminView([latest], latest.id, [], true);
 assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');
-const navigationEntryView = registrationAdminView([approvedData.tournament], approvedData.tournament.id, registrations, false);
+const navigationEntryView = registrationAdminView([latest], latest.id, [], false);
 assert.match(navigationEntryView, /← 選擇其他賽事/, '從上方報名管理進入時提供選擇其他賽事按鈕');
 
 const manuallyClosed = await request('/api/tournaments/901/actions', {

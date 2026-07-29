@@ -3,6 +3,7 @@
  * `/api/*` 由此處理，其餘要求交給靜態資源服務；D1 revision 提供樂觀鎖保護。
  */
 import {
+  addConfirmedParticipant,
   addDraftPlayer,
   confirmTournamentSchedule,
   drawRandomSeeds,
@@ -18,6 +19,7 @@ import {
   startSwissQualifier,
   startTournament,
   updateOpeningPairings,
+  updateDraftParticipant,
   updateRegistrationSettings,
   withdrawPlayer,
 } from '../src/domain/tournament.js';
@@ -35,29 +37,40 @@ export default {
         const tournament = await readTournament(env.DB, publicRegistration.tournamentId);
         const accessError = validatePublicRegistrationAccess(tournament, publicRegistration.token);
         if (accessError) return json({ error: accessError }, accessError === '找不到這場報名活動。' ? 404 : 400);
-        const countRow = await env.DB.prepare("SELECT COUNT(*) AS count FROM registrations WHERE tournament_id = ? AND status IN ('pending', 'waitlist')")
-          .bind(publicRegistration.tournamentId).first();
         return json({
           tournament: publicRegistrationSummary(tournament),
-          registrationCount: tournament.players.length + (Number(countRow?.count) || 0),
+          registrationCount: tournament.players.length,
         });
       }
 
       if (publicRegistration && request.method === 'POST') {
-        const tournament = await readTournament(env.DB, publicRegistration.tournamentId);
-        const accessError = validatePublicRegistrationAccess(tournament, publicRegistration.token);
-        if (accessError) return json({ error: accessError }, accessError === '找不到這場報名活動。' ? 404 : 400);
         const payload = await request.json();
         if (payload.website) return json({ ok: true });
-        const registration = validateRegistration(payload, tournament);
-        const countRow = await env.DB.prepare("SELECT COUNT(*) AS count FROM registrations WHERE tournament_id = ? AND status IN ('pending', 'waitlist')")
-          .bind(publicRegistration.tournamentId).first();
-        if (tournament.players.length + (Number(countRow?.count) || 0) >= tournament.registrationSettings.capacity) return json({ error: '這場賽事的報名名額已滿。' }, 409);
-        await env.DB.prepare(`INSERT INTO registrations
-          (id, tournament_id, display_name, phone, notes, answers, dedupe_key, status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-          .bind(registration.id, publicRegistration.tournamentId, registration.displayName, registration.phone, registration.notes, JSON.stringify(registration.answers), registration.dedupeKey).run();
-        return json({ registration: { ...registration, status: 'pending' } }, 201);
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const tournament = await readTournament(env.DB, publicRegistration.tournamentId);
+          const accessError = validatePublicRegistrationAccess(tournament, publicRegistration.token);
+          if (accessError) return json({ error: accessError }, accessError === '找不到這場報名活動。' ? 404 : 400);
+          const registration = validateRegistration(payload, tournament);
+          let updated;
+          try {
+            updated = addConfirmedParticipant(withoutRevision(tournament), registration);
+          } catch (error) {
+            const message = error.message || '參賽資料無法送出。';
+            return json({ error: message }, /已經|名額已滿/.test(message) ? 409 : 400);
+          }
+          const nextTournament = withRevision(validateTournament(withoutRevision(updated)), tournament.revision + 1);
+          const result = await env.DB.prepare('UPDATE tournaments SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND revision = ?')
+            .bind(JSON.stringify(withoutRevision(nextTournament)), nextTournament.revision, publicRegistration.tournamentId, tournament.revision).run();
+          if (changedRows(result)) {
+            return json({
+              participant: {
+                displayName: registration.displayName,
+                drink: nextTournament.participantDetails?.[registration.displayName]?.drink || null,
+              },
+            }, 201);
+          }
+        }
+        return json({ error: '名單剛被更新，請再送出一次。' }, 409);
       }
 
       const adminRegistrationTournamentId = registrationListTournamentId(url.pathname);
@@ -255,6 +268,10 @@ function validateTournament(value) {
     if (typeof settings.deadline !== 'string' || settings.deadline.length > 30) throw new Error('Invalid registration deadline');
     if (!Array.isArray(settings.fields) || settings.fields.length > 20) throw new Error('Invalid registration fields');
   }
+  if (value.drinkSettings != null) validateDrinkSettings(value.drinkSettings);
+  if (value.participantDetails != null && (!value.participantDetails || typeof value.participantDetails !== 'object' || Array.isArray(value.participantDetails))) {
+    throw new Error('Invalid participant details');
+  }
   return value;
 }
 
@@ -271,13 +288,20 @@ function validateRegistration(payload, tournament) {
     answers[field.id] = value;
   }
   return {
-    id: crypto.randomUUID(),
     displayName,
     phone,
     notes,
     answers,
-    dedupeKey: `${displayName.toLocaleLowerCase('zh-Hant')}|${phone.replace(/\s+/g, '')}`,
+    drink: payload.drink,
   };
+}
+
+function validateDrinkSettings(settings) {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid drink settings');
+  if (typeof settings.enabled !== 'boolean') throw new Error('Invalid drink settings');
+  if (!Array.isArray(settings.coffeeFlavors) || settings.coffeeFlavors.length > 20) throw new Error('Invalid drink settings');
+  if (!Array.isArray(settings.caffeineFreeOptions) || settings.caffeineFreeOptions.length > 30) throw new Error('Invalid drink settings');
+  if (String(settings.notice || '').length > 500 || String(settings.changeNotice || '').length > 500) throw new Error('Invalid drink settings');
 }
 
 function cleanRegistrationText(value, maximumLength, missingMessage) {
@@ -309,6 +333,7 @@ function publicRegistrationSummary(tournament) {
     capacity: tournament.registrationSettings.capacity,
     deadline: tournament.registrationSettings.deadline,
     fields: tournament.registrationSettings.fields || [],
+    drinkSettings: tournament.drinkSettings || { enabled: false, coffeeFlavors: [], caffeineFreeOptions: [] },
   };
 }
 
@@ -356,7 +381,9 @@ function applyTournamentAction(tournament, type, payload) {
     case 'set_check_in':
       return setDraftPlayerCheckedIn(tournament, String(payload.player || ''), Boolean(payload.checkedIn));
     case 'add_player':
-      return addDraftPlayer(tournament, String(payload.player || ''));
+      return addDraftPlayer(tournament, String(payload.player || ''), payload.details || {});
+    case 'update_participant':
+      return updateDraftParticipant(tournament, String(payload.player || ''), String(payload.nextName || ''), payload.details || {});
     case 'remove_player':
       return removeDraftPlayer(tournament, String(payload.player || ''));
     case 'remove_players': {

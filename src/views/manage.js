@@ -2,6 +2,7 @@
 import { pageHeader } from '../ui/shell.js';
 import { icons } from '../ui/icons.js';
 import { createTournament, updateDraftTournament } from '../domain/tournament.js';
+import { createDefaultDrinkSettings, normalizeDrinkSettings } from '../domain/drinks.js';
 import { listTournamentFormats } from '../formats/registry.js';
 
 export function manageView(tournament = null) {
@@ -15,6 +16,7 @@ export function manageView(tournament = null) {
   const eventInfo = tournament?.eventInfo || {};
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
+  const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
 
   return `<section class="section-wrap page-section">
     ${pageHeader(isEditing ? 'EDIT TOURNAMENT' : 'TOURNAMENT SETUP', title, description, backButton)}
@@ -41,8 +43,10 @@ export function manageView(tournament = null) {
           <label class="field"><span>原始貼文連結</span><input name="postUrl" type="url" maxlength="500" value="${escapeAttribute(eventInfo.postUrl || '')}" placeholder="https://www.instagram.com/..."></label>
         </div>
         <label class="field"><span>活動備註</span><textarea class="event-notes" name="notes" maxlength="2000" placeholder="可貼上禁用清單、報名費、參賽規則、獎品及其他注意事項。">${escapeText(eventInfo.notes || '')}</textarea><small>保留換行，最多 2,000 字。</small></label>
-        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>可先留空開放線上報名，或一行手動輸入一位，最多 32 位</small></div></div>
+        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>可先留空再建立私密填寫連結，或一行手動輸入一位，最多 32 位</small></div></div>
         <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼">${escapeText(playerText)}</textarea></label>
+        <div class="step-heading"><span>04</span><div><b>飲品菜單</b><small>每場賽事可獨立啟用、改名、停用與排序。</small></div></div>
+        ${drinkSettingsEditor(drinkSettings)}
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立賽事與報到名單'} ${icons.arrow}</button></div>
       </div>
       <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>兩種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；主辦方可直接確認四強，或先建立資格積分決定賽，再進行前四循環決賽。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>支援 2–32 位正式名單</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
@@ -57,6 +61,21 @@ export function bindManage(root, options) {
   const getPlayers = () => players.value.split('\n').map((value) => value.trim()).filter(Boolean);
   players.addEventListener('input', () => { count.textContent = `目前 ${getPlayers().length} 位參賽者`; });
   root.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => options.onCancel?.());
+  root.querySelector('[data-drink-enabled]')?.addEventListener('change', (event) => {
+    root.querySelector('[data-drink-menu]').hidden = !event.currentTarget.checked;
+  });
+  root.querySelector('[data-drink-menu]')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-menu-action]');
+    if (!button) return;
+    const row = button.closest('[data-menu-row]');
+    const list = row?.parentElement;
+    if (button.dataset.menuAction === 'remove' && row) row.remove();
+    if (button.dataset.menuAction === 'up' && row?.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+    if (button.dataset.menuAction === 'down' && row?.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+    if (button.dataset.menuAction === 'add-flavor') root.querySelector('[data-flavor-list]').insertAdjacentHTML('beforeend', flavorRow({ id: uniqueId('coffee'), name: '', active: true, preparations: [] }));
+    if (button.dataset.menuAction === 'add-caffeine') root.querySelector('[data-caffeine-list]').insertAdjacentHTML('beforeend', optionRow({ id: uniqueId('drink'), name: '', active: true }));
+    if (button.dataset.menuAction === 'add-preparation') row.querySelector('[data-preparation-list]').insertAdjacentHTML('beforeend', preparationRow({ id: uniqueId('style'), name: '', active: true }));
+  });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const playerList = getPlayers();
@@ -73,14 +92,79 @@ export function bindManage(root, options) {
         postUrl: form.elements.postUrl.value,
         notes: form.elements.notes.value,
       };
+      const drinkSettings = readDrinkSettings(form);
       const result = options.tournament
-        ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo)
-        : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo);
+        ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings)
+        : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings);
       options.onSubmit(result);
     } catch (error) {
       alert(error.message);
     }
   });
+}
+
+function drinkSettingsEditor(settings) {
+  return `<div class="drink-menu-editor">
+    <label class="registration-checkbox"><input type="checkbox" data-drink-enabled ${settings.enabled ? 'checked' : ''}><span>此賽事提供飲品選擇</span></label>
+    <div data-drink-menu ${settings.enabled ? '' : 'hidden'}>
+      <label class="field"><span>填寫頁提示</span><textarea name="drinkNotice" maxlength="500">${escapeText(settings.notice)}</textarea></label>
+      <label class="field"><span>修改說明</span><textarea name="drinkChangeNotice" maxlength="500">${escapeText(settings.changeNotice)}</textarea></label>
+      <div class="drink-menu-heading"><b>咖啡口味與作法</b><button type="button" class="button button-secondary" data-menu-action="add-flavor">＋ 新增口味</button></div>
+      <div data-flavor-list>${settings.coffeeFlavors.map(flavorRow).join('')}</div>
+      <div class="drink-menu-heading"><b>無咖啡因品項</b><button type="button" class="button button-secondary" data-menu-action="add-caffeine">＋ 新增品項</button></div>
+      <div data-caffeine-list>${settings.caffeineFreeOptions.map(optionRow).join('')}</div>
+    </div>
+  </div>`;
+}
+
+function flavorRow(item) {
+  return `<div class="drink-menu-row drink-flavor-row" data-menu-row data-id="${escapeAttribute(item.id)}">
+    <div class="drink-menu-row-main"><input maxlength="60" value="${escapeAttribute(item.name)}" placeholder="口味名稱"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div>
+    <div class="drink-preparation-list" data-preparation-list>${(item.preparations || []).map(preparationRow).join('')}</div>
+    <button type="button" class="button button-secondary" data-menu-action="add-preparation">＋ 新增作法</button>
+  </div>`;
+}
+
+function preparationRow(item) {
+  return `<div class="drink-menu-row drink-preparation-row" data-menu-row data-id="${escapeAttribute(item.id)}"><div class="drink-menu-row-main"><input maxlength="60" value="${escapeAttribute(item.name)}" placeholder="作法名稱"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div></div>`;
+}
+
+function optionRow(item) {
+  return `<div class="drink-menu-row drink-caffeine-row" data-menu-row data-id="${escapeAttribute(item.id)}"><div class="drink-menu-row-main"><input maxlength="80" value="${escapeAttribute(item.name)}" placeholder="品項名稱"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div></div>`;
+}
+
+function rowButtons() {
+  return '<button type="button" title="上移" data-menu-action="up">↑</button><button type="button" title="下移" data-menu-action="down">↓</button><button type="button" title="移除" data-menu-action="remove">移除</button>';
+}
+
+function readDrinkSettings(form) {
+  return {
+    enabled: form.querySelector('[data-drink-enabled]').checked,
+    notice: form.elements.drinkNotice?.value || '',
+    changeNotice: form.elements.drinkChangeNotice?.value || '',
+    coffeeFlavors: [...form.querySelectorAll('[data-flavor-list] > .drink-flavor-row')].map((row, index) => ({
+      id: row.dataset.id,
+      name: row.querySelector(':scope > .drink-menu-row-main > input').value,
+      active: row.querySelector(':scope > .drink-menu-row-main [data-active]').checked,
+      order: index + 1,
+      preparations: [...row.querySelectorAll('[data-preparation-list] > .drink-preparation-row')].map((preparation, preparationIndex) => ({
+        id: preparation.dataset.id,
+        name: preparation.querySelector('.drink-menu-row-main > input').value,
+        active: preparation.querySelector('[data-active]').checked,
+        order: preparationIndex + 1,
+      })),
+    })),
+    caffeineFreeOptions: [...form.querySelectorAll('[data-caffeine-list] > .drink-caffeine-row')].map((row, index) => ({
+      id: row.dataset.id,
+      name: row.querySelector('.drink-menu-row-main > input').value,
+      active: row.querySelector('[data-active]').checked,
+      order: index + 1,
+    })),
+  };
+}
+
+function uniqueId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function escapeAttribute(value) {

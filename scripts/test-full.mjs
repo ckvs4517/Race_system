@@ -1,5 +1,7 @@
 /** 完整本機驗證：所有 Node 測試、選配瀏覽器流程、Sites 建置。 */
 import { join } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import {
   discoverNodeTests,
   findChrome,
@@ -35,6 +37,7 @@ if (browserMode === 'skip') {
     skipped += 2;
   } else {
     const port = 18765;
+    const chromeProfile = await mkdtemp(join(tmpdir(), 'spin-league-chrome-'));
     const server = spawnBackground(process.execPath, ['tests/local-test-server.mjs'], {
       env: { TEST_PORT: String(port) },
     });
@@ -48,15 +51,17 @@ if (browserMode === 'skip') {
           '--headless=new',
           '--no-sandbox',
           '--disable-gpu',
+          `--user-data-dir=${chromeProfile}`,
           '--virtual-time-budget=20000',
           '--dump-dom',
           `http://127.0.0.1:${port}/tests/${page}`,
         ], { timeoutMs: 35_000 });
-        if (!result.stdout.includes('PASS ')) throw new Error(`${label} did not contain a PASS marker.`);
+        if (!result.stdout.includes('PASS ')) throw new Error(`${label} did not contain a PASS marker.\n${result.stdout.slice(-2000)}`);
         passed += 1;
       }
     } finally {
       server.kill('SIGTERM');
+      await rm(chromeProfile, { recursive: true, force: true });
       if (serverError.trim()) console.error(serverError.trimEnd());
     }
   }

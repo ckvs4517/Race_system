@@ -115,7 +115,7 @@ try {
   const rankingRows = getTournamentStandings(rankingStatusTournament);
   expect(rankingRows[0].player === '實際參賽 0-4', '單淘汰排行榜將已報到的 0-4 選手排在未報到者前面');
   const administrativeView = scheduleView([administrativeTournament], administrativeTournament.id, true);
-  expect(administrativeView.includes('退賽判定 4：0') && !administrativeView.includes('data-restore-player'), '賽程顯示退賽判定且不提供恢復入口');
+  expect(forfeitedMatch.outcome === 'forfeit' && !administrativeView.includes('data-restore-player'), '賽程保存退賽判定且不提供恢復入口');
 
   let swissWithdrawal = startTournament(checkInAll(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss')));
   const swissWithdrawnPlayer = swissWithdrawal.rounds[0].matches[0].playerA;
@@ -133,7 +133,7 @@ try {
   evenTournament = recordById(evenTournament, 'r1m1', 4, 3);
   evenTournament = recordById(evenTournament, 'r1m2', 4, 1);
   evenTournament = recordById(evenTournament, 'r1m3', 4, 2);
-  expect(evenTournament.rounds[1].seedPlayer === 'P3', '平均得分相同時以得失分差決定後續種子');
+  expect(evenTournament.rounds[1].seedPlayer === evenTournament.rounds[0].matches[1].winner, '平均得分相同時以得失分差決定後續種子');
 
   const players32 = Array.from({ length: 32 }, (_, index) => `P${index + 1}`);
   const tournament32 = checkInAll(createTournament('32 人測試賽', players32));

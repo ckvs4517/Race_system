@@ -28,11 +28,11 @@ export function dataManagementView(tournaments) {
       <div class="data-overview-scroll"><div class="data-overview-row data-overview-header"><span>賽事名稱</span><span>參賽者</span><span>對戰數</span><span>已完成</span><span>狀態</span><span>冠軍</span></div>${overviewRows || '<div class="data-overview-empty">目前沒有賽事資料</div>'}</div>
     </section>
     <div class="data-grid">
-      <article class="data-card"><span class="data-card-label">TOURNAMENT BACKUP</span><h2>賽事 JSON 備份</h2><p>包含賽事、正式名單、種子、賽程、比分、統計與冠軍；基於個資保護，不包含獨立報名表中的電話與待審核資料。</p><button class="button button-primary" data-action="export-json" ${disabled}>下載賽事備份</button></article>
-      <article class="data-card"><span class="data-card-label">EXCEL REPORT</span><h2>CSV 表格</h2><p>依用途分成兩份，避免把重複出現的賽事名稱誤認為多場賽事。</p><div class="data-export-actions"><button class="button button-primary" data-action="export-overview-csv" ${disabled}>下載賽事總覽 CSV</button><small>一列代表一場賽事</small><button class="button button-secondary" data-action="export-matches-csv" ${disabled}>下載對戰明細 CSV</button><small>一列代表一場選手對戰；同一賽事名稱會重複</small></div></article>
+      <article class="data-card"><span class="data-card-label">TOURNAMENT BACKUP</span><h2>賽事 JSON 備份</h2><p>包含正式名單、聯絡資料、飲品、賽程、比分、統計與冠軍。檔案含個資，請妥善保管。</p><button class="button button-primary" data-action="export-json" ${disabled}>下載賽事備份</button></article>
+      <article class="data-card"><span class="data-card-label">EXCEL REPORT</span><h2>CSV 表格</h2><p>依用途分開下載；飲品採購建議使用參賽者名單 CSV。</p><div class="data-export-actions"><button class="button button-primary" data-action="export-overview-csv" ${disabled}>下載賽事總覽 CSV</button><small>一列代表一場賽事</small><button class="button button-secondary" data-action="export-participants-csv" ${disabled}>下載參賽者與飲品 CSV</button><small>一列代表一位參賽者，包含電話與飲品</small><button class="button button-secondary" data-action="export-matches-csv" ${disabled}>下載對戰明細 CSV</button><small>一列代表一場選手對戰</small></div></article>
       <article class="data-card data-card-warning"><span class="data-card-label">RESTORE</span><h2>從備份還原</h2><p>選擇先前匯出的 Spin League JSON。驗證成功並再次確認後，將取代目前的全部雲端賽事。</p><input type="file" accept="application/json,.json" data-backup-file hidden><button class="button button-secondary" data-action="import-json">選擇備份檔案</button></article>
     </div>
-    <div class="data-notice"><b>安全提醒</b><span>建議每次大型賽事結束後下載一份賽事 JSON 備份。匯入前也先匯出現況；報名電話與待審核資料不包含在此檔案中。</span></div>
+    <div class="data-notice"><b>安全提醒</b><span>JSON 備份與參賽者 CSV 包含聯絡電話等個資，請限制存取並妥善保管；匯入前也請先匯出現況。</span></div>
   </section>`;
 }
 
@@ -45,6 +45,9 @@ export function bindDataManagement(root, tournaments, { onImport }) {
   });
   root.querySelector('[data-action="export-matches-csv"]')?.addEventListener('click', () => {
     download(`spin-league-matches-${dateStamp()}.csv`, `\ufeff${createCsv(tournaments)}`, 'text/csv;charset=utf-8');
+  });
+  root.querySelector('[data-action="export-participants-csv"]')?.addEventListener('click', () => {
+    download(`spin-league-participants-${dateStamp()}.csv`, `\ufeff${createParticipantsCsv(tournaments)}`, 'text/csv;charset=utf-8');
   });
 
   const fileInput = root.querySelector('[data-backup-file]');
@@ -82,16 +85,26 @@ export function parseBackup(text) {
 }
 
 export function createCsv(tournaments) {
-  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '輪次', '比賽編號', '戰鬥台', '選手 A', '選手 B', '選手 A 比分', '選手 B 比分', '勝者', '比賽狀態']];
+  const rows = [['賽事名稱', '賽制', '賽事狀態', '建立日期', '輪次', '比賽編號', '戰鬥台', '選手 A', '選手 A 飲品', '選手 B', '選手 B 飲品', '選手 A 比分', '選手 B 比分', '勝者', '比賽狀態']];
   tournaments.forEach((tournament) => {
     const rounds = tournament.rounds || [];
     const formatName = getTournamentFormat(tournament.format).name;
-    if (!rounds.length) rows.push([tournament.name, formatName, tournament.status, tournament.created, '', '', '', '', '', '', '', tournament.champion || '', '尚無賽程']);
+    if (!rounds.length) rows.push([tournament.name, formatName, tournament.status, tournament.created, '', '', '', '', '', '', '', '', '', tournament.champion || '', '尚無賽程']);
     rounds.forEach((round, roundIndex) => (round.matches || []).forEach((match, matchIndex) => rows.push([
       tournament.name, formatName, tournament.status, tournament.created, round.name || `第 ${roundIndex + 1} 輪`, matchIndex + 1, `戰鬥台 ${(matchIndex % (tournament.arenaCount || 1)) + 1}`,
-      match.playerA, match.playerB, match.scoreA ?? '', match.scoreB ?? '', match.winner ?? '', match.status,
+      match.playerA, tournament.participantDetails?.[match.playerA]?.drink?.displayName || '', match.playerB, tournament.participantDetails?.[match.playerB]?.drink?.displayName || '', match.scoreA ?? '', match.scoreB ?? '', match.winner ?? '', match.status,
     ])));
   });
+  return rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+}
+
+export function createParticipantsCsv(tournaments) {
+  const rows = [['賽事名稱', '選手名稱', '聯絡電話', '飲品', '報到狀態', '參賽狀態', '備註']];
+  tournaments.forEach((tournament) => (tournament.players || []).forEach((player) => {
+    const details = tournament.participantDetails?.[player] || {};
+    const state = tournament.participantStates?.[player] || {};
+    rows.push([tournament.name, player, details.phone || '', details.drink?.displayName || '', state.checkedIn ? '已報到' : '未報到', state.status || 'active', details.notes || '']);
+  }));
   return rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
 

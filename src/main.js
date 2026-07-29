@@ -17,6 +17,7 @@ import { bindControl, controlView } from './views/control.js';
 import { bindDataManagement, dataManagementView } from './views/data-management.js';
 import { bindPublicRegistration, registrationView } from './views/registration.js';
 import { bindRegistrationAdmin, registrationAdminView } from './views/registration-admin.js';
+import { bindDrinkSelectionFields, drinkSelectionFields, readDrinkSelection } from './views/drink-fields.js';
 
 const app = document.querySelector('#app');
 let publicRegistrationState = { key: '', loading: false, data: null, error: '', success: false };
@@ -193,8 +194,8 @@ function bindPublicRegistrationEvents() {
   const params = registrationRouteParams();
   if (!params) return;
   bindPublicRegistration(app, async (registration) => {
-    await submitPublicRegistration(params.tournamentId, params.token, registration);
-    publicRegistrationState = { ...publicRegistrationState, loading: false, success: true, error: '' };
+    const result = await submitPublicRegistration(params.tournamentId, params.token, registration);
+    publicRegistrationState = { ...publicRegistrationState, loading: false, success: true, error: '', result };
     render();
   });
 }
@@ -384,6 +385,7 @@ function bindScheduleEvents(state) {
     }
   });
   app.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => button.closest('dialog')?.close()));
+  bindDrinkSelectionFields(app);
   app.querySelector('[data-open-registration-setup]')?.addEventListener('click', () => app.querySelector('[data-registration-setup-dialog]')?.showModal());
   app.querySelector('[data-open-add-player]')?.addEventListener('click', () => {
     const dialog = app.querySelector('[data-add-player-dialog]');
@@ -405,11 +407,11 @@ function bindScheduleEvents(state) {
         },
       });
       await copyText(registrationUrl(tournament.id, tournament.registrationSettings.token));
-      showToast('公開報名已開放，連結也已複製。');
+      showToast('私密填寫連結已啟用，連結也已複製。');
     } catch (error) {
       showToast(error.message, 'error');
       submit.disabled = false;
-      submit.textContent = '開放報名並複製連結';
+      submit.textContent = '啟用並複製連結';
     }
   });
   app.querySelector('[data-share-registration]')?.addEventListener('click', async () => {
@@ -485,11 +487,50 @@ function bindScheduleEvents(state) {
     const name = input.value.trim();
     if (!name) return input.focus();
     try {
-      await executeTournamentAction(state.selectedTournamentId, 'add_player', { player: name });
+      const drink = readDrinkSelection(event.currentTarget.querySelector('[data-drink-fields]'));
+      await executeTournamentAction(state.selectedTournamentId, 'add_player', {
+        player: name,
+        details: { phone: event.currentTarget.elements.phone.value, drink },
+      });
       showToast(`已將 ${name} 加入參賽名單。`);
     } catch (error) {
       showToast(error.message, 'error');
     }
+  });
+  app.querySelectorAll('[data-edit-player]').forEach((button) => button.addEventListener('click', () => {
+    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const player = button.dataset.editPlayer;
+    const details = tournament.participantDetails?.[player] || {};
+    const dialog = app.querySelector('[data-edit-player-dialog]');
+    const form = dialog.querySelector('[data-edit-draft-player-form]');
+    form.elements.originalName.value = player;
+    form.elements.playerName.value = player;
+    form.elements.phone.value = details.phone || '';
+    const slot = form.querySelector('[data-edit-drink-slot]');
+    slot.innerHTML = drinkSelectionFields(tournament.drinkSettings, details.drink, { required: false, prefix: 'editDrink' });
+    bindDrinkSelectionFields(slot);
+    dialog.showModal();
+  }));
+  app.querySelector('[data-edit-draft-player-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const details = { phone: form.elements.phone.value };
+    const drink = readDrinkSelection(form.querySelector('[data-drink-fields]'));
+    if (drink !== undefined) details.drink = drink;
+    try {
+      await executeTournamentAction(state.selectedTournamentId, 'update_participant', {
+        player: form.elements.originalName.value,
+        nextName: form.elements.playerName.value,
+        details,
+      });
+      showToast('參賽資料已更新。');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
+  app.querySelector('[data-copy-drink-summary]')?.addEventListener('click', async (event) => {
+    await copyText(event.currentTarget.dataset.copyDrinkSummary);
+    showToast('飲品統計已複製。');
   });
   applyRosterUi();
   app.querySelectorAll('[data-replay-round]').forEach((button) => button.addEventListener('click', () => {
