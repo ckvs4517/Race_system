@@ -11,6 +11,7 @@ const tests = [
   'tests/sync.test.mjs',
   'tests/action-sync.test.mjs',
   'tests/responsive-ui.test.mjs',
+  'tests/share-card.test.mjs',
 ];
 
 const started = Date.now();

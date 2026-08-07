@@ -4,5 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-site.mjs"
+  },
+  "dependencies": {
+    "html-to-image": "^1.11.13"
   }
 }

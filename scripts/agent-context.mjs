@@ -47,7 +47,7 @@ const areas = [
   {
     name: 'Backup / restore / export',
     terms: ['backup', '備份', '還原', 'json', 'csv', 'png', '資料修復'],
-    files: ['src/views/data-management.js', 'src/export/tournament-image.js', 'worker/index.js', 'scripts/validate-backup.mjs'],
+    files: ['src/views/data-management.js', 'src/export/share-card-png.js', 'worker/index.js', 'scripts/validate-backup.mjs'],
     tests: ['tests/data-management.test.mjs', 'node scripts/validate-backup.mjs <backup.json>'],
     rules: ['Never overwrite the source backup.', 'Full restore replaces the cloud tournament collection.', 'Preserve unrelated tournaments and completed history.'],
   },

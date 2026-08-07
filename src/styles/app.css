@@ -540,6 +540,51 @@ footer { font-size: 12px; }
   .guide-quick .button { width: 100%; }
 }
 
+/* 分享圖只使用一份 4:5 DOM 模板；文字以截斷與緊湊紀錄避免長名稱或大量對戰破版。 */
+.share-card-export-layer { position: fixed; top: 0; left: -12000px; width: 1080px; pointer-events: none; }
+.result-share-card { position: relative; box-sizing: border-box; width: 1080px; height: 1350px; overflow: hidden; padding: 62px 76px 48px; color: #fff; background: #080a0d; font-family: Arial, "Noto Sans TC", sans-serif; isolation: isolate; }
+.result-share-card * { box-sizing: border-box; }
+.result-share-card .share-bg, .result-share-card .share-silhouette { position: absolute; z-index: -1; object-fit: cover; pointer-events: none; }
+.result-share-card .share-bg.texture { inset: 0; width: 100%; height: 100%; opacity: .66; }
+.result-share-card .share-bg.lines { top: 0; right: 0; width: 100%; opacity: .75; }
+.result-share-card .share-silhouette { right: -34px; top: 170px; width: 520px; opacity: .34; }
+.result-share-card header { display: flex; min-height: 142px; flex-direction: column; align-items: flex-start; gap: 14px; border-bottom: 1px solid rgba(255,255,255,.2); }
+.result-share-card .share-logo { height: 38px; }
+.result-share-card .share-logo img { display: block; max-width: 230px; height: 38px; object-fit: contain; object-position: left center; }
+.result-share-card .share-logo span { display: none; color: #ff4848; font-size: 26px; font-weight: 800; letter-spacing: .15em; }
+.result-share-card .share-logo img[hidden] + span { display: block; }
+.result-share-card header p { max-width: 900px; margin: 0; overflow: hidden; font-size: 38px; font-weight: 800; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+.result-share-card header small { max-width: 900px; overflow: hidden; color: #b9bec8; font-size: 22px; text-overflow: ellipsis; white-space: nowrap; }
+.result-share-card .share-badge { position: absolute; top: 194px; right: 76px; width: 180px; height: 180px; object-fit: contain; }
+.result-share-card .share-rank { position: absolute; top: 255px; right: 139px; color: #090b0d; font-size: 52px; line-height: 1; }
+.result-share-card .share-rank.hidden { display: none; }
+.result-share-card .share-player { min-height: 188px; padding-top: 45px; }
+.result-share-card .share-player h1 { max-width: 700px; margin: 0 0 16px; overflow: hidden; font-size: 72px; line-height: 1.16; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+.result-share-card .share-player img { width: 168px; height: 44px; object-fit: contain; object-position: left center; vertical-align: middle; }
+.result-share-card .share-player p { display: inline-block; margin: 0 0 0 12px; color: #ff6262; font-size: 26px; font-weight: 800; vertical-align: middle; }
+.result-share-card .share-divider { display: block; width: 100%; height: 25px; margin: 8px 0 24px; object-fit: fill; }
+.result-share-card .share-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.result-share-card .share-stats > div { min-height: 138px; padding: 20px 16px; border: 1px solid rgba(255,255,255,.18); background: rgba(10,13,18,.74); }
+.result-share-card .share-stats img { display: block; width: 30px; height: 30px; margin-bottom: 12px; }
+.result-share-card .share-stats b, .result-share-card .share-stats small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-share-card .share-stats b { font-size: 25px; }
+.result-share-card .share-stats small { margin-top: 8px; color: #b7bdc7; font-size: 18px; }
+.result-share-card .share-history { min-height: 442px; margin-top: 28px; padding: 25px 28px; border: 1px solid rgba(255,255,255,.18); background: rgba(5,7,10,.76); }
+.result-share-card .share-history h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 17px; font-size: 27px; }
+.result-share-card .share-history h2 img { width: 31px; height: 31px; }
+.result-share-card .share-history h2 small { margin-left: auto; color: #b7bdc7; font-size: 18px; font-weight: 400; }
+.result-share-card .share-history ul { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin: 0; padding: 0; list-style: none; }
+.result-share-card .share-history li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 46px; border-bottom: 1px solid rgba(255,255,255,.13); font-size: 17px; }
+.result-share-card .share-history li img { width: 22px; height: 22px; }
+.result-share-card .share-history li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-share-card .share-history li b { font-size: 18px; white-space: nowrap; }
+.result-share-card .share-history.is-compact li { min-height: 38px; font-size: 15px; }
+.result-share-card .share-history.is-compact li b { font-size: 16px; }
+.result-share-card .share-history > p { margin: 16px 0 0; color: #abb2bd; font-size: 17px; }
+.result-share-card .share-card-empty { grid-column: 1 / -1; display: block; color: #abb2bd; }
+.result-share-card footer { position: absolute; right: 76px; bottom: 46px; left: 76px; display: flex; align-items: center; gap: 16px; color: #fff; font-size: 22px; }
+.result-share-card footer img { max-width: 180px; max-height: 38px; object-fit: contain; object-position: left center; }
+
 /* 公開報名與瑞士制四強決策 */
 .registration-page { max-width: 920px; }
 .registration-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0 0 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--line); }

@@ -16,6 +16,7 @@ await Promise.all([
   mkdir(serverDir, { recursive: true }),
   mkdir(clientDir, { recursive: true }),
   mkdir(drizzleDir, { recursive: true }),
+  mkdir(join(clientDir, 'node_modules', 'html-to-image', 'dist'), { recursive: true }),
 ]);
 
 const workerPath = join(projectRoot, 'worker', 'index.js');
@@ -32,6 +33,7 @@ await Promise.all([
   cp(join(projectRoot, 'src', 'formats'), join(serverDir, 'formats'), { recursive: true }),
   cp(join(projectRoot, 'index.html'), join(clientDir, 'index.html')),
   cp(join(projectRoot, 'src'), join(clientDir, 'src'), { recursive: true }),
+  cp(join(projectRoot, 'node_modules', 'html-to-image', 'dist', 'html-to-image.js'), join(clientDir, 'node_modules', 'html-to-image', 'dist', 'html-to-image.js')),
   cp(join(projectRoot, '.openai', 'hosting.json'), join(dist, '.openai', 'hosting.json')),
 ]);
 

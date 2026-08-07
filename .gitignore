@@ -1,4 +1,5 @@
 dist/
+node_modules/
 .dev-data/
 *.tar.gz
 serve.ps1

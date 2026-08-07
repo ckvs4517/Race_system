@@ -16,5 +16,8 @@ assert.match(css, /\.leaderboard-row\s*\{[^}]*min-width:\s*0/s, '手機排行榜
 assert.match(css, /\.check-in-row\[hidden\]\s*\{[^}]*display:\s*none\s*!important/s, '名單篩選結果會真正隱藏不符合的選手');
 assert.match(css, /\.mobile-sheet-card \.drink-choice input\[type="radio"\][\s\S]*?min-width:\s*20px/s, '新增選手對話框的飲品單選鈕不會被全寬輸入樣式拉伸');
 assert.match(css, /@media \(max-width: 620px\)[\s\S]*?\.drink-option-list[\s\S]*?grid-template-columns:\s*1fr/s, '手機飲品選項會單欄排列');
+assert.match(css, /\.result-share-card\s*\{[^}]*width:\s*1080px[^}]*height:\s*1350px/s, '分享圖固定為 1080 × 1350');
+assert.match(css, /\.result-share-card \.share-player h1\s*\{[^}]*text-overflow:\s*ellipsis/s, '長選手名稱在分享圖內會截斷');
+assert.match(css, /\.result-share-card \.share-history\.is-compact/, '大量對戰紀錄有緊湊排版規則');
 
 console.log('PASS responsive UI safeguards');

@@ -54,12 +54,12 @@ Cloudflare D1
 | 資料庫 | Cloudflare D1（SQLite 相容介面） |
 | 驗證 | 共用 PIN＋HMAC-SHA256 Bearer token |
 | 同步 | revision 樂觀鎖＋ETag 輪詢 |
-| 圖片匯出 | Browser Canvas API |
+| 圖片匯出 | HTML/CSS 共用模板＋`html-to-image` 前端 PNG 匯出 |
 | 建置 | Node.js 腳本＋PowerShell 入口 |
 | CI | GitHub Actions、Node.js 22、Headless Chrome |
 | 正式部署 | ChatGPT Sites artifact |
 
-專案沒有 `package.json`，目前測試與建置只使用 Node.js 內建 API，因此不需執行 `npm install`。
+專案僅新增 `html-to-image` 作為 DOM 匯出 PNG 的執行期依賴；首次安裝或更新依賴時執行 `npm install`。
 
 ## 4. 目錄結構
 
@@ -80,7 +80,7 @@ Cloudflare D1
 │  │  ├─ single-elimination.js     # 單淘汰策略
 │  │  └─ swiss.js                  # 四輪瑞士制＋資格加賽＋四強循環
 │  ├─ export/
-│  │  └─ tournament-image.js       # 完整賽程 PNG 產生器
+│  │  └─ share-card-png.js         # 個人戰績 PNG 匯出器
 │  ├─ ui/
 │  │  ├─ shell.js                  # 全站導覽、頁尾與同步狀態
 │  │  └─ icons.js                  # SVG 圖示
@@ -794,15 +794,16 @@ WHERE id = ? AND revision = ?
 - 使用 UTF-8 BOM，方便 Excel 開啟中文。
 - 對 CSV 儲存格做雙引號 escaping。
 
-### PNG
+### 個人戰績 PNG
 
-`src/export/tournament-image.js`：
+完賽後，排行榜展開列中的「下載戰績圖」會使用一份所有名次共用的 4:5 模板輸出 1080 × 1350 PNG：
 
-- 使用 Canvas，不依賴 DOM 截圖套件。
-- 固定 1600px 寬。
-- 直接讀取 `tournament.rounds`。
-- 即使公開賽程只顯示目前輪次，PNG 仍包含全部預賽、資格加賽與決賽。
-- 只在使用者按下載按鈕時產生。
+- `src/domain/share-card.js`：純函式整理跨所有正式輪次的勝敗、總得分、勝率與對戰紀錄；不可改用瑞士制的 `playerStats`，因為它只統計預賽。
+- `src/config/share-card-assets.js`：唯一的素材 manifest，集中徽章、tag、背景、icon、分隔線與 Logo 路徑及文字 fallback。
+- `src/views/result-share-card.js`：不計算資料的共用 HTML 模板；所有名次只替換資料與 presentation。
+- `src/export/share-card-png.js`：等待字型與圖片載入後以 `html-to-image` 匯出。素材皆使用同源檔案，避免 SVG foreignObject 匯出遭跨來源資源污染。
+
+對戰紀錄最多在卡片上顯示 10 場；其餘場數仍計入統計並以文字標示。長選手名稱和長賽事名稱以單行截斷保留版面，不另外建立特例模板。裝飾素材、店家欄位或 Logo 遺失時，模板會用 CSS 背景或文字 fallback 繼續輸出。
 
 ## 23. 本地預覽
 

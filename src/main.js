@@ -6,7 +6,7 @@ import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { rosterPlayerMatches } from './core/roster-filter.js';
 import { createTournamentRecord, deleteTournamentRecord, executeTournamentAction, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { duplicateTournament, normalizeTournament, requiredSeedCount } from './domain/tournament.js';
-import { downloadTournamentImage } from './export/tournament-image.js';
+import { exportShareCardAsPng } from './export/share-card-png.js';
 import { shell } from './ui/shell.js';
 import { homeView } from './views/home.js';
 import { guideView } from './views/guide.js';
@@ -370,20 +370,20 @@ function bindScheduleEvents(state) {
   app.querySelector('[data-action="copy-current-tournament"]')?.addEventListener('click', () => {
     copyTournament(state.selectedTournamentId);
   });
-  app.querySelector('[data-action="download-tournament-image"]')?.addEventListener('click', async (event) => {
+  app.querySelectorAll('[data-download-share-card]').forEach((button) => button.addEventListener('click', async (event) => {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const button = event.currentTarget;
     button.disabled = true;
     button.textContent = '正在產生圖片…';
     try {
-      await downloadTournamentImage(tournament);
+      await exportShareCardAsPng(tournament, button.dataset.downloadShareCard);
       button.textContent = '圖片已下載';
     } catch (error) {
       alert(error.message);
       button.disabled = false;
-      button.textContent = '下載完整賽程圖';
+      button.textContent = '下載戰績圖';
     }
-  });
+  }));
   app.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => button.closest('dialog')?.close()));
   bindDrinkSelectionFields(app);
   app.querySelector('[data-open-registration-setup]')?.addEventListener('click', () => app.querySelector('[data-registration-setup-dialog]')?.showModal());

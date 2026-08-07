@@ -34,7 +34,6 @@ function bracketView(tournament, canManage) {
   const registrationPanel = isDraft ? registrationQuickView(tournament, canManage) : '';
   const participantPanel = participantManagementView(tournament, canManage);
   const pairingPanel = pairingEditorView(tournament, canManage);
-  const imageButton = tournament.status === '已完成' ? '<button class="button button-primary" data-action="download-tournament-image">下載完整賽程圖</button>' : '';
   const primaryAction = isDraft
     ? `<button class="button button-primary" data-action="prepare-tournament-schedule" ${checkedInCount >= minimumPlayers ? '' : 'disabled'}>確認報到，進入排程</button>`
     : isScheduling && !rounds.length
@@ -45,7 +44,7 @@ function bracketView(tournament, canManage) {
   const moreActions = canManage
     ? `<details class="schedule-more"><summary class="button button-secondary">⋯ 更多</summary><div class="schedule-more-menu">${isDraft ? '<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>' : ''}${isScheduling && rounds.length ? '<button class="button button-secondary" data-action="randomize-schedule">重新隨機分組</button>' : ''}<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button></div></details>`
     : '';
-  const headerActions = `<div class="schedule-header-actions"><button class="button button-secondary" data-action="back-events">← 返回列表</button>${imageButton}${canManage ? primaryAction : ''}${moreActions}</div>`;
+  const headerActions = `<div class="schedule-header-actions"><button class="button button-secondary" data-action="back-events">← 返回列表</button>${canManage ? primaryAction : ''}${moreActions}</div>`;
   const guide = isDraft
     ? `<span><i class="draft-dot"></i>目前只確認報到名單，不會提前產生賽程</span><span>確認報到後才會進入隨機分組與手動調整階段</span>`
     : isScheduling
@@ -345,10 +344,11 @@ function roundColumnView(tournament, round, roundIndex, canManage, isDraft, seed
 function leaderboardView(tournament, rows, isSwiss) {
   const metric = '總得分';
   const description = isSwiss ? '依勝場、敗場、總得分依序排名' : '依冠軍、勝場、總分與得失分差排序';
-  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row)).join('')}</div></section>`;
+  const completed = tournament.status === '已完成';
+  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰${completed ? '與下載戰績圖' : ''}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row, completed)).join('')}</div></section>`;
 }
 
-function leaderboardPlayerRow(tournament, row) {
+function leaderboardPlayerRow(tournament, row, canDownloadShareCard) {
   const status = row.isChampion ? '<small>CHAMPION</small>' : row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : '';
   const matches = playerCompletedMatches(tournament, row.player);
   const history = matches.length
@@ -356,7 +356,7 @@ function leaderboardPlayerRow(tournament, row) {
     : '<li class="player-history-empty">尚無已完成對戰紀錄。</li>';
   return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''} ${row.participantStatus !== 'active' ? 'is-inactive' : ''}">
     <summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}<em>對戰紀錄</em></strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary>
-    <div class="player-history"><h3>${escapeText(row.player)}的已完成對戰</h3><ul>${history}</ul></div>
+    <div class="player-history"><h3>${escapeText(row.player)}的已完成對戰</h3><ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div>
   </details>`;
 }
 
