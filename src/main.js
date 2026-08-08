@@ -565,6 +565,12 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定由這 ${finalists.length} 位選手進入前四循環決賽嗎？`)) return;
     beginSwissFinal(state.selectedTournamentId, finalists);
   });
+  app.querySelector('[data-round-robin-tiebreak-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const candidates = [...event.currentTarget.querySelectorAll('input[name="candidate"]:checked')].map((input) => input.value);
+    if (!confirm(`確定為選取的 ${candidates.length} 位並列選手建立同分加賽嗎？`)) return;
+    beginRoundRobinTieBreak(state.selectedTournamentId, candidates);
+  });
   app.querySelector('[data-opening-pairings-form]')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const pairs = [...event.currentTarget.querySelectorAll('[data-pairing-row]')].map((row) => [
@@ -646,6 +652,14 @@ async function beginSwissQualifier(tournamentId, candidates) {
 async function beginSwissFinal(tournamentId, finalists) {
   try {
     await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists });
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function beginRoundRobinTieBreak(tournamentId, candidates) {
+  try {
+    await executeTournamentAction(tournamentId, 'start_round_robin_tiebreak', { players: candidates });
   } catch (error) {
     alert(error.message);
   }

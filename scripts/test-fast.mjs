@@ -12,6 +12,7 @@ const tests = [
   'tests/action-sync.test.mjs',
   'tests/responsive-ui.test.mjs',
   'tests/share-card.test.mjs',
+  'tests/small-formats.test.mjs',
 ];
 
 const started = Date.now();

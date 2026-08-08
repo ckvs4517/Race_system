@@ -1,8 +1,10 @@
 /** 賽制註冊表：新增賽制時在此登記，domain 與 UI 即可共用同一策略介面。 */
 import { singleElimination } from './single-elimination.js';
 import { swiss } from './swiss.js';
+import { roundRobin } from './round-robin.js';
+import { winStreak } from './win-streak.js';
 
-const formats = new Map([[singleElimination.id, singleElimination], [swiss.id, swiss]]);
+const formats = new Map([[singleElimination.id, singleElimination], [swiss.id, swiss], [roundRobin.id, roundRobin], [winStreak.id, winStreak]]);
 
 export function getTournamentFormat(formatId = singleElimination.id) {
   const format = formats.get(formatId);

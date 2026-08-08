@@ -139,7 +139,7 @@ try {
   const tournament32 = checkInAll(createTournament('32 人測試賽', players32));
   expect(requiredSeedCount(tournament32) === 0 && buildRounds(tournament32).length === 0, '32 人賽報到階段也不提前顯示賽程');
   expect(buildRounds(startTournament(tournament32)).length === 5, '32 人賽確認賽程後顯示五輪');
-  expect(manageView(tournament32).includes('2–32 位'), '編輯頁顯示 32 人上限');
+  expect(manageView(tournament32).includes('依賽制限制報到人數'), '編輯頁顯示依賽制的人數限制');
   let editLocked = false;
   try { updateDraftTournament(startTournament(tournament32), '不能編輯', players32); } catch { editLocked = true; }
   expect(editLocked, '賽事開始後參賽名單鎖定');

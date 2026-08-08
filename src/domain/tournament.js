@@ -3,6 +3,7 @@
  * 定義共用生命週期；實際配對、統計與排名交給 formats 內的賽制策略。
  */
 import { getTournamentFormat } from '../formats/registry.js';
+import { startRoundRobinTieBreak as createRoundRobinTieBreak } from '../formats/round-robin.js';
 import {
   createDefaultDrinkSettings,
   createEmptyDrinkSettings,
@@ -242,8 +243,7 @@ export function prepareTournamentSchedule(tournament) {
   const format = getTournamentFormat(normalized.format);
   if (normalized.status !== '準備中') throw new Error('這場賽事已經開始或完成。');
   const competitionPlayers = draftCompetitionPlayers(normalized);
-  validatePlayers(competitionPlayers);
-  if (format.id === 'swiss' && competitionPlayers.length < 4) throw new Error('四輪瑞士制至少需要 4 位已報到選手。');
+  validatePlayers(competitionPlayers, format);
   const participantStates = Object.fromEntries(normalized.players.map((player) => [player, {
     ...normalized.participantStates[player],
     status: normalized.participantStates[player].checkedIn ? 'active' : 'no_show',
@@ -276,6 +276,7 @@ export function randomizeTournamentSchedule(tournament, random = Math.random) {
   return {
     ...normalized,
     rounds: [format.createOpeningRound(shuffled, seedIndexes)],
+    ...(format.id === 'win_streak' ? { winStreakCurrent: null, winStreakCount: 0, winStreakQueue: shuffled.slice(2) } : {}),
     scheduleRandomizedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -318,8 +319,9 @@ export function confirmTournamentSchedule(tournament) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '排程中') throw new Error('目前不是可確認賽程的階段。');
   const activePlayers = normalized.players.filter((player) => normalized.participantStates?.[player]?.status === 'active');
-  validateOpeningPairs(normalized.rounds[0]?.matches?.map((match) => [match.playerA, match.playerB]) || [], activePlayers);
   const format = getTournamentFormat(normalized.format);
+  // 奇數人循環賽以休息輪表示輪空，不建立假的「選手對輪空」節點。
+  if (format.supportsOpeningPairingEdit !== false) validateOpeningPairs(normalized.rounds[0]?.matches?.map((match) => [match.playerA, match.playerB]) || [], activePlayers);
   const openingRound = structuredClone(normalized.rounds[0]);
   const stats = format.initializeStats(normalized.players);
   return {
@@ -420,6 +422,11 @@ export function startSwissFinal(tournament, finalists) {
   const format = getTournamentFormat(normalized.format);
   if (format.id !== 'swiss' || !format.startFinal) throw new Error('這場賽事不支援四強循環決賽。');
   return format.startFinal(normalized, finalists);
+}
+
+/** 建立並列名次者的循環加賽；加賽結果只用於決定該組最終名次。 */
+export function startRoundRobinTieBreak(tournament, candidates) {
+  return createRoundRobinTieBreak(normalizeTournament(tournament), candidates);
 }
 
 export function updateRegistrationSettings(tournament, settings) {
@@ -565,8 +572,10 @@ function projectFutureRounds(sourceRounds) {
   return rounds;
 }
 
-function validatePlayers(players) {
-  if (players.length < 2 || players.length > 32) throw new Error('參賽者人數需要介於 2 至 32 位。');
+function validatePlayers(players, format = null) {
+  const minimum = format?.minPlayers || 2;
+  const maximum = format?.maxPlayers || 32;
+  if (players.length < minimum || players.length > maximum) throw new Error(`${format?.name || '此賽制'}參賽者人數需要介於 ${minimum} 至 ${maximum} 位。`);
   if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
 }
 

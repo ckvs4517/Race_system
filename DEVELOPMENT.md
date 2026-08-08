@@ -59,6 +59,8 @@ Cloudflare D1
 | CI | GitHub Actions、Node.js 22、Headless Chrome |
 | 正式部署 | ChatGPT Sites artifact |
 
+小型賽制的格式策略位於 `src/formats/round-robin.js` 與 `src/formats/win-streak.js`。循環賽將每輪逐步開放，以避免現場同時顯示過多場次；同分加賽只能由相同並列名次的選手建立。連勝制保留守擂隊列，敗者在每次落敗後排到隊尾。
+
 專案僅新增 `html-to-image` 作為 DOM 匯出 PNG 的執行期依賴；首次安裝或更新依賴時執行 `npm install`。
 
 ## 4. 目錄結構

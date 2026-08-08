@@ -26,14 +26,14 @@ function bracketView(tournament, canManage) {
   const isScheduling = tournament.status === '排程中';
   const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
   const activePlayerCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.status === 'active').length;
-  const minimumPlayers = isSwiss ? 4 : 2;
+  const minimumPlayers = format.minPlayers || (isSwiss ? 4 : 2);
   const allSeedNames = new Set(isSwiss ? [] : rounds.map((round) => round.seedPlayer).filter(Boolean));
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? '四強循環賽第一名' : '本屆冠軍'}</span><b>${escapeText(tournament.champion)}</b></div>` : '';
   const eventInfoPanel = eventInfoView(tournament.eventInfo);
   const workflowPanel = tournamentWorkflowView(tournament, canManage, { checkedInCount, minimumPlayers });
   const registrationPanel = isDraft ? registrationQuickView(tournament, canManage) : '';
   const participantPanel = participantManagementView(tournament, canManage);
-  const pairingPanel = pairingEditorView(tournament, canManage);
+  const pairingPanel = format.supportsOpeningPairingEdit === false ? '' : pairingEditorView(tournament, canManage);
   const primaryAction = isDraft
     ? `<button class="button button-primary" data-action="prepare-tournament-schedule" ${checkedInCount >= minimumPlayers ? '' : 'disabled'}>確認報到，進入排程</button>`
     : isScheduling && !rounds.length
@@ -52,9 +52,10 @@ function bracketView(tournament, canManage) {
     : `<span><i class="ready-dot"></i>只顯示目前輪次；已完成對戰可在排行榜點選選手查看</span><span>${isSwiss ? swissStageGuide(tournament) : '輪空選手已自動晉級'}</span>`;
   const bracket = visibleRoundEntries.length && !isDraft ? `<div class="bracket-shell"><div class="bracket-flow">${visibleRoundEntries.map(({ round, roundIndex }) => roundColumnView(tournament, round, roundIndex, canManage, isDraft || isScheduling, allSeedNames, isSwiss, round.phase === 'final' ? 1 : arenaCount)).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${isDraft ? '完成報到後再產生賽程' : isScheduling ? '等待隨機分組' : '等待賽程產生'}</h2><p>${isDraft ? '這個階段不會顯示預排對戰，避免現場名單尚未確認就產生錯誤賽程。' : isScheduling ? '按下「隨機分組」後，仍可自由調整首輪誰對誰。' : '正式賽程會顯示在這裡。'}</p></div>`;
   const swissDecision = isSwiss && !isDraft && !isScheduling ? swissDecisionPanel(tournament, canManage) : '';
+  const roundRobinDecision = format.id === 'round_robin' && !isDraft && !isScheduling ? roundRobinTieBreakPanel(tournament, canManage) : '';
   const leaderboard = !isDraft && !isScheduling ? leaderboardView(tournament, getTournamentStandings(tournament), isSwiss) : '';
   const preliminaryCount = rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length;
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${pairingPanel}${swissDecision}${bracket}${leaderboard}</section>`;
+  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}</section>`;
 }
 
 function currentRoundEntries(tournament, projectedRounds, isSwiss) {
@@ -209,7 +210,7 @@ function participantManagementView(tournament, canManage) {
 
 function draftCheckInView(tournament, canManage) {
   const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
-  const minimumPlayers = tournament.format === 'swiss' ? 4 : 2;
+  const minimumPlayers = getTournamentFormat(tournament.format).minPlayers || (tournament.format === 'swiss' ? 4 : 2);
   const rows = tournament.players.map((player) => {
     const checkedIn = Boolean(tournament.participantStates?.[player]?.checkedIn);
     const details = tournament.participantDetails?.[player] || {};
@@ -293,6 +294,17 @@ function swissDecisionPanel(tournament, canManage) {
       <form data-swiss-final-form><h3>直接確認四強</h3><p class="swiss-choice-note">只列出目前排行榜前四名；確認無誤後即可建立決賽。</p><div class="swiss-player-choices">${directFinalChoices}</div><button class="button button-primary" type="submit">建立前四循環決賽</button></form>
     </div>
   </section>`;
+}
+
+function roundRobinTieBreakPanel(tournament, canManage) {
+  if (tournament.roundRobinStage !== 'tied') return '';
+  const rows = getTournamentStandings(tournament);
+  const tiedGroups = new Map();
+  rows.forEach((row) => { if (!tiedGroups.has(row.rank)) tiedGroups.set(row.rank, []); tiedGroups.get(row.rank).push(row); });
+  const choices = [...tiedGroups.values()].filter((group) => group.length > 1 && group[0].rank === 1)
+    .map((group) => `<div class="swiss-player-choices"><p class="swiss-choice-note">並列第一名</p>${group.map((row) => `<label class="swiss-player-choice"><input type="checkbox" name="candidate" value="${escapeAttribute(row.player)}"><span><b>${escapeText(row.player)}</b><small>${row.wins} 勝 ${row.losses} 敗 · 總得分 ${row.totalPoints}</small></span></label>`).join('')}</div>`).join('');
+  if (!choices) return '';
+  return `<section class="swiss-decision-panel"><p class="kicker">TIE BREAK</p><h2>並列冠軍確認</h2><p>目前第一名的勝場與總得分完全相同，因此先以並列冠軍顯示。主辦方可選擇這組選手建立循環加賽，決定唯一冠軍。</p>${canManage ? `<form data-round-robin-tiebreak-form>${choices}<button class="button button-primary" type="submit">建立冠軍加賽</button></form>` : '<p>主辦方可視需要建立冠軍加賽。</p>'}</section>`;
 }
 
 function hasTopFourTie(rows) {
