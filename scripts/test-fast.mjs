@@ -14,6 +14,7 @@ const tests = [
   'tests/share-card.test.mjs',
   'tests/small-formats.test.mjs',
   'tests/battle-pass.test.mjs',
+  'tests/screen-wake-lock.test.mjs',
   'tests/speed-report.test.mjs',
 ];
 

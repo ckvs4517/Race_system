@@ -588,7 +588,9 @@ footer { font-size: 12px; }
 .speedometer-page { max-width: 1280px; }
 .speed-connect-panel { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; padding: 16px 18px; background: linear-gradient(135deg, #0e141d, #0a0e14); border: 1px solid var(--line); border-radius: 12px; }
 .speed-connect-panel.is-connected { border-color: #35dc8245; box-shadow: inset 0 0 32px #35dc8208; }
+.speed-connect-statuses { min-width: 0; display: grid; gap: 11px; }
 .speed-connect-device { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.speed-display-device { padding-top: 10px; border-top: 1px solid var(--line); }
 .speed-connect-device > div { min-width: 0; display: grid; gap: 3px; }
 .speed-connect-device b { font-size: 13px; letter-spacing: .5px; }
 .speed-connect-device span:last-child { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -597,6 +599,8 @@ footer { font-size: 12px; }
 .speed-status-dot.is-waiting { background: var(--yellow); box-shadow: 0 0 13px #f2c94c88; }
 .speed-status-dot.is-error { background: var(--red); box-shadow: 0 0 13px #ff493d88; }
 .speed-connect-actions, .speed-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.speed-wake-toggle { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; cursor: pointer; }
+.speed-wake-toggle input { width: 17px; height: 17px; accent-color: var(--red); }
 .speed-browser-warning { display: flex; gap: 10px 18px; align-items: center; margin-bottom: 16px; padding: 13px 16px; color: #ffe6a3; background: #f2c94c0c; border: 1px solid #f2c94c35; border-radius: 9px; font-size: 13px; }
 .speed-browser-warning span { color: #a59c7e; }
 .speed-browser-warning.is-error { color: #ffaaa4; background: #ff493d0d; border-color: #ff493d38; }
@@ -742,6 +746,7 @@ footer { font-size: 12px; }
   .speed-connect-panel, .speed-history-heading { align-items: stretch; flex-direction: column; }
   .speed-connect-actions, .speed-export-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .speed-connect-actions .button:first-child { grid-column: 1 / -1; }
+  .speed-wake-toggle { grid-column: 1 / -1; justify-content: center; }
   .speed-live-card { min-height: 315px; padding: 22px; }
   .speed-live-value strong { font-size: clamp(88px, 28vw, 150px); letter-spacing: -3px; }
   .speed-live-value b { margin-bottom: 8px; font-size: 22px; }
@@ -761,6 +766,7 @@ footer { font-size: 12px; }
   .nav-item { min-width: 72px; flex: 0 0 auto; white-space: nowrap; }
   .speed-connect-actions, .speed-export-actions { grid-template-columns: 1fr; }
   .speed-connect-actions .button:first-child { grid-column: auto; }
+  .speed-wake-toggle { grid-column: auto; justify-content: flex-start; }
   .speed-live-meta { align-items: flex-start; flex-direction: column; gap: 7px; }
   .speed-panel, .speed-stats-card { padding: 20px; }
   .speed-history-heading { padding: 20px; }

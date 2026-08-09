@@ -61,6 +61,10 @@ async function copyText(text) {
 function render(resetScroll = false) {
   // 每次狀態或網址改變都重新產生畫面，再綁定該頁需要的事件。
   const route = currentRoute();
+  // Route changes replace the Speedometer DOM immediately. Release browser
+  // resources here rather than waiting for the background polling interval.
+  if (lastRenderedRoute === 'speedometer' && route !== 'speedometer') leaveSpeedometer();
+  lastRenderedRoute = route;
   const state = getState();
   if (state.loading) {
     app.innerHTML = shell(route, '<section class="section-wrap page-section"><div class="empty-state"><h2>正在載入雲端賽事…</h2><p>請稍候</p></div></section>', state);
@@ -811,8 +815,6 @@ let pollTimer = null;
 async function pollForUpdates() {
   clearTimeout(pollTimer);
   const route = currentRoute();
-  if (lastRenderedRoute === 'speedometer' && route !== 'speedometer') leaveSpeedometer();
-  lastRenderedRoute = route;
   const current = getState();
   let delay = 15_000;
 

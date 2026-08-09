@@ -1,13 +1,16 @@
 /** 單人 Battle Pass 轉速表：即時 SP、工作階段紀錄、趨勢與匯出。 */
 import { BattlePassConnection } from '../data/battle-pass.js';
+import { ScreenWakeLock } from '../data/screen-wake-lock.js';
 import { calculateShootStats } from '../domain/battle-pass.js';
 import { exportSpeedAnalysisAsPng, exportSpeedReportAsPdf } from '../export/speed-report.js';
 import { speedLineChartSvg } from '../ui/speed-chart.js';
 import { pageHeader } from '../ui/shell.js';
 
 const STORAGE_KEY = 'spin-league-speedometer-session-v1';
+const WAKE_LOCK_SETTING_KEY = 'spin-league-speedometer-keep-display-awake-v1';
 const meterState = restoreSession();
 let connection = null;
+let screenWakeLock = null;
 
 export function speedometerView() {
   const stats = calculateShootStats(meterState.readings);
@@ -15,24 +18,33 @@ export function speedometerView() {
   const top = stats.top;
   const support = BattlePassConnection.isSupported();
   const status = statusPresentation(meterState.status, support);
+  const display = displayPresentation(getWakeLockState());
   const delta = latest && stats.count > 1 ? latest.shootPower - stats.average : null;
 
   return `<section class="section-wrap page-section speedometer-page" data-speedometer-root>
     ${pageHeader('PERFORMANCE LAB', '轉速表', '連接 BeyBattle Pass，即時記錄每次發射的 Shoot Power，並輸出本次工作階段的分析報告。')}
 
     <div class="speed-connect-panel ${meterState.status === 'connected' ? 'is-connected' : ''}">
-      <div class="speed-connect-device">
-        <span class="speed-status-dot ${status.className}"></span>
-        <div><b>${escapeHtml(status.label)}</b><span>${escapeHtml(deviceLine())}</span></div>
+      <div class="speed-connect-statuses">
+        <div class="speed-connect-device">
+          <span class="speed-status-dot ${status.className}"></span>
+          <div><b>${escapeHtml(status.label)}</b><span>${escapeHtml(deviceLine())}</span></div>
+        </div>
+        <div class="speed-connect-device speed-display-device">
+          <span class="speed-status-dot ${display.className}"></span>
+          <div><b>DISPLAY</b><span>${escapeHtml(display.label)}</span></div>
+        </div>
       </div>
       <div class="speed-connect-actions">
         <button class="button button-primary" data-speed-action="connect" ${meterState.status === 'connected' || meterState.status === 'connecting' || meterState.status === 'requesting' ? 'disabled' : ''}>${meterState.status === 'requesting' ? '選擇裝置中…' : meterState.status === 'connecting' ? '連線中…' : '連接 Battle Pass'}</button>
         <button class="button button-secondary" data-speed-action="disconnect" ${meterState.status !== 'connected' ? 'disabled' : ''}>中斷連線</button>
         <button class="button button-secondary" data-speed-action="new-session">新工作階段</button>
+        <label class="speed-wake-toggle"><input type="checkbox" data-speed-keep-display-awake ${meterState.keepDisplayAwake ? 'checked' : ''}><span>測速時保持螢幕開啟</span></label>
       </div>
     </div>
 
     ${!support ? `<div class="speed-browser-warning"><b>此瀏覽器目前無法使用 Web Bluetooth。</b><span>請使用支援 Web Bluetooth 的 Chrome，並以 HTTPS 或 localhost 開啟網站。</span></div>` : ''}
+    ${!display.supported ? `<div class="speed-browser-warning"><b>此瀏覽器不支援防止螢幕自動熄滅。</b><span>測速時請調整裝置的自動鎖定設定；Battle Pass 測速仍可正常使用。</span></div>` : ''}
     ${meterState.error ? `<div class="speed-browser-warning is-error"><b>連線訊息</b><span>${escapeHtml(meterState.error)}</span></div>` : ''}
 
     <div class="speed-live-grid">
@@ -85,17 +97,25 @@ export function speedometerView() {
 }
 
 export function bindSpeedometer(root) {
+  ensureScreenWakeLock();
   root.querySelector('[data-speed-action="connect"]')?.addEventListener('click', connectBattlePass);
   root.querySelector('[data-speed-action="disconnect"]')?.addEventListener('click', disconnectBattlePass);
   root.querySelector('[data-speed-action="new-session"]')?.addEventListener('click', startNewSession);
   root.querySelector('[data-speed-action="export-pdf"]')?.addEventListener('click', () => exportSession('pdf'));
   root.querySelector('[data-speed-action="export-image"]')?.addEventListener('click', () => exportSession('image'));
+  root.querySelector('[data-speed-keep-display-awake]')?.addEventListener('change', (event) => {
+    meterState.keepDisplayAwake = event.currentTarget.checked;
+    persistWakeLockPreference();
+    ensureScreenWakeLock().setEnabled(meterState.keepDisplayAwake);
+  });
 }
 
 /** 離開轉速表頁面時只中斷 BLE；保留本次紀錄供返回後匯出。 */
 export function leaveSpeedometer() {
-  if (!connection?.connected) return;
-  connection.disconnect().catch(() => {});
+  const activeWakeLock = screenWakeLock;
+  screenWakeLock = null;
+  activeWakeLock?.cleanup().catch(() => {});
+  if (connection?.connected) connection.disconnect().catch(() => {});
 }
 
 async function connectBattlePass() {
@@ -113,6 +133,7 @@ async function connectBattlePass() {
 }
 
 async function disconnectBattlePass() {
+  await screenWakeLock?.setContext({ connected: false, sessionActive: false });
   if (!connection) return;
   try { await connection.disconnect(); } catch (error) { meterState.error = error.message; }
   refreshPage();
@@ -124,6 +145,7 @@ function ensureConnection() {
     onStatus(status) {
       meterState.status = status;
       if (status === 'connected' && !meterState.startedAt) meterState.startedAt = new Date().toISOString();
+      syncWakeLockContext();
       persistSession();
       refreshPage();
     },
@@ -156,11 +178,15 @@ function ensureConnection() {
   });
 }
 
-function startNewSession() {
+async function startNewSession() {
   if (meterState.readings.length && !confirm('確定要開始新的工作階段嗎？目前畫面上的發射紀錄會被清除。')) return;
+  // Starting a new measurement finishes the old session. Release first, then
+  // request again only when the new connected session is ready.
+  await screenWakeLock?.releaseWakeLock();
   meterState.readings = [];
   meterState.startedAt = meterState.status === 'connected' ? new Date().toISOString() : '';
   meterState.error = '';
+  syncWakeLockContext();
   persistSession();
   refreshPage();
 }
@@ -202,15 +228,53 @@ function snapshotSession() {
 }
 
 function restoreSession() {
-  const fallback = { status: 'idle', deviceName: '', browserDeviceId: '', deviceUid: '', startedAt: '', readings: [], error: '', exporting: '' };
+  const fallback = { status: 'idle', deviceName: '', browserDeviceId: '', deviceUid: '', startedAt: '', readings: [], error: '', exporting: '', keepDisplayAwake: restoreWakeLockPreference() };
   if (typeof sessionStorage === 'undefined') return fallback;
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
     if (!saved || !Array.isArray(saved.readings)) return fallback;
-    return { ...fallback, ...saved, status: 'disconnected', exporting: '', error: '' };
+    return { ...fallback, ...saved, keepDisplayAwake: restoreWakeLockPreference(), status: 'disconnected', exporting: '', error: '' };
   } catch {
     return fallback;
   }
+}
+
+function ensureScreenWakeLock() {
+  if (screenWakeLock) return screenWakeLock;
+  screenWakeLock = new ScreenWakeLock({
+    onChange() {
+      // Screen policy can change without a BLE event (for example, background
+      // suspension). Re-render only the Speedometer UI; never reset its session.
+      refreshPage();
+    },
+  });
+  screenWakeLock.setEnabled(meterState.keepDisplayAwake);
+  syncWakeLockContext();
+  return screenWakeLock;
+}
+
+function syncWakeLockContext() {
+  if (!screenWakeLock) return;
+  screenWakeLock.setContext({
+    connected: meterState.status === 'connected',
+    sessionActive: meterState.status === 'connected' && Boolean(meterState.startedAt),
+  });
+}
+
+function getWakeLockState() {
+  if (screenWakeLock) return screenWakeLock.getState();
+  const supported = typeof navigator !== 'undefined' && 'wakeLock' in navigator && Boolean(navigator.wakeLock?.request);
+  return { supported, enabled: meterState.keepDisplayAwake, active: false, error: null };
+}
+
+function restoreWakeLockPreference() {
+  if (typeof localStorage === 'undefined') return true;
+  try { return localStorage.getItem(WAKE_LOCK_SETTING_KEY) !== 'false'; } catch { return true; }
+}
+
+function persistWakeLockPreference() {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(WAKE_LOCK_SETTING_KEY, meterState.keepDisplayAwake ? 'true' : 'false'); } catch {}
 }
 
 function persistSession() {
@@ -224,6 +288,13 @@ function statusPresentation(status, support) {
   if (status === 'requesting') return { label: 'SELECT BATTLE PASS', className: 'is-waiting' };
   if (status === 'connecting') return { label: 'CONNECTING', className: 'is-waiting' };
   return { label: 'BATTLE PASS STANDBY', className: '' };
+}
+
+function displayPresentation(state) {
+  if (!state.supported) return { label: '不支援防熄屏', className: '' };
+  if (state.active) return { label: '螢幕保持開啟', className: 'is-online' };
+  if (state.error) return { label: '無法保持螢幕開啟', className: 'is-error' };
+  return { label: '一般模式', className: '' };
 }
 
 function deviceLine() {
