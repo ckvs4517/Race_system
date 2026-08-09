@@ -28,7 +28,7 @@ function bracketView(tournament, canManage) {
   const activePlayerCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.status === 'active').length;
   const minimumPlayers = format.minPlayers || (isSwiss ? 4 : 2);
   const allSeedNames = new Set(isSwiss ? [] : rounds.map((round) => round.seedPlayer).filter(Boolean));
-  const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? '四強循環賽第一名' : '本屆冠軍'}</span><b>${escapeText(tournament.champion)}</b></div>` : '';
+  const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? swissChampionLabel(tournament) : '本屆冠軍'}</span><b>${escapeText(tournament.champion)}</b></div>` : '';
   const eventInfoPanel = eventInfoView(tournament.eventInfo);
   const workflowPanel = tournamentWorkflowView(tournament, canManage, { checkedInCount, minimumPlayers });
   const registrationPanel = isDraft ? registrationQuickView(tournament, canManage) : '';
@@ -273,7 +273,10 @@ function swissDecisionPanel(tournament, canManage) {
     const qualifierRows = getSwissPhaseStandings(tournament, 'qualifier');
     return `<section class="swiss-decision-panel"><p class="kicker">QUALIFIER</p><h2>資格積分決定賽進行中</h2><p>完成全部資格加賽後，系統會回到四強資格確認。</p>${swissMiniStandings(qualifierRows)}</section>`;
   }
-  if (stage === 'final') return `<section class="swiss-decision-panel"><p class="kicker">TOP 4 FINAL</p><h2>前四名循環決賽</h2><p>四位選手統一使用戰鬥台 1，各互打一場，共三輪、六場；最終依勝場與總得分排列。</p><div class="swiss-finalists">${(tournament.finalists || []).map((player) => `<span>${escapeText(player)}</span>`).join('')}</div></section>`;
+  if (stage === 'final') {
+    const isKnockout = tournament.swissFinalMode === 'single_elimination';
+    return `<section class="swiss-decision-panel"><p class="kicker">TOP 4 FINAL</p><h2>${isKnockout ? '前四名單淘汰決賽' : '前四名循環決賽'}</h2><p>${isKnockout ? '依瑞士輪排名進行第 1 對第 4、第 2 對第 3 的準決賽；其後同時進行冠軍賽與季軍賽，統一使用戰鬥台 1。' : '四位選手統一使用戰鬥台 1，各互打一場，共三輪、六場；最終依勝場與總得分排列。'}</p><div class="swiss-finalists">${(tournament.finalists || []).map((player) => `<span>${escapeText(player)}</span>`).join('')}</div></section>`;
+  }
   if (stage === 'completed') return '';
 
   const rows = getTournamentStandings(tournament);
@@ -281,18 +284,19 @@ function swissDecisionPanel(tournament, canManage) {
   const directFinalRows = getDirectFinalRows(rows, latestQualifier);
   const needsQualifier = !latestQualifier.length && hasTopFourTie(rows);
   if (!canManage) {
-    return `<section class="swiss-decision-panel"><p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認中</h2><p>${needsQualifier ? '四強資格線有同分選手，主辦方正在安排資格積分決定賽或確認晉級名單。' : '前四名資格已明確，主辦方正在確認四強循環決賽名單。'}</p></section>`;
+    return `<section class="swiss-decision-panel"><p class="kicker">SWISS FINISH</p><h2>瑞士輪結算確認中</h2><p>${needsQualifier ? '四強資格線有同分選手；主辦方可安排資格積分決定賽，或直接以積分榜結束。' : '主辦方正在選擇以積分榜結束、前四循環決賽或前四單淘汰決賽。'}</p></section>`;
   }
   const qualifierChoices = swissPlayerChoices(rows, 'candidate');
   const directFinalChoices = swissPlayerChoices(directFinalRows, 'finalist', true);
   return `<section class="swiss-decision-panel">
-    <p class="kicker">TOP 4 QUALIFICATION</p><h2>四強資格確認</h2>
-    <p>${needsQualifier ? '四強資格線出現同分，前四名超過 4 位。可選擇同分選手建立資格積分決定賽，或由主辦方直接確認四強。' : '前四名資格已明確，確認名單後即可直接建立四強循環決賽。'}</p>
+    <p class="kicker">SWISS FINISH</p><h2>瑞士輪結算方式</h2>
+    <p>${needsQualifier ? '四強資格線出現同分，前四名超過 4 位。可安排資格積分決定賽；也可以直接以目前積分榜結束賽事。' : '前四名資格已明確。可直接以積分榜結束，或確認四強後選擇決賽賽制。'}</p>
     ${latestQualifier.length ? `<div class="swiss-latest-qualifier"><h3>最近一組資格加賽結果</h3>${swissMiniStandings(latestQualifier)}</div>` : ''}
     <div class="swiss-decision-grid ${needsQualifier ? '' : 'is-direct-only'}">
       ${needsQualifier ? `<form data-swiss-qualifier-form><h3>資格積分決定賽</h3><div class="swiss-player-choices">${qualifierChoices}</div><button class="button button-secondary" type="submit">建立資格加賽</button></form>` : ''}
-      <form data-swiss-final-form><h3>直接確認四強</h3><p class="swiss-choice-note">只列出目前排行榜前四名；確認無誤後即可建立決賽。</p><div class="swiss-player-choices">${directFinalChoices}</div><button class="button button-primary" type="submit">建立前四循環決賽</button></form>
+      <form data-swiss-final-form><h3>確認四強並建立決賽</h3><p class="swiss-choice-note">只列出目前排行榜前四名；確認後請選擇後續賽制。</p><div class="swiss-player-choices">${directFinalChoices}</div><fieldset class="swiss-final-mode-options"><legend>四強賽制</legend><label><input type="radio" name="swissFinalMode" value="round_robin" checked><span><b>循環決賽</b><small>四人互打，共三輪、六場。</small></span></label><label><input type="radio" name="swissFinalMode" value="single_elimination"><span><b>單淘汰決賽</b><small>第 1 對第 4、第 2 對第 3，另有季軍賽。</small></span></label></fieldset><button class="button button-primary" type="submit">建立四強決賽</button></form>
     </div>
+    <div class="swiss-standings-finish"><div><h3>以積分榜直接結束</h3><p>不建立四強賽程，四輪瑞士輪排名即為最終成績；若同分會保留並列名次。</p></div>${canManage ? '<button class="button button-secondary" data-complete-swiss-standings>以積分榜結束賽事</button>' : ''}</div>
   </section>`;
 }
 
@@ -332,9 +336,15 @@ function swissStageGuide(tournament) {
     preliminary: '完成第四輪後會暫停，由主辦方確認四強資格',
     qualification: '四輪預賽完成，等待主辦方確認四強或建立資格加賽',
     qualifier: '資格積分決定賽進行中',
-    final: '前四名循環決賽進行中',
-    completed: '前四名循環決賽已完成',
+    final: tournament.swissFinalMode === 'single_elimination' ? '前四名單淘汰決賽進行中' : '前四名循環決賽進行中',
+    completed: tournament.swissFinalMode === 'standings' ? '已以瑞士輪積分榜結束賽事' : tournament.swissFinalMode === 'single_elimination' ? '前四名單淘汰決賽已完成' : '前四名循環決賽已完成',
   }[tournament.swissStage || 'preliminary'];
+}
+
+function swissChampionLabel(tournament) {
+  if (tournament.swissFinalMode === 'single_elimination') return '四強單淘汰賽冠軍';
+  if (tournament.swissFinalMode === 'standings') return '瑞士輪積分榜第一名';
+  return '四強循環賽第一名';
 }
 
 function roundPhaseLabel(round, roundIndex) {

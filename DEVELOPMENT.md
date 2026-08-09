@@ -80,7 +80,7 @@ Cloudflare D1
 │  ├─ formats/
 │  │  ├─ registry.js               # 賽制註冊表
 │  │  ├─ single-elimination.js     # 單淘汰策略
-│  │  └─ swiss.js                  # 四輪瑞士制＋資格加賽＋四強循環
+│  │  └─ swiss.js                  # 四輪瑞士制＋資格加賽＋彈性四強結算
 │  ├─ export/
 │  │  └─ share-card-png.js         # 個人戰績 PNG 匯出器
 │  ├─ ui/
@@ -299,7 +299,8 @@ View 不保存正式資料。搜尋文字、篩選條件、對話框、暫時勾
   swissStage: 'preliminary',
   qualifierSeriesCount: 0,
   activeQualifierSeriesId: null,
-  finalists: []
+  finalists: [],
+  swissFinalMode: null // standings | round_robin | single_elimination
 }
 ```
 
@@ -340,7 +341,7 @@ View 不保存正式資料。搜尋文字、篩選條件、對話框、暫時勾
   ├─ withdraw_player
   ├─ replay_match
   ├─ 瑞士資格加賽
-  └─ 瑞士四強循環
+  └─ 瑞士積分榜結算／四強循環／四強單淘汰
   ↓
 已完成
 ```
@@ -448,9 +449,9 @@ View 不保存正式資料。搜尋文字、篩選條件、對話框、暫時勾
 
 只有四項完全相同才會並列名次。
 
-### 四強循環決賽排行榜
+### 四強決賽排行榜
 
-進入四強後：
+進入四強循環後：
 
 - 四位 finalist 的勝、敗與總分只由 `phase: 'final'` 輪次重新計算。
 - 非 finalist 繼續顯示預賽戰績。
@@ -514,17 +515,17 @@ View 不保存正式資料。搜尋文字、篩選條件、對話框、暫時勾
 
 四輪預賽後進入 `swissStage: 'qualification'`，不會自動建立冠軍。
 
-- 四強資格明確時，主辦方直接選四人開始決賽。
+- 四強資格明確時，主辦方可直接以積分榜結束，或選四人建立決賽。
 - 若 `rank <= 4` 的同分群組超過四人，畫面顯示資格積分決定賽。
 - 資格加賽可選 2～6 人。
 - 每次資格加賽有獨立 `seriesId`。
 - 完成資格加賽後回到 `qualification`，可再次加賽或確認四強。
 
-### 四強循環
+### 四強結算方式
 
-- 必須選 exactly 4 位選手。
-- 使用 round-robin circle method 產生三輪六場。
-- 每一輪完成後才解鎖下一輪。
+- `standings`：不建立四強賽程，四輪瑞士輪積分榜即為最終成績；若第一名同分則保留並列而不強制指定冠軍。
+- `round_robin`：必須選 exactly 4 位選手，使用 round-robin circle method 產生三輪六場，每輪完成後才解鎖下一輪。
+- `single_elimination`：必須選 exactly 4 位選手，依瑞士輪排序建立第 1 對第 4、第 2 對第 3 的準決賽；再建立冠軍賽與季軍賽，最終固定為冠軍、亞軍、季軍、殿軍。
 - 公開賽程固定顯示一台戰鬥台。
 - 最後一輪完成後依決賽戰績產生冠軍。
 
@@ -538,7 +539,7 @@ stationIndex = matchIndex % arenaCount
 
 這使各台場數最多只差一場。戰鬥台目前是畫面與執行安排，不是資料模型中的獨立 entity；match 內沒有持久化 `arenaId`。
 
-瑞士四強循環的畫面固定以 `arenaCount: 1` render，但不會改寫 tournament 原本的 `arenaCount`。
+瑞士四強循環與四強單淘汰的畫面固定以 `arenaCount: 1` render，但不會改寫 tournament 原本的 `arenaCount`。
 
 目前 CSV 對戰明細也是依 tournament-level `arenaCount` 即時計算戰鬥台，因此四強決賽的一台顯示規則沒有另外持久化到 CSV 欄位。
 
@@ -688,7 +689,8 @@ Authorization: Bearer <token>
 | `replay_match` | 重設已完成比賽 |
 | `withdraw_player` | 未出席或中途退賽 |
 | `start_swiss_qualifier` | 建立瑞士資格加賽 |
-| `start_swiss_final` | 建立四強循環決賽 |
+| `start_swiss_final` | 建立四強循環或四強單淘汰決賽 |
+| `complete_swiss_by_standings` | 以瑞士輪積分榜結束賽事 |
 | `update_registration_settings` | 開關報名、名額與截止時間 |
 
 Worker 只接受 `type + payload + expectedRevision`，不接受前端直接送入已算好的正式 rounds 或 champion。

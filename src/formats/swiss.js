@@ -1,10 +1,10 @@
-/** 四輪瑞士制策略：四輪預賽後由主辦方確認四強，必要時可建立資格積分決定賽。 */
+/** 四輪瑞士制策略：四輪預賽後可直接結算，或選擇四強循環／單淘汰。 */
 const BYE = '輪空';
 const PRELIMINARY_ROUNDS = 4;
 
 export const swiss = {
   id: 'swiss',
-  name: '瑞士制（四輪＋四強循環）',
+  name: '瑞士制（四輪＋彈性結算）',
   version: 2,
 
   initialSeedCount() { return 0; },
@@ -16,7 +16,16 @@ export const swiss = {
   },
 
   initialState() {
-    return { swissVersion: 2, swissStage: 'preliminary', qualifierSeriesCount: 0, finalists: [] };
+    return {
+      swissVersion: 2,
+      swissStage: 'preliminary',
+      qualifierSeriesCount: 0,
+      finalists: [],
+      // The preliminary Swiss ranking can either be final, feed a round robin,
+      // or seed a four-player knockout. Keeping this choice on the tournament
+      // preserves previously generated rounds and makes old events compatible.
+      swissFinalMode: null,
+    };
   },
 
   initializeStats(players) {
@@ -46,11 +55,13 @@ export const swiss = {
     const finalRounds = tournament.rounds.filter((round) => round.phase === 'final');
     const finalStats = deriveStats(tournament.finalists, finalRounds);
 
-    const finalists = rankByRecordAndPoints(
+    const finalists = tournament.swissFinalMode === 'single_elimination'
+      ? rankSingleEliminationFinalists(tournament, finalStats)
+      : rankByRecordAndPoints(
       tournament.finalists,
       finalStats,
       tournament,
-    );
+      );
 
     const finalistSet = new Set(tournament.finalists);
     const remaining = preliminary.filter((row) => !finalistSet.has(row.player));
@@ -123,6 +134,18 @@ export const swiss = {
     }
 
     if (phase === 'final') {
+      if (tournament.swissFinalMode === 'single_elimination') {
+        const completedFinalRounds = rounds.filter((item) => item.phase === 'final');
+        const semiFinal = completedFinalRounds.find((item) => item.phaseRound === 1);
+        if (semiFinal && !completedFinalRounds.some((item) => item.phaseRound === 2)) {
+          rounds.push(createSingleEliminationFinalRound(semiFinal));
+          return { rounds, champion: null, swissStage: 'final' };
+        }
+        const championship = completedFinalRounds
+          .flatMap((item) => item.matches)
+          .find((item) => item.id === 'swiss-final-championship');
+        return { rounds, champion: championship?.winner || null, swissStage: 'completed' };
+      }
       const finalStats = deriveStats(tournament.finalists, rounds.filter((item) => item.phase === 'final'));
       const finalRanking = rankByRecordAndPoints(tournament.finalists, finalStats);
       return { rounds, champion: finalRanking[0]?.player || null, swissStage: 'completed' };
@@ -158,15 +181,37 @@ export const swiss = {
     };
   },
 
-  startFinal(tournament, finalists) {
+  startFinal(tournament, finalists, mode = 'round_robin') {
     if (tournament.swissStage !== 'qualification') throw new Error('目前不能確認四強。');
     const unique = validateSelection(finalists, tournament.players, 4, 4, '四強');
+    if (!['round_robin', 'single_elimination'].includes(mode)) throw new Error('請選擇四強決賽賽制。');
     return {
       ...tournament,
-      rounds: [...tournament.rounds, ...createRoundRobinRounds(unique, 'final', 'final', '四強循環決賽')],
+      rounds: [...tournament.rounds, ...(mode === 'round_robin'
+        ? createRoundRobinRounds(unique, 'final', 'final', '四強循環決賽')
+        : createSingleEliminationSemiFinals(unique))],
       finalists: unique,
       swissStage: 'final',
+      swissFinalMode: mode,
       champion: null,
+      updatedAt: new Date().toISOString(),
+    };
+  },
+
+  completeByStandings(tournament) {
+    if (tournament.swissStage !== 'qualification') throw new Error('目前不能以瑞士輪積分榜結束賽事。');
+    const rows = this.getStandings(tournament);
+    const leader = rows[0];
+    // A tied first place is an intentional final result in this flexible mode;
+    // do not incorrectly label one of the tied players as champion.
+    const hasSoleLeader = leader && rows.filter((row) => row.rank === 1).length === 1;
+    return {
+      ...tournament,
+      swissStage: 'completed',
+      swissFinalMode: 'standings',
+      finalists: [],
+      champion: hasSoleLeader ? leader.player : null,
+      status: '已完成',
       updatedAt: new Date().toISOString(),
     };
   },
@@ -242,6 +287,36 @@ function createRoundRobinRounds(sourcePlayers, phase, seriesId, label) {
   return rounds;
 }
 
+function createSingleEliminationSemiFinals(finalists) {
+  return [{
+    name: '四強單淘汰｜準決賽',
+    phase: 'final',
+    phaseRound: 1,
+    seriesId: 'final',
+    seriesPlayers: [...finalists],
+    matches: [
+      createMatch('swiss-final-semi-1', finalists[0], finalists[3]),
+      createMatch('swiss-final-semi-2', finalists[1], finalists[2]),
+    ],
+  }];
+}
+
+function createSingleEliminationFinalRound(semiFinal) {
+  const [firstSemi, secondSemi] = semiFinal.matches;
+  const loserOf = (match) => match.winner === match.playerA ? match.playerB : match.playerA;
+  return {
+    name: '四強單淘汰｜冠軍賽與季軍賽',
+    phase: 'final',
+    phaseRound: 2,
+    seriesId: 'final',
+    seriesPlayers: [...semiFinal.seriesPlayers],
+    matches: [
+      createMatch('swiss-final-third-place', loserOf(firstSemi), loserOf(secondSemi)),
+      createMatch('swiss-final-championship', firstSemi.winner, secondSemi.winner),
+    ],
+  };
+}
+
 function createMatch(id, playerA, playerB) {
   const hasBye = playerB === BYE;
   return { id, playerA, playerB, scoreA: null, scoreB: null, winner: hasBye ? playerA : null, status: hasBye ? '輪空晉級' : '可開始' };
@@ -303,6 +378,25 @@ function rankByRecordAndPoints(
     || b.totalPoints - a.totalPoints
     || order.get(a.player) - order.get(b.player)
   ));
+}
+
+function rankSingleEliminationFinalists(tournament, stats) {
+  const finalMatches = tournament.rounds
+    .filter((round) => round.phase === 'final')
+    .flatMap((round) => round.matches);
+  const championship = finalMatches.find((match) => match.id === 'swiss-final-championship');
+  const thirdPlace = finalMatches.find((match) => match.id === 'swiss-final-third-place');
+  if (!championship?.winner || !thirdPlace?.winner) {
+    return rankByRecordAndPoints(tournament.finalists, stats, tournament);
+  }
+  const loserOf = (match) => match.winner === match.playerA ? match.playerB : match.playerA;
+  const placement = [championship.winner, loserOf(championship), thirdPlace.winner, loserOf(thirdPlace)];
+  // Bracket placement determines 1–4, except a no-show must never be moved
+  // above a player who actually checked in, which is a system-wide ranking rule.
+  return placement.map((player, index) => ({ ...rowsFor([player], stats)[0], placementIndex: index }))
+    .sort((left, right) => participantRankingGroup(tournament, left.player) - participantRankingGroup(tournament, right.player)
+      || left.placementIndex - right.placementIndex)
+    .map(({ placementIndex, ...row }) => row);
 }
 
 // 未報到者保留在完整報名名單中，

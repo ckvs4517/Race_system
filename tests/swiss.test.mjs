@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   buildRounds,
+  completeSwissByStandings,
   createTournament,
   forfeitMatch,
   getTournamentStandings,
@@ -67,6 +68,13 @@ assert.deepEqual(rankingProbeRows.map((row) => row.player), ['全勝選手', '�
 assert.deepEqual(rankingProbeRows.map((row) => row.rank), [1, 2, 3, 4], '勝敗相同時以總得分拆分名次');
 const clearTopFourView = scheduleView([rankingProbe], rankingProbe.id, true);
 assert.doesNotMatch(clearTopFourView, /data-swiss-qualifier-form/, '四強資格明確時不顯示資格積分決定賽');
+assert.match(clearTopFourView, /data-complete-swiss-standings/);
+assert.match(clearTopFourView, /value="single_elimination"/);
+const standingsCompleted = completeSwissByStandings(rankingProbe);
+assert.equal(standingsCompleted.status, '已完成');
+assert.equal(standingsCompleted.swissStage, 'completed');
+assert.equal(standingsCompleted.swissFinalMode, 'standings');
+assert.equal(standingsCompleted.rounds.length, rankingProbe.rounds.length);
 
 const tiedCutoffProbe = {
   ...createTournament('同分四強資格', ['甲', '乙', '丙', '丁', '戊'], 'swiss'),
@@ -75,6 +83,8 @@ const tiedCutoffProbe = {
 };
 const tiedCutoffView = scheduleView([tiedCutoffProbe], tiedCutoffProbe.id, true);
 assert.match(tiedCutoffView, /data-swiss-qualifier-form/, '前四資格線同分超過四人時顯示資格積分決定賽');
+const tiedStandingsCompleted = completeSwissByStandings(tiedCutoffProbe);
+assert.equal(tiedStandingsCompleted.champion, null, '積分榜第一名同分時不應任意指定冠軍');
 
 const attendanceRankingProbe = {
   ...createTournament('報到排序', ['實際參賽 0-4', '未報到高分', '其他甲', '其他乙', '其他丙'], 'swiss'),
@@ -106,7 +116,7 @@ assert.equal(tournament.rounds.length, 4);
 assert.equal(tournament.champion, null);
 assertNoRepeatedPairings(tournament.rounds);
 const qualificationView = scheduleView([tournament], tournament.id, true);
-assert.match(qualificationView, /四強資格確認/);
+assert.match(qualificationView, /瑞士輪結算方式/);
 
 const preliminary = getTournamentStandings(tournament);
 assert.ok(preliminary.every((row) => Number.isInteger(row.totalPoints)), '排行榜列出總得分');
@@ -124,6 +134,17 @@ const postQualifierFinalForm = postQualifierView.match(/<form data-swiss-final-f
 assert.equal((postQualifierFinalForm.match(/name="finalist"/g) || []).length, 4, '資格加賽後仍只列四位確定晉級者');
 
 const finalists = preliminary.slice(0, 4).map((row) => row.player);
+let knockout = startSwissFinal({ ...tournament, arenaCount: 2 }, finalists, 'single_elimination');
+assert.equal(knockout.swissFinalMode, 'single_elimination');
+assert.equal(knockout.rounds.at(-1).matches[0].playerA, finalists[0]);
+assert.equal(knockout.rounds.at(-1).matches[0].playerB, finalists[3]);
+assert.equal(knockout.rounds.at(-1).matches[1].playerA, finalists[1]);
+assert.equal(knockout.rounds.at(-1).matches[1].playerB, finalists[2]);
+while (knockout.swissStage === 'final') knockout = finishCurrentRound(knockout);
+assert.equal(knockout.status, '已完成');
+assert.equal(knockout.champion, finalists[0]);
+assert.deepEqual(getTournamentStandings(knockout).slice(0, 4).map((row) => row.player), [finalists[0], finalists[1], finalists[3], finalists[2]]);
+
 tournament = { ...tournament, arenaCount: 2 };
 tournament = startSwissFinal(tournament, finalists);
 assert.equal(tournament.swissStage, 'final');

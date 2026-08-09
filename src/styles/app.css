@@ -815,6 +815,16 @@ footer { font-size: 12px; }
 .swiss-player-choice small { color: var(--muted); }
 .swiss-finalists { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .swiss-finalists span { padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; }
+.swiss-final-mode-options { display: grid; gap: 8px; margin: 14px 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.swiss-final-mode-options legend { padding: 0 5px; color: var(--muted); font-size: 11px; }
+.swiss-final-mode-options label { display: flex; gap: 9px; align-items: flex-start; padding: 8px; border-radius: 8px; }
+.swiss-final-mode-options label:has(input:checked) { background: rgba(255, 75, 75, .08); }
+.swiss-final-mode-options input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--red); }
+.swiss-final-mode-options span { display: grid; gap: 2px; }
+.swiss-final-mode-options small { color: var(--muted); line-height: 1.45; }
+.swiss-standings-finish { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; padding: 16px; border: 1px dashed rgba(180, 195, 215, .38); border-radius: 12px; }
+.swiss-standings-finish h3 { margin: 0 0 4px; }
+.swiss-standings-finish p { max-width: 620px; margin: 0; color: var(--muted); line-height: 1.55; }
 .swiss-latest-qualifier { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
 .swiss-latest-qualifier h3 { margin-top: 0; }
 .swiss-mini-standings { display: grid; gap: 6px; margin-top: 12px; }
@@ -825,6 +835,8 @@ footer { font-size: 12px; }
 @media (max-width: 800px) {
   .registration-admin-layout, .swiss-decision-grid { grid-template-columns: 1fr; }
   .registration-settings { position: static; }
+  .swiss-standings-finish { align-items: stretch; flex-direction: column; }
+  .swiss-standings-finish .button { width: 100%; }
 }
 
 @media (max-width: 560px) {

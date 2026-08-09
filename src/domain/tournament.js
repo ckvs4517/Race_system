@@ -417,11 +417,19 @@ export function startSwissQualifier(tournament, candidates) {
   return format.startQualifier(normalized, candidates);
 }
 
-export function startSwissFinal(tournament, finalists) {
+export function startSwissFinal(tournament, finalists, mode = 'round_robin') {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (format.id !== 'swiss' || !format.startFinal) throw new Error('這場賽事不支援四強循環決賽。');
-  return format.startFinal(normalized, finalists);
+  return format.startFinal(normalized, finalists, mode);
+}
+
+/** 以四輪瑞士輪積分榜直接結算，不建立額外四強賽程。 */
+export function completeSwissByStandings(tournament) {
+  const normalized = normalizeTournament(tournament);
+  const format = getTournamentFormat(normalized.format);
+  if (format.id !== 'swiss' || !format.completeByStandings) throw new Error('這場賽事不支援瑞士輪積分榜結算。');
+  return format.completeByStandings(normalized);
 }
 
 /** 建立並列名次者的循環加賽；加賽結果只用於決定該組最終名次。 */
@@ -473,6 +481,7 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
     ...(swissStage ? {
       swissStage,
       finalists: swissStage === 'preliminary' ? [] : normalized.finalists,
+      swissFinalMode: swissStage === 'preliminary' ? null : normalized.swissFinalMode,
       activeQualifierSeriesId: swissStage === 'qualifier' ? round.seriesId : normalized.activeQualifierSeriesId,
     } : {}),
     updatedAt: new Date().toISOString(),

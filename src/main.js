@@ -566,8 +566,14 @@ function bindScheduleEvents(state) {
   app.querySelector('[data-swiss-final-form]')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const finalists = [...event.currentTarget.querySelectorAll('input[name="finalist"]:checked')].map((input) => input.value);
-    if (!confirm(`確定由這 ${finalists.length} 位選手進入前四循環決賽嗎？`)) return;
-    beginSwissFinal(state.selectedTournamentId, finalists);
+    const mode = event.currentTarget.querySelector('input[name="swissFinalMode"]:checked')?.value;
+    const label = mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
+    if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;
+    beginSwissFinal(state.selectedTournamentId, finalists, mode);
+  });
+  app.querySelector('[data-complete-swiss-standings]')?.addEventListener('click', () => {
+    if (!confirm('確定以目前瑞士輪積分榜作為最終成績並結束賽事嗎？此操作不會再建立四強賽程。')) return;
+    completeSwissByStandings(state.selectedTournamentId);
   });
   app.querySelector('[data-round-robin-tiebreak-form]')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -653,9 +659,17 @@ async function beginSwissQualifier(tournamentId, candidates) {
   }
 }
 
-async function beginSwissFinal(tournamentId, finalists) {
+async function beginSwissFinal(tournamentId, finalists, mode) {
   try {
-    await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists });
+    await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode });
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function completeSwissByStandings(tournamentId) {
+  try {
+    await executeTournamentAction(tournamentId, 'complete_swiss_by_standings');
   } catch (error) {
     alert(error.message);
   }

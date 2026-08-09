@@ -14,6 +14,7 @@ import {
   recordMatchResult,
   removeDraftPlayer,
   resetCompletedMatch,
+  completeSwissByStandings,
   setDraftPlayerCheckedIn,
   startSwissFinal,
   startSwissQualifier,
@@ -417,7 +418,9 @@ function applyTournamentAction(tournament, type, payload) {
     case 'start_swiss_qualifier':
       return startSwissQualifier(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
     case 'start_swiss_final':
-      return startSwissFinal(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
+      return startSwissFinal(tournament, Array.isArray(payload.players) ? payload.players.map(String) : [], String(payload.mode || 'round_robin'));
+    case 'complete_swiss_by_standings':
+      return completeSwissByStandings(tournament);
     case 'start_round_robin_tiebreak':
       return startRoundRobinTieBreak(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
     case 'update_registration_settings':

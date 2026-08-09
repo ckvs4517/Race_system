@@ -56,7 +56,7 @@ export function manageView(tournament = null) {
         ${drinkSettingsEditor(drinkSettings)}
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立賽事與報到名單'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；主辦方可直接確認四強，或先建立資格積分決定賽，再進行前四循環決賽。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；可直接以積分榜結束，或先確認四強後選擇循環決賽／單淘汰決賽。資格線同分時也可先建立資格積分決定賽。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
 }
