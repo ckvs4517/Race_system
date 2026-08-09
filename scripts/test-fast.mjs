@@ -13,6 +13,8 @@ const tests = [
   'tests/responsive-ui.test.mjs',
   'tests/share-card.test.mjs',
   'tests/small-formats.test.mjs',
+  'tests/battle-pass.test.mjs',
+  'tests/speed-report.test.mjs',
 ];
 
 const started = Date.now();

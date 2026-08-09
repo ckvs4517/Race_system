@@ -13,6 +13,7 @@ export function shell(route, content, state = {}) {
     ['home', '首頁'],
     ['guide', '使用說明'],
     ['scoreboard', '記分板'],
+    ['speedometer', '轉速表'],
     ['schedule', '賽程表'],
     ...(state.isAdmin ? [['control', '管理後台'], ['registration', '參賽資料'], ['data', '資料管理']] : [['control', '主辦方登入']]),
   ];

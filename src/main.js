@@ -16,6 +16,7 @@ import { scheduleView } from './views/schedule.js';
 import { bindControl, controlView } from './views/control.js';
 import { bindDataManagement, dataManagementView } from './views/data-management.js';
 import { bindPublicRegistration, registrationView } from './views/registration.js';
+import { bindSpeedometer, leaveSpeedometer, speedometerView } from './views/speedometer.js';
 import { bindRegistrationAdmin, registrationAdminView } from './views/registration-admin.js';
 import { bindDrinkSelectionFields, drinkSelectionFields, readDrinkSelection } from './views/drink-fields.js';
 
@@ -24,6 +25,7 @@ let publicRegistrationState = { key: '', loading: false, data: null, error: '', 
 let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
 let registrationEntryContext = { source: 'navigation', tournamentId: null };
 let toastTimer = null;
+let lastRenderedRoute = null;
 
 function showToast(message, type = 'success') {
   document.querySelector('.action-toast')?.remove();
@@ -67,6 +69,7 @@ function render(resetScroll = false) {
   let view = homeView(state.tournaments.length, state.isAdmin);
   if (route === 'guide') view = guideView(state.isAdmin);
   if (route === 'scoreboard') view = scoreboardView();
+  if (route === 'speedometer') view = speedometerView();
   if (route === 'manage') {
     if (!state.isAdmin) {
       view = controlView(false, '請先登入主辦方後台。');
@@ -114,6 +117,7 @@ function render(resetScroll = false) {
   app.innerHTML = shell(route, view, state);
   bindGlobalEvents();
   if (route === 'scoreboard') bindScoreboard(app);
+  if (route === 'speedometer') bindSpeedometer(app);
   if (route === 'manage' && state.isAdmin) bindManageEvents(state);
   if (route === 'manage' && !state.isAdmin) bindControlEvents();
   if (route === 'control') bindControlEvents();
@@ -793,6 +797,8 @@ let pollTimer = null;
 async function pollForUpdates() {
   clearTimeout(pollTimer);
   const route = currentRoute();
+  if (lastRenderedRoute === 'speedometer' && route !== 'speedometer') leaveSpeedometer();
+  lastRenderedRoute = route;
   const current = getState();
   let delay = 15_000;
 

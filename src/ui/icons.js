@@ -5,5 +5,6 @@ export const icons = {
   trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v3h3v3a5 5 0 0 1-5 5h-1v3h3v2H7v-2h3v-3H9a5 5 0 0 1-5-5V6h3V3Zm0 5H6v1a3 3 0 0 0 3 3 7 7 0 0 1-2-4Zm10 0a7 7 0 0 1-2 4 3 3 0 0 0 3-3V8h-1Z"/></svg>',
   users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20v-2a6 6 0 0 1 12 0v2H2Zm13.5 0v-2.5a7.5 7.5 0 0 0-2-5.1A5 5 0 0 1 22 16v4h-6.5Z"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 5 7 7-7 7-1.4-1.4 4.6-4.6H4v-2h12.2l-4.6-4.6L13 5Z"/></svg>',
+  speedometer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9c0 2.4.9 4.6 2.4 6.2l1.5-1.3A7 7 0 1 1 19 12c0 1.9-.7 3.6-1.9 4.9l1.5 1.3A9 9 0 0 0 12 3Zm4.7 4.9-5.8 3.2a2.4 2.4 0 1 0 2 2l3.8-5.2ZM6 11H4v2h2v-2Zm14 0h-2v2h2v-2ZM11 4v2h2V4h-2Z"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>',
 };
