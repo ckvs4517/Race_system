@@ -3,6 +3,7 @@
  * UI 不直接呼叫 fetch；畫面只讀取淺層狀態快照，寫入一律經過 store API。
  */
 const AUTH_KEY = 'spin-admin-token';
+const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 
 let state = {
   tournaments: [],
@@ -29,26 +30,66 @@ function authToken() {
   return sessionStorage.getItem(AUTH_KEY) || '';
 }
 
+/**
+ * 呼叫後端 API，統一處理授權、ETag 與逾時。
+ *
+ * 行動瀏覽器在 Wi-Fi 切換、AP roaming 或背景喚醒後，fetch 偶爾可能長時間
+ * 維持 pending。若沒有 timeout，呼叫端的按鈕會一直停在 disabled/saving 狀態，
+ * polling 的 refreshInFlight 也會永遠佔用，直到整頁重新整理才恢復。
+ *
+ * @param {string} path API 路徑。
+ * @param {RequestInit & { timeoutMs?: number }} options fetch 選項；timeoutMs 可覆寫預設逾時。
+ * @returns {Promise<any>} API JSON payload，304 時回傳 { notModified: true }。
+ */
 async function api(path, options = {}) {
-  // 管理權杖只存在 sessionStorage，關閉分頁後瀏覽器會自動清除。
-  const method = options.method || 'GET';
-  const headers = { ...(options.headers || {}) };
-  if (options.body != null) headers['Content-Type'] = 'application/json';
+  const {
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    signal: upstreamSignal,
+    ...fetchOptions
+  } = options;
+  const method = fetchOptions.method || 'GET';
+  const headers = { ...(fetchOptions.headers || {}) };
+  if (fetchOptions.body != null) headers['Content-Type'] = 'application/json';
   if (method === 'GET' && responseEtags.has(path)) headers['If-None-Match'] = responseEtags.get(path);
   const token = authToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(path, { ...options, headers });
-  if (response.status === 304) return { notModified: true };
-  const etag = response.headers.get('etag');
-  if (method === 'GET' && etag) responseEtags.set(path, etag);
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || '伺服器暫時無法處理要求。');
-    error.status = response.status;
-    error.payload = payload;
-    throw error;
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const abortFromUpstream = () => controller.abort(upstreamSignal?.reason);
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) abortFromUpstream();
+    else upstreamSignal.addEventListener('abort', abortFromUpstream, { once: true });
   }
-  return payload;
+
+  try {
+    const response = await fetch(path, { ...fetchOptions, headers, signal: controller.signal });
+    if (response.status === 304) return { notModified: true };
+    const etag = response.headers.get('etag');
+    if (method === 'GET' && etag) responseEtags.set(path, etag);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || '伺服器暫時無法處理要求。');
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+    return payload;
+  } catch (error) {
+    if (timedOut) {
+      const timeoutError = new Error('網路連線逾時，請確認連線後再試。');
+      timeoutError.code = 'REQUEST_TIMEOUT';
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener?.('abort', abortFromUpstream);
+  }
 }
 
 export async function initializeStore() {
@@ -72,7 +113,7 @@ export async function initializeStore() {
 }
 
 export async function refreshTournaments() {
-  // 防止 3 秒輪詢尚未完成時又建立第二個相同要求。
+  // 防止輪詢尚未完成時又建立第二個相同要求；api() 的 timeout 確保此鎖一定會釋放。
   if (refreshInFlight) return false;
   refreshInFlight = true;
   try {
