@@ -65,18 +65,40 @@ export function bindScoreboard(root, options = {}) {
     const winner = score.a > score.b ? options.playerA : options.playerB;
     if (!confirm(`確定由「${winner}」獲勝並晉級嗎？`)) return;
     const button = event.currentTarget;
+    const originalText = button.textContent;
     button.disabled = true;
     button.textContent = '正在同步賽果…';
-    await options.onComplete?.(score.a, score.b);
+    try {
+      await options.onComplete?.(score.a, score.b);
+    } catch (error) {
+      // 若網路逾時或其他非預期錯誤沒有觸發整頁重繪，仍需恢復按鈕，避免只能靠重新整理解鎖。
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+      throw error;
+    }
   });
 
   root.querySelectorAll('[data-forfeit-player]').forEach((button) => button.addEventListener('click', async () => {
     const player = button.dataset.forfeitPlayer;
     const opponent = player === options.playerA ? options.playerB : options.playerA;
     if (!confirm(`確定判定「${player}」棄賽嗎？\n「${opponent}」將以 4：0 獲勝。`)) return;
-    root.querySelectorAll('[data-forfeit-player], [data-action="complete-match"]').forEach((item) => { item.disabled = true; });
+    const controls = [...root.querySelectorAll('[data-forfeit-player], [data-action="complete-match"]')];
+    const originalLabels = new Map(controls.map((item) => [item, item.textContent]));
+    controls.forEach((item) => { item.disabled = true; });
     button.textContent = '正在同步判定…';
-    await options.onForfeit?.(player);
+    try {
+      await options.onForfeit?.(player);
+    } catch (error) {
+      // 同上：失敗時只恢復仍存在於目前 DOM 的控制項，避免操作 detached node。
+      controls.forEach((item) => {
+        if (!item.isConnected) return;
+        item.disabled = false;
+        item.textContent = originalLabels.get(item) || item.textContent;
+      });
+      throw error;
+    }
   }));
 }
 
