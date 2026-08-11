@@ -76,7 +76,7 @@ export function bindScoreboard(root, options = {}) {
         button.disabled = false;
         button.textContent = originalText;
       }
-      throw error;
+      reportScoreboardActionError(error);
     }
   });
 
@@ -97,9 +97,15 @@ export function bindScoreboard(root, options = {}) {
         item.disabled = false;
         item.textContent = originalLabels.get(item) || item.textContent;
       });
-      throw error;
+      reportScoreboardActionError(error);
     }
   }));
+}
+
+function reportScoreboardActionError(error) {
+  // DOM event listener 沒有呼叫端可以 await；在這裡再 throw 會只留下未處理的 Promise rejection。
+  // 正常的頁面流程會在 main.js 自行提示並 resolve，因此這個 fallback 只處理未自行捕捉錯誤的呼叫者。
+  alert(error?.message || '同步失敗，請確認網路後再試一次。');
 }
 
 function escapeAttribute(value) {

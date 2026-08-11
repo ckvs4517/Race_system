@@ -3,7 +3,7 @@ import { buildRounds, confirmTournamentSchedule, createTournament, duplicateTour
 import { getTournamentFormat } from '../src/formats/registry.js';
 import { scheduleView } from '../src/views/schedule.js';
 import { manageView } from '../src/views/manage.js';
-import { scoreboardView } from '../src/views/scoreboard.js';
+import { bindScoreboard, scoreboardView } from '../src/views/scoreboard.js';
 
 const assertions = [];
 function expect(condition, message) {
@@ -149,6 +149,34 @@ try {
   const tournamentListView = scheduleView([tournament], null, true);
   expect(tournamentListView.includes('data-delete-tournament'), '賽事列表提供獨立刪除按鈕');
   expect(tournamentListView.includes('data-copy-tournament'), '賽事列表提供獨立複製按鈕');
+
+  const originalConfirm = globalThis.confirm;
+  const originalAlert = globalThis.alert;
+  const notices = [];
+  globalThis.confirm = () => true;
+  globalThis.alert = (message) => notices.push(message);
+  const scoreboardFixture = document.createElement('div');
+  scoreboardFixture.innerHTML = scoreboardView({ mode: 'match', tournamentName: '連線失敗測試', roundName: '第一輪', playerA: 'A', playerB: 'B' });
+  document.body.append(scoreboardFixture);
+  bindScoreboard(scoreboardFixture, {
+    playerA: 'A',
+    playerB: 'B',
+    onComplete: async () => { throw new Error('送出賽果失敗'); },
+    onForfeit: async () => { throw new Error('棄賽判定失敗'); },
+  });
+  const completeButton = scoreboardFixture.querySelector('[data-action="complete-match"]');
+  const originalCompleteLabel = completeButton.textContent;
+  for (let index = 0; index < 4; index += 1) scoreboardFixture.querySelector('[data-target="a"][data-value="1"]').click();
+  completeButton.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(!completeButton.disabled && completeButton.textContent === originalCompleteLabel, '賽果同步失敗後恢復完成按鈕');
+  scoreboardFixture.querySelector('[data-forfeit-player="A"]').click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect([...scoreboardFixture.querySelectorAll('[data-forfeit-player], [data-action="complete-match"]')].every((button) => !button.disabled), '棄賽判定失敗後恢復所有控制');
+  expect(notices.length === 2, '非同步失敗會向裁判顯示提示而非留下未處理錯誤');
+  scoreboardFixture.remove();
+  globalThis.confirm = originalConfirm;
+  globalThis.alert = originalAlert;
 
   document.querySelector('#result').textContent = `PASS ${assertions.length}\n${assertions.join('\n')}`;
 } catch (error) {
