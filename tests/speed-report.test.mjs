@@ -1,11 +1,15 @@
 /** 轉速報告折線圖與 JPEG-to-PDF 封裝器的零依賴回歸測試。 */
 import { buildPdfBytesFromJpegs } from '../src/export/jpeg-pdf.js';
-import { speedLineChartSvg } from '../src/ui/speed-chart.js';
+import { speedLineChartSvg, speedProfileChartSvg } from '../src/ui/speed-chart.js';
 
 const svg = speedLineChartSvg([{ shootPower: 10000 }, { shootPower: 11500 }, { shootPower: 10800 }]);
 assert(svg.includes('<polyline'), '有資料時輸出折線圖');
 assert(svg.includes('#1') && svg.includes('#3'), '折線圖保留發射序號');
 assert(speedLineChartSvg([]).includes('等待第一筆 Shoot Power'), '無資料時顯示等待狀態');
+
+const profileSvg = speedProfileChartSvg([1000, 1200, 1100, 1300]);
+assert(profileSvg.includes('本次發射偵測點折線圖') && profileSvg.includes('點 1') && profileSvg.includes('點 4'), '本次發射的所有偵測點會以獨立曲線呈現');
+assert(speedProfileChartSvg([]).includes('等待下一次發射的偵測點資料'), '尚未發射時顯示偵測點等待狀態');
 
 const jpeg = Uint8Array.from([0xFF, 0xD8, 0xFF, 0xD9]);
 const pdf = buildPdfBytesFromJpegs([jpeg, jpeg], 1, 1);

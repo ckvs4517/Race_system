@@ -3,7 +3,7 @@ import { BattlePassConnection } from '../data/battle-pass.js';
 import { ScreenWakeLock } from '../data/screen-wake-lock.js';
 import { calculateShootStats } from '../domain/battle-pass.js';
 import { exportSpeedAnalysisAsPng, exportSpeedReportAsPdf } from '../export/speed-report.js';
-import { speedLineChartSvg } from '../ui/speed-chart.js';
+import { speedLineChartSvg, speedProfileChartSvg } from '../ui/speed-chart.js';
 import { pageHeader } from '../ui/shell.js';
 
 const STORAGE_KEY = 'spin-league-speedometer-session-v1';
@@ -76,6 +76,12 @@ export function speedometerView() {
         <div class="speed-ranking-list">${Array.from({ length: 5 }, (_, index) => `<div class="${index === 0 ? 'is-first' : ''}"><span>#${index + 1}</span><strong>${top[index] ? number(top[index]) : '—'}</strong><b>SP</b></div>`).join('')}</div>
       </article>
     </div>
+
+    <article class="speed-panel speed-profile-panel">
+      <div class="speed-panel-heading"><div><span>LATEST SHOOT PROFILE</span><h2>本次發射偵測點</h2></div><b>${latest?.profile?.length ? `${latest.profile.length} POINTS` : 'WAITING DATA'}</b></div>
+      <p>顯示 Battle Pass 在最近一次發射中回傳的所有偵測點。</p>
+      <div class="speed-chart-wrap">${speedProfileChartSvg(latest?.profile || [], { width: 1120, height: 280 })}</div>
+    </article>
 
     <article class="speed-history-panel">
       <div class="speed-history-heading">

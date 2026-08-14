@@ -638,6 +638,8 @@ footer { font-size: 12px; }
 .speed-panel-heading > b { padding: 7px 10px; color: #aab4c2; background: #ffffff08; border: 1px solid var(--line); border-radius: 5px; font-size: 10px; letter-spacing: 1px; }
 .speed-chart-wrap { margin-top: 18px; overflow: hidden; border-radius: 12px; }
 .speed-line-chart { width: 100%; height: auto; display: block; }
+.speed-profile-panel { min-height: 0; margin-top: 16px; }
+.speed-profile-panel > p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 .speed-ranking-list { display: grid; gap: 8px; margin-top: 20px; }
 .speed-ranking-list > div { min-height: 49px; display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; padding: 0 14px; background: #0a0e14; border: 1px solid var(--line); border-radius: 8px; }
 .speed-ranking-list span { color: #687384; font: 800 13px var(--font-display); }
