@@ -77,6 +77,7 @@ function reportPages(session, stats) {
 
 function reportOverviewPage(session, stats, page, totalPages) {
   const top = stats.top;
+  const spinLab = isSpinLabSession(session);
   return `<article class="speed-report-page speed-report-overview" data-speed-report-page>
     ${reportMasthead('PERFORMANCE REPORT', '轉速分析報告', session, page, totalPages)}
     <section class="speed-report-hero">
@@ -87,31 +88,33 @@ function reportOverviewPage(session, stats, page, totalPages) {
     </section>
     <section class="speed-report-chart"><div class="speed-report-section-title"><span>POWER TREND</span><b>本次工作階段趨勢</b></div>${speedLineChartSvg(session.readings, { width: 930, height: 340 })}</section>
     <section class="speed-report-ranking"><div class="speed-report-section-title"><span>TOP READINGS</span><b>最高紀錄</b></div><div class="speed-report-top-grid">${Array.from({ length: 5 }, (_, index) => `<div class="${index === 0 ? 'is-first' : ''}"><span>#${index + 1}</span><b>${top[index] ? num(top[index]) : '—'}</b><i>SP</i></div>`).join('')}</div></section>
-    <p class="speed-report-note">Battle Pass 原生量測值為 Shoot Power (SP)，不是陀螺離開發射器後的真實 RPM。本報告僅整理本工作階段收到的 Battle Pass 資料。</p>
+    <p class="speed-report-note">${spinLab ? 'SpinLab 數值為依目前校準公式換算的 Reference SP，並非官方 Battle Pass SP；本報告保留裝置回傳的估算結果。' : 'Battle Pass 原生量測值為 Shoot Power (SP)，不是陀螺離開發射器後的真實 RPM。本報告僅整理本工作階段收到的 Battle Pass 資料。'}</p>
   </article>`;
 }
 
 function reportListPage(session, readings, startIndex, page, totalPages) {
   return `<article class="speed-report-page speed-report-list-page" data-speed-report-page>
     ${reportMasthead('SESSION LOG', '完整發射紀錄', session, page, totalPages)}
-    <section class="speed-report-log-heading"><span>#</span><span>時間</span><span>SHOOT POWER</span><span>裝置累積次數</span></section>
-    <section class="speed-report-log">${readings.map((reading, index) => `<div><span>${String(startIndex + index + 1).padStart(2, '0')}</span><span>${escapeHtml(formatDateTime(reading.at))}</span><strong>${num(reading.shootPower)} <i>SP</i></strong><span>${Number.isFinite(Number(reading.totalShootCounter)) ? num(reading.totalShootCounter) : '—'}</span></div>`).join('')}</section>
+    <section class="speed-report-log-heading"><span>#</span><span>時間</span><span>SHOOT POWER</span><span>裝置資料</span></section>
+    <section class="speed-report-log">${readings.map((reading, index) => `<div><span>${String(startIndex + index + 1).padStart(2, '0')}</span><span>${escapeHtml(formatDateTime(reading.at))}</span><strong>${num(reading.shootPower)} <i>SP</i></strong><span>${reading.source === 'spinlab' ? `#${num(reading.shotId)} · ${num(reading.pullPeakRpm)} RPM` : Number.isFinite(Number(reading.totalShootCounter)) ? num(reading.totalShootCounter) : '—'}</span></div>`).join('')}</section>
     <div class="speed-report-list-footer"><span>工作階段開始：${escapeHtml(formatDateTime(session.startedAt))}</span><span>共 ${session.readings.length} 筆資料</span></div>
   </article>`;
 }
 
 function reportMasthead(kicker, title, session, page, totalPages) {
-  return `<header class="speed-report-masthead"><div><span>${kicker}</span><h1>SPIN <em>LEAGUE</em></h1><h2>${title}</h2></div><div class="speed-report-meta"><b>${escapeHtml(session.deviceName || 'BEYBATTLE PASS')}</b><span>PASS ID ${escapeHtml(session.deviceUid || '尚未取得')}</span><span>${escapeHtml(formatDateTime(session.startedAt))}</span><i>${page} / ${totalPages}</i></div></header>`;
+  const spinLab = isSpinLabSession(session);
+  return `<header class="speed-report-masthead"><div><span>${kicker}</span><h1>SPIN <em>LEAGUE</em></h1><h2>${title}</h2></div><div class="speed-report-meta"><b>${escapeHtml(session.deviceName || (spinLab ? 'SPINLAB' : 'BEYBATTLE PASS'))}</b><span>${spinLab ? 'REFERENCE SP' : `PASS ID ${escapeHtml(session.deviceUid || '尚未取得')}`}</span><span>${escapeHtml(formatDateTime(session.startedAt))}</span><i>${page} / ${totalPages}</i></div></header>`;
 }
 
 function analysisCard(session, stats) {
   const top = stats.top;
+  const spinLab = isSpinLabSession(session);
   return `<article class="speed-analysis-card" data-speed-analysis-card>
     <header><div><span>SPIN LEAGUE / SPEEDOMETER</span><h1>SHOOT POWER<br><em>ANALYSIS</em></h1></div><div class="speed-analysis-session">${escapeHtml(formatShortDate(session.startedAt))}<br>${stats.count} SHOTS</div></header>
     <section class="speed-analysis-peak"><span>SESSION PEAK</span><strong>${num(stats.max)}</strong><b>SP</b></section>
     <section class="speed-analysis-top"><div><span>RANK</span><b>TOP READINGS</b></div>${[1, 2, 3, 4].map((index) => `<p><i>#${index + 1}</i><strong>${top[index] ? num(top[index]) : '—'}</strong><span>SP</span></p>`).join('')}</section>
     <section class="speed-analysis-trend"><div><span>POWER TREND</span><b>${num(stats.average)} AVG</b></div>${speedLineChartSvg(session.readings, { width: 940, height: 330 })}</section>
-    <footer><span>${escapeHtml(session.deviceUid ? `PASS ${session.deviceUid}` : session.deviceName || 'BEYBATTLE PASS')}</span><b>PLAY · TRACK · COMPETE</b></footer>
+    <footer><span>${escapeHtml(spinLab ? session.deviceName || 'SPINLAB · REFERENCE SP' : session.deviceUid ? `PASS ${session.deviceUid}` : session.deviceName || 'BEYBATTLE PASS')}</span><b>PLAY · TRACK · COMPETE</b></footer>
   </article>`;
 }
 
@@ -125,6 +128,8 @@ function fileStem(session) {
   const stamp = Number.isNaN(date.getTime()) ? 'session' : `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}-${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}`;
   return `Spin-League-${stamp}`;
 }
+
+function isSpinLabSession(session) { return session?.deviceKind === 'spinlab' || session?.readings?.some((reading) => reading.source === 'spinlab'); }
 
 function chunk(items, size) { const result = []; for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size)); return result; }
 function num(value) { return Math.round(Number(value) || 0).toLocaleString('en-US'); }

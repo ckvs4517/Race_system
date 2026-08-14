@@ -584,7 +584,7 @@ footer { font-size: 12px; }
 .result-share-card .share-card-empty { grid-column: 1 / -1; display: block; color: #abb2bd; }
 .result-share-card footer { position: absolute; right: 76px; bottom: 46px; left: 76px; display: flex; align-items: center; gap: 16px; color: #fff; font-size: 22px; }
 .result-share-card footer img { max-width: 180px; max-height: 38px; object-fit: contain; object-position: left center; }
-/* Battle Pass 轉速表 / Performance Lab */
+/* SpinLab / Battle Pass 轉速表 / Performance Lab */
 .speedometer-page { max-width: 1280px; }
 .speed-connect-panel { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; padding: 16px 18px; background: linear-gradient(135deg, #0e141d, #0a0e14); border: 1px solid var(--line); border-radius: 12px; }
 .speed-connect-panel.is-connected { border-color: #35dc8245; box-shadow: inset 0 0 32px #35dc8208; }
@@ -621,6 +621,14 @@ footer { font-size: 12px; }
 .speed-live-meta em.is-up { color: #70e8a7; border-color: #35dc8238; }
 .speed-live-meta em.is-down { color: #ff958e; border-color: #ff493d38; }
 .speed-live-card > p { max-width: 680px; margin: 15px 0 0; color: #687384; font-size: 11px; line-height: 1.6; }
+.speed-spinlab-metrics { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.speed-spinlab-metrics span { min-width: 135px; display: grid; gap: 3px; padding: 9px 11px; background: #ffffff08; border: 1px solid var(--line); border-radius: 7px; }
+.speed-spinlab-metrics b { color: #edf2f8; font: 800 16px/1.1 var(--font-display); }
+.speed-spinlab-metrics small { color: var(--muted); font-size: 9px; letter-spacing: .7px; }
+.speed-spinlab-detail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 4px 0 8px; }
+.speed-spinlab-detail > div { min-height: 112px; display: grid; align-content: center; gap: 6px; padding: 18px; background: #ffffff06; border: 1px solid var(--line); border-radius: 9px; }
+.speed-spinlab-detail span, .speed-spinlab-detail small { color: var(--muted); font-size: 10px; }
+.speed-spinlab-detail strong { font: 900 30px/1 var(--font-display); }
 .speed-stats-card { min-height: 390px; padding: 26px; }
 .speed-stats-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 24px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .speed-stats-grid > div { min-height: 135px; display: flex; flex-direction: column; justify-content: center; padding: 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -733,6 +741,7 @@ footer { font-size: 12px; }
 
 @media (max-width: 1080px) {
   .speed-live-grid { grid-template-columns: 1fr; }
+  .speed-spinlab-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .speed-stats-card { min-height: auto; }
   .speed-stats-grid { grid-template-columns: repeat(4, 1fr); }
   .speed-stats-grid > div { min-height: 118px; border-bottom: 0; }
@@ -770,6 +779,7 @@ footer { font-size: 12px; }
   .speed-connect-actions .button:first-child { grid-column: auto; }
   .speed-wake-toggle { grid-column: auto; justify-content: flex-start; }
   .speed-live-meta { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .speed-spinlab-detail { grid-template-columns: 1fr; }
   .speed-panel, .speed-stats-card { padding: 20px; }
   .speed-history-heading { padding: 20px; }
 }

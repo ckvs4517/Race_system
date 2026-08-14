@@ -88,6 +88,7 @@ assert(!failedManager.getState().active && failedManager.getState().error, 'Wake
 
 const view = speedometerView();
 assert(view.includes('data-speed-keep-display-awake') && view.includes('DISPLAY'), '轉速表顯示防熄屏狀態與控制開關');
+assert(view.includes('data-speed-action="connect-spinlab"') && view.includes('data-speed-action="connect-battle-pass"'), '轉速表可選擇 SpinLab 或 Battle Pass');
 
 console.log('PASS screen wake lock tests');
 
