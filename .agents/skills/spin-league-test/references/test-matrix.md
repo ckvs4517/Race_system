@@ -6,6 +6,7 @@
 | `src/formats/single-elimination.js` | `tests/format-matrix.test.mjs`, browser `tournament.test.html` |
 | `src/domain/tournament.js` | `tests/check-in.test.mjs`, `tests/swiss.test.mjs`, `tests/format-matrix.test.mjs`, browser tournament test |
 | `src/data/store.js` | `tests/sync.test.mjs`, `tests/action-sync.test.mjs` |
+| `src/data/spinlab.js` or `src/views/speedometer.js` | `tests/spinlab.test.mjs`, `tests/screen-wake-lock.test.mjs`, `tests/speed-report.test.mjs` |
 | `worker/index.js` | `tests/api.test.mjs`, `tests/action-sync.test.mjs`; add registration test when relevant |
 | Registration views/routes | `tests/registration.test.mjs`, `tests/check-in.test.mjs` |
 | `src/views/schedule.js` | `tests/check-in.test.mjs`, `tests/swiss.test.mjs`, browser flows |
