@@ -1,5 +1,5 @@
 /** SpinLab BLE v1 20-byte shot result 封包回歸測試。 */
-import { SPINLAB_PACKET_LENGTH, SpinLabConnection, parseSpinLabResult } from '../src/data/spinlab.js';
+import { SPINLAB_PACKET_LENGTH, SPINLAB_STATUS_PACKET_LENGTH, SpinLabConnection, parseSpinLabResult, parseSpinLabStatus } from '../src/data/spinlab.js';
 
 const packet = new Uint8Array(SPINLAB_PACKET_LENGTH);
 packet[0] = 1;
@@ -47,6 +47,21 @@ connection.onNotification({ target: { value: new DataView(packet.buffer) } });
 connection.onNotification({ target: { value: new DataView(invalid.buffer) } });
 assert(received.length === 1 && received[0].shotId === 42, 'notification 只送出一次有效 shot');
 assert(rejected.length === 1 && rejected[0].status === 'no-reversal', '無效 shot 交給獨立 handler 且不加入測速紀錄');
+
+const statusPacket = new Uint8Array(SPINLAB_STATUS_PACKET_LENGTH);
+statusPacket.set([1, 0x07, 1, 1]);
+const liveStatus = parseSpinLabStatus(statusPacket);
+assert(liveStatus.loadInitialized && liveStatus.loadInstalled && liveStatus.charging, '解析已安裝與充電狀態 flags');
+assert(liveStatus.loadRawLevel === 1 && liveStatus.loadStableLevel === 1, '解析 GPIO1 raw 與 stable level');
+
+const emptyStatus = parseSpinLabStatus(Uint8Array.from([1, 0x04, 0, 0]));
+assert(emptyStatus.loadInitialized && !emptyStatus.loadInstalled && !emptyStatus.charging, '解析 Launcher 未安裝狀態');
+assertThrows(() => parseSpinLabStatus(Uint8Array.from([1, 0, 0])), '錯誤狀態封包長度會拒絕解析');
+
+const receivedStatuses = [];
+const statusConnection = new SpinLabConnection({ onLiveStatus: (value) => receivedStatuses.push(value) });
+statusConnection.onStatusNotification({ target: { value: new DataView(statusPacket.buffer) } });
+assert(receivedStatuses.length === 1 && receivedStatuses[0].loadInstalled, 'status notification 送出 Launcher 裝載狀態');
 
 console.log('PASS spinlab tests');
 
