@@ -2,7 +2,9 @@
 export const SPINLAB_LOCAL_NAME = 'SpinLab';
 export const SPINLAB_SERVICE_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a001';
 export const SPINLAB_RESULT_CHARACTERISTIC_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a002';
+export const SPINLAB_STATUS_CHARACTERISTIC_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a003';
 export const SPINLAB_PACKET_LENGTH = 20;
+export const SPINLAB_STATUS_PACKET_LENGTH = 4;
 export const SPINLAB_PROTOCOL_VERSION = 1;
 
 const STATUS_NAMES = ['valid', 'invalid-short', 'no-reversal', 'overflow'];
@@ -47,13 +49,37 @@ export function parseSpinLabResult(input) {
   };
 }
 
+export function parseSpinLabStatus(input) {
+  const bytes = toBytes(input);
+  if (bytes.byteLength !== SPINLAB_STATUS_PACKET_LENGTH) {
+    throw new Error(`SpinLab 狀態封包長度錯誤：預期 ${SPINLAB_STATUS_PACKET_LENGTH} bytes，實際 ${bytes.byteLength} bytes。`);
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const version = view.getUint8(0);
+  if (version !== SPINLAB_PROTOCOL_VERSION) {
+    throw new Error(`SpinLab 狀態通訊版本不相容：網站支援 v${SPINLAB_PROTOCOL_VERSION}，裝置送出 v${version}。`);
+  }
+  const flags = view.getUint8(1);
+  return {
+    type: 'status',
+    source: 'spinlab',
+    loadInstalled: Boolean(flags & 0x01),
+    charging: Boolean(flags & 0x02),
+    loadInitialized: Boolean(flags & 0x04),
+    loadRawLevel: view.getUint8(2),
+    loadStableLevel: view.getUint8(3),
+  };
+}
+
 export class SpinLabConnection {
   constructor(handlers = {}) {
     this.handlers = handlers;
     this.device = null;
     this.characteristic = null;
+    this.statusCharacteristic = null;
     this.lastShotId = null;
     this.handleNotification = (event) => this.onNotification(event);
+    this.handleStatusNotification = (event) => this.onStatusNotification(event);
     this.handleDisconnected = () => this.onDisconnected();
   }
 
@@ -82,21 +108,33 @@ export class SpinLabConnection {
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService(SPINLAB_SERVICE_UUID);
     const characteristic = await service.getCharacteristic(SPINLAB_RESULT_CHARACTERISTIC_UUID);
+    const statusCharacteristic = await service.getCharacteristic(SPINLAB_STATUS_CHARACTERISTIC_UUID);
     if (!characteristic.properties.notify) throw new Error('SpinLab 結果 characteristic 未提供 Notify。');
+    if (!statusCharacteristic.properties.notify || !statusCharacteristic.properties.read) throw new Error('SpinLab 狀態 characteristic 必須提供 Read 與 Notify。');
 
     this.characteristic = characteristic;
+    this.statusCharacteristic = statusCharacteristic;
     this.characteristic.addEventListener('characteristicvaluechanged', this.handleNotification);
+    this.statusCharacteristic.addEventListener('characteristicvaluechanged', this.handleStatusNotification);
     await this.characteristic.startNotifications();
+    await this.statusCharacteristic.startNotifications();
+    this.handlers.onLiveStatus?.(parseSpinLabStatus(await this.statusCharacteristic.readValue()));
     this.handlers.onStatus?.('connected');
     return device;
   }
 
   async disconnect() {
     const characteristic = this.characteristic;
+    const statusCharacteristic = this.statusCharacteristic;
     this.characteristic = null;
+    this.statusCharacteristic = null;
     if (characteristic) {
       characteristic.removeEventListener('characteristicvaluechanged', this.handleNotification);
       try { await characteristic.stopNotifications(); } catch {}
+    }
+    if (statusCharacteristic) {
+      statusCharacteristic.removeEventListener('characteristicvaluechanged', this.handleStatusNotification);
+      try { await statusCharacteristic.stopNotifications(); } catch {}
     }
     if (this.device) this.device.removeEventListener('gattserverdisconnected', this.handleDisconnected);
     if (this.device?.gatt?.connected) this.device.gatt.disconnect();
@@ -115,9 +153,19 @@ export class SpinLabConnection {
     }
   }
 
+  onStatusNotification(event) {
+    try {
+      this.handlers.onLiveStatus?.(parseSpinLabStatus(event.target.value));
+    } catch (error) {
+      this.handlers.onError?.(error);
+    }
+  }
+
   onDisconnected() {
     if (this.characteristic) this.characteristic.removeEventListener('characteristicvaluechanged', this.handleNotification);
+    if (this.statusCharacteristic) this.statusCharacteristic.removeEventListener('characteristicvaluechanged', this.handleStatusNotification);
     this.characteristic = null;
+    this.statusCharacteristic = null;
     this.handlers.onStatus?.('disconnected');
   }
 }

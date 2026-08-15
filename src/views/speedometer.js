@@ -3,6 +3,7 @@ import { BattlePassConnection } from '../data/battle-pass.js';
 import { SpinLabConnection } from '../data/spinlab.js';
 import { ScreenWakeLock } from '../data/screen-wake-lock.js';
 import { calculateShootStats } from '../domain/battle-pass.js';
+import { createMeasurement } from '../domain/measurement.js';
 import { exportSpeedAnalysisAsPng, exportSpeedReportAsPdf } from '../export/speed-report.js';
 import { speedLineChartSvg, speedProfileChartSvg } from '../ui/speed-chart.js';
 import { pageHeader } from '../ui/shell.js';
@@ -21,6 +22,7 @@ export function speedometerView() {
   const support = BattlePassConnection.isSupported();
   const status = statusPresentation(meterState.status, support);
   const display = displayPresentation(getWakeLockState());
+  const launcher = launcherPresentation();
   const delta = latest && stats.count > 1 ? latest.shootPower - stats.average : null;
 
   return `<section class="section-wrap page-section speedometer-page" data-speedometer-root>
@@ -36,6 +38,10 @@ export function speedometerView() {
           <span class="speed-status-dot ${display.className}"></span>
           <div><b>DISPLAY</b><span>${escapeHtml(display.label)}</span></div>
         </div>
+        ${meterState.deviceKind === 'spinlab' ? `<div class="speed-connect-device speed-launcher-device">
+          <span class="speed-status-dot ${launcher.className}"></span>
+          <div><b>${escapeHtml(launcher.label)}</b><span>${escapeHtml(launcher.detail)}</span></div>
+        </div>` : ''}
       </div>
       <div class="speed-connect-actions">
         <button class="button button-primary" data-speed-action="connect-spinlab" ${isConnectionBusy() ? 'disabled' : ''}>${connectionButtonLabel('spinlab')}</button>
@@ -138,6 +144,11 @@ async function connectDevice(kind) {
   meterState.deviceKind = kind;
   meterState.deviceName = '';
   meterState.deviceUid = '';
+  meterState.loadInitialized = false;
+  meterState.loadInstalled = null;
+  meterState.loadRawLevel = null;
+  meterState.loadStableLevel = null;
+  meterState.charging = false;
   ensureConnection(kind);
   try {
     await connection.connect();
@@ -178,7 +189,7 @@ function ensureConnection(kind = meterState.deviceKind || 'spinlab') {
     onReading(reading) {
       const duplicate = meterState.readings.at(-1)?.totalShootCounter === reading.totalShootCounter && meterState.readings.at(-1)?.shootPower === reading.shootPower;
       if (duplicate) return;
-      meterState.readings.push({
+      meterState.readings.push(createMeasurement({
         source: reading.source || 'battle-pass',
         shootPower: reading.shootPower,
         totalShootCounter: reading.totalShootCounter,
@@ -196,7 +207,7 @@ function ensureConnection(kind = meterState.deviceKind || 'spinlab') {
         alternationError: reading.alternationError,
         reversalType: reading.reversalType,
         at: new Date().toISOString(),
-      });
+      }));
       meterState.deviceUid ||= reading.deviceUid || '';
       meterState.error = '';
       persistSession();
@@ -205,6 +216,15 @@ function ensureConnection(kind = meterState.deviceKind || 'spinlab') {
     onInvalidReading(reading) {
       const reason = { 'invalid-short': '有效 Pull 資料太短', 'no-reversal': '找不到 Pull／回捲分界', overflow: 'Raw edge buffer 已滿' }[reading.status] || reading.status;
       meterState.error = `SpinLab 已略過 shot #${reading.shotId}：${reason}。`;
+      refreshPage();
+    },
+    onLiveStatus(status) {
+      meterState.loadInitialized = status.loadInitialized;
+      meterState.loadInstalled = status.loadInitialized ? status.loadInstalled : null;
+      meterState.loadRawLevel = status.loadRawLevel;
+      meterState.loadStableLevel = status.loadStableLevel;
+      meterState.charging = status.charging;
+      persistSession();
       refreshPage();
     },
     onError(error) {
@@ -265,12 +285,12 @@ function snapshotSession() {
 }
 
 function restoreSession() {
-  const fallback = { status: 'idle', deviceKind: 'spinlab', deviceName: '', browserDeviceId: '', deviceUid: '', startedAt: '', readings: [], error: '', exporting: '', keepDisplayAwake: restoreWakeLockPreference() };
+  const fallback = { status: 'idle', deviceKind: 'spinlab', deviceName: '', browserDeviceId: '', deviceUid: '', startedAt: '', readings: [], error: '', exporting: '', loadInitialized: false, loadInstalled: null, loadRawLevel: null, loadStableLevel: null, charging: false, keepDisplayAwake: restoreWakeLockPreference() };
   if (typeof sessionStorage === 'undefined') return fallback;
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
     if (!saved || !Array.isArray(saved.readings)) return fallback;
-    return { ...fallback, ...saved, keepDisplayAwake: restoreWakeLockPreference(), status: 'disconnected', exporting: '', error: '' };
+    return { ...fallback, ...saved, keepDisplayAwake: restoreWakeLockPreference(), status: 'disconnected', exporting: '', error: '', loadInitialized: false, loadInstalled: null, charging: false };
   } catch {
     return fallback;
   }
@@ -333,6 +353,15 @@ function displayPresentation(state) {
   if (state.active) return { label: '螢幕保持開啟', className: 'is-online' };
   if (state.error) return { label: '無法保持螢幕開啟', className: 'is-error' };
   return { label: '一般模式', className: '' };
+}
+
+function launcherPresentation() {
+  if (meterState.status !== 'connected') return { label: 'LOAD SENSOR STANDBY', detail: '連接 SpinLab 後顯示 GPIO1 狀態', className: '' };
+  if (!meterState.loadInitialized || meterState.loadInstalled === null) return { label: 'LOAD SENSOR WAITING', detail: '等待 SpinLab 狀態封包', className: 'is-waiting' };
+  const gpio = `GPIO1 ${meterState.loadStableLevel ? 'HIGH' : 'LOW'}`;
+  const charge = meterState.charging ? ' · 充電中' : '';
+  if (meterState.loadInstalled) return { label: 'BEYBLADE INSTALLED', detail: `已安裝 · ${gpio}${charge}`, className: 'is-online' };
+  return { label: 'LAUNCHER EMPTY', detail: `未安裝 · ${gpio}${charge}`, className: 'is-waiting' };
 }
 
 function deviceLine() {
