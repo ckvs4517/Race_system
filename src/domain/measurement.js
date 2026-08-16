@@ -14,6 +14,11 @@ export function createMeasurement(input = {}, options = {}) {
     source,
     deviceType: source,
     capturedAt,
+    // ESP32-relative timing fields are optional until the BLE raw-profile
+    // protocol carries them. Keep the slots stable for future firmware.
+    shotStartedUs: finiteOrNull(input.shotStartedUs),
+    releaseUs: finiteOrNull(input.releaseUs),
+    shotCompletedUs: finiteOrNull(input.shotCompletedUs),
     shootPower: finiteOrNull(input.shootPower),
     referenceSp: finiteOrNull(input.referenceSp),
     referenceSpLow: finiteOrNull(input.referenceSpLow),

@@ -12,6 +12,7 @@ assert(spinlab.status.loadInstalled === true, 'status fields normalized');
 const battlePass = createMeasurement({ source: 'battle-pass', shootPower: 9000, profile: [1, 2] });
 assert(battlePass.deviceType === 'battle-pass' && battlePass.profile.length === 2, 'Battle Pass fields normalized');
 assert(battlePass.rawEdges.length === 0 && battlePass.peakRpm === null, 'optional fields are safe defaults');
+assert(typeof spinlab.capturedAt === 'string' && spinlab.shotStartedUs === null, 'capture time and optional ESP32 timing fields');
 
 console.log('PASS measurement tests');
 

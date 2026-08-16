@@ -3,6 +3,7 @@ export const SPINLAB_LOCAL_NAME = 'SpinLab';
 export const SPINLAB_SERVICE_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a001';
 export const SPINLAB_RESULT_CHARACTERISTIC_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a002';
 export const SPINLAB_STATUS_CHARACTERISTIC_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a003';
+export const SPINLAB_RAW_CHARACTERISTIC_UUID = '8f4e1000-9c3a-4f2b-a7d1-6b5c2e91a004';
 export const SPINLAB_PACKET_LENGTH = 20;
 export const SPINLAB_STATUS_PACKET_LENGTH = 4;
 export const SPINLAB_PROTOCOL_VERSION = 1;
@@ -71,15 +72,27 @@ export function parseSpinLabStatus(input) {
   };
 }
 
+export function parseSpinLabRawChunk(input) {
+  const bytes = toBytes(input);
+  if (bytes.byteLength !== 20 || bytes[1] !== 1) throw new Error('Invalid SpinLab raw chunk');
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const edges = [];
+  const count = view.getUint8(8);
+  for (let i = 0; i < count; i += 1) edges.push({ deltaUs: view.getUint16(13 + i * 3, true), flags: view.getUint8(15 + i * 3) });
+  return { shotId: view.getUint16(2, true), chunkIndex: view.getUint8(4), totalChunks: view.getUint8(5), edgeStart: view.getUint16(6, true), baseTimestampUs: view.getUint32(9, true), edges };
+}
+
 export class SpinLabConnection {
   constructor(handlers = {}) {
     this.handlers = handlers;
     this.device = null;
     this.characteristic = null;
     this.statusCharacteristic = null;
+    this.rawCharacteristic = null;
     this.lastShotId = null;
     this.handleNotification = (event) => this.onNotification(event);
     this.handleStatusNotification = (event) => this.onStatusNotification(event);
+    this.handleRawNotification = (event) => this.onRawNotification(event);
     this.handleDisconnected = () => this.onDisconnected();
   }
 
@@ -109,15 +122,19 @@ export class SpinLabConnection {
     const service = await server.getPrimaryService(SPINLAB_SERVICE_UUID);
     const characteristic = await service.getCharacteristic(SPINLAB_RESULT_CHARACTERISTIC_UUID);
     const statusCharacteristic = await service.getCharacteristic(SPINLAB_STATUS_CHARACTERISTIC_UUID);
+    const rawCharacteristic = await service.getCharacteristic(SPINLAB_RAW_CHARACTERISTIC_UUID);
     if (!characteristic.properties.notify) throw new Error('SpinLab 結果 characteristic 未提供 Notify。');
     if (!statusCharacteristic.properties.notify || !statusCharacteristic.properties.read) throw new Error('SpinLab 狀態 characteristic 必須提供 Read 與 Notify。');
 
     this.characteristic = characteristic;
     this.statusCharacteristic = statusCharacteristic;
+    this.rawCharacteristic = rawCharacteristic;
     this.characteristic.addEventListener('characteristicvaluechanged', this.handleNotification);
     this.statusCharacteristic.addEventListener('characteristicvaluechanged', this.handleStatusNotification);
+    this.rawCharacteristic.addEventListener('characteristicvaluechanged', this.handleRawNotification);
     await this.characteristic.startNotifications();
     await this.statusCharacteristic.startNotifications();
+    await this.rawCharacteristic.startNotifications();
     this.handlers.onLiveStatus?.(parseSpinLabStatus(await this.statusCharacteristic.readValue()));
     this.handlers.onStatus?.('connected');
     return device;
@@ -126,8 +143,10 @@ export class SpinLabConnection {
   async disconnect() {
     const characteristic = this.characteristic;
     const statusCharacteristic = this.statusCharacteristic;
+    const rawCharacteristic = this.rawCharacteristic;
     this.characteristic = null;
     this.statusCharacteristic = null;
+    this.rawCharacteristic = null;
     if (characteristic) {
       characteristic.removeEventListener('characteristicvaluechanged', this.handleNotification);
       try { await characteristic.stopNotifications(); } catch {}
@@ -136,6 +155,7 @@ export class SpinLabConnection {
       statusCharacteristic.removeEventListener('characteristicvaluechanged', this.handleStatusNotification);
       try { await statusCharacteristic.stopNotifications(); } catch {}
     }
+    if (rawCharacteristic) { rawCharacteristic.removeEventListener('characteristicvaluechanged', this.handleRawNotification); try { await rawCharacteristic.stopNotifications(); } catch {} }
     if (this.device) this.device.removeEventListener('gattserverdisconnected', this.handleDisconnected);
     if (this.device?.gatt?.connected) this.device.gatt.disconnect();
     this.handlers.onStatus?.('disconnected');
@@ -164,9 +184,15 @@ export class SpinLabConnection {
   onDisconnected() {
     if (this.characteristic) this.characteristic.removeEventListener('characteristicvaluechanged', this.handleNotification);
     if (this.statusCharacteristic) this.statusCharacteristic.removeEventListener('characteristicvaluechanged', this.handleStatusNotification);
+    if (this.rawCharacteristic) this.rawCharacteristic.removeEventListener('characteristicvaluechanged', this.handleRawNotification);
     this.characteristic = null;
     this.statusCharacteristic = null;
+    this.rawCharacteristic = null;
     this.handlers.onStatus?.('disconnected');
+  }
+
+  onRawNotification(event) {
+    try { this.handlers.onRawChunk?.(parseSpinLabRawChunk(event.target.value)); } catch (error) { this.handlers.onError?.(error); }
   }
 }
 

@@ -11,6 +11,7 @@ import { pageHeader } from '../ui/shell.js';
 const STORAGE_KEY = 'spin-league-speedometer-session-v1';
 const WAKE_LOCK_SETTING_KEY = 'spin-league-speedometer-keep-display-awake-v1';
 const meterState = restoreSession();
+const rawChunkBuffers = new Map();
 let connection = null;
 let screenWakeLock = null;
 
@@ -90,7 +91,7 @@ export function speedometerView() {
     <article class="speed-panel speed-profile-panel">
       <div class="speed-panel-heading"><div><span>LATEST SHOOT PROFILE</span><h2>${latestSpinLab ? '本次 SpinLab 原始指標' : '本次發射偵測點'}</h2></div><b>${latestSpinLab ? `${number(latestSpinLab.transitions)} EDGES` : latest?.profile?.length ? `${latest.profile.length} POINTS` : 'WAITING DATA'}</b></div>
       <p>${latestSpinLab ? '顯示本次有效 Pull 區段的摘要；Raw edge timestamp 目前仍保留在裝置序列埠 Log。' : '顯示 Battle Pass 在最近一次發射中回傳的所有偵測點。'}</p>
-      ${latestSpinLab ? spinLabDetailPanel(latestSpinLab) : `<div class="speed-chart-wrap">${speedProfileChartSvg(latest?.profile || [], { width: 1120, height: 280 })}</div>`}
+      ${latestSpinLab ? `${spinLabDetailPanel(latestSpinLab)}${latestSpinLab.rawEdges?.length ? `<div class="speed-chart-wrap">${speedProfileChartSvg(latestSpinLab.rawEdges, { width: 1120, height: 280 })}</div>` : '<div class="speed-profile-empty">RAW PROFILE WAITING</div>'}` : `<div class="speed-chart-wrap">${speedProfileChartSvg(latest?.profile || [], { width: 1120, height: 280 })}</div>`}
     </article>
 
     <article class="speed-history-panel">
@@ -189,6 +190,7 @@ function ensureConnection(kind = meterState.deviceKind || 'spinlab') {
     onReading(reading) {
       const duplicate = meterState.readings.at(-1)?.totalShootCounter === reading.totalShootCounter && meterState.readings.at(-1)?.shootPower === reading.shootPower;
       if (duplicate) return;
+      const capturedAt = new Date().toISOString();
       meterState.readings.push(createMeasurement({
         source: reading.source || 'battle-pass',
         shootPower: reading.shootPower,
@@ -206,10 +208,35 @@ function ensureConnection(kind = meterState.deviceKind || 'spinlab') {
         rewindAnomaly: reading.rewindAnomaly,
         alternationError: reading.alternationError,
         reversalType: reading.reversalType,
-        at: new Date().toISOString(),
+        capturedAt,
+        at: capturedAt,
+        shotStartedUs: reading.shotStartedUs,
+        releaseUs: reading.releaseUs,
+        shotCompletedUs: reading.shotCompletedUs,
       }));
       meterState.deviceUid ||= reading.deviceUid || '';
       meterState.error = '';
+      persistSession();
+      refreshPage();
+    },
+    onRawChunk(chunk) {
+      let buffer = rawChunkBuffers.get(chunk.shotId);
+      if (!buffer || buffer.totalChunks !== chunk.totalChunks) {
+        buffer = { totalChunks: chunk.totalChunks, chunks: new Map(), baseTimestampUs: chunk.baseTimestampUs };
+        rawChunkBuffers.set(chunk.shotId, buffer);
+      }
+      buffer.chunks.set(chunk.chunkIndex, chunk);
+      if (buffer.chunks.size !== buffer.totalChunks) return;
+      const edges = [...buffer.chunks.values()].sort((a, b) => a.edgeStart - b.edgeStart).flatMap((item) => item.edges);
+      let timestampUs = buffer.baseTimestampUs;
+      const rawEdges = edges.map((edge, index) => {
+        if (index > 0) timestampUs += edge.deltaUs;
+        const rpm = edge.deltaUs > 0 ? 60000000 / (edge.deltaUs * 2) : 0;
+        return { index, timestampUs, deltaUs: edge.deltaUs, rpm, flags: edge.flags };
+      });
+      const reading = [...meterState.readings].reverse().find((item) => item.shotId === chunk.shotId);
+      if (reading) reading.rawEdges = rawEdges;
+      rawChunkBuffers.delete(chunk.shotId);
       persistSession();
       refreshPage();
     },
