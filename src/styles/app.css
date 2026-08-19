@@ -905,3 +905,6 @@ footer { font-size: 12px; }
   .pairing-editor-heading .button { width: 100%; }
   .pairing-editor-row { grid-template-columns: 42px minmax(0, 1fr) 24px minmax(0, 1fr); padding-inline: 8px; }
 }
+ .leaderboard-stage-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.leaderboard-stage-summary span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; background: #111a24; border: 1px solid #2a394a; border-radius: 6px; font-size: 11px; }
+.leaderboard-stage-summary b { color: #f2c94c; }.leaderboard-stage-summary i { color: #c8d1de; font-style: normal; }

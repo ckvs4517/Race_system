@@ -384,7 +384,7 @@ function leaderboardView(tournament, rows, isSwiss) {
   return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰${completed ? '與下載戰績圖' : ''}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row, completed)).join('')}</div></section>`;
 }
 
-function leaderboardPlayerRow(tournament, row, canDownloadShareCard) {
+function leaderboardPlayerRowLegacy(tournament, row, canDownloadShareCard) {
   const status = row.isChampion ? '<small>CHAMPION</small>' : row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : '';
   const matches = playerCompletedMatches(tournament, row.player);
   const history = matches.length
@@ -394,6 +394,30 @@ function leaderboardPlayerRow(tournament, row, canDownloadShareCard) {
     <summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}<em>對戰紀錄</em></strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary>
     <div class="player-history"><h3>${escapeText(row.player)}的已完成對戰</h3><ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div>
   </details>`;
+}
+
+function leaderboardPlayerRow(tournament, row, canDownloadShareCard) {
+  const matches = playerCompletedMatches(tournament, row.player);
+  const history = matches.length ? matches.map((entry) => `<li><span>${escapeText(roundPhaseLabel(entry.round, entry.roundIndex))}</span><b>${escapeText(entry.opponent)}</b><i>${escapeText(entry.result)}</i></li>`).join('') : '<li class="player-history-empty">尚無已完成對戰</li>';
+  const stages = stageSummaryView(tournament, row.player);
+  const status = row.isChampion ? '<small>CHAMPION</small>' : '';
+  return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''}"><summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary><div class="player-history"><h3>${escapeText(row.player)}的階段成績</h3>${stages}<ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div></details>`;
+}
+
+function stageSummaryView(tournament, player) {
+  const groups = new Map();
+  (tournament.rounds || []).forEach((round) => {
+    const phase = round.phase || 'preliminary';
+    const label = phase === 'preliminary' ? '瑞士輪' : phase === 'qualifier' ? '同分加賽' : '四強／決賽';
+    if (!groups.has(label)) groups.set(label, { wins: 0, losses: 0, points: 0 });
+    round.matches.filter((match) => match.status === '已完成' && [match.playerA, match.playerB].includes(player)).forEach((match) => {
+      const group = groups.get(label);
+      const isA = match.playerA === player;
+      group.points += Number(isA ? match.scoreA : match.scoreB) || 0;
+      if (match.winner === player) group.wins += 1; else group.losses += 1;
+    });
+  });
+  return `<div class="leaderboard-stage-summary">${[...groups].map(([label, value]) => `<span><b>${label}</b><i>${value.wins} 勝 ${value.losses} 敗 · ${value.points} 分</i></span>`).join('')}</div>`;
 }
 
 function playerCompletedMatches(tournament, player) {
