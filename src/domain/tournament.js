@@ -446,7 +446,7 @@ export function completeSwissByStandings(tournament) {
   return format.completeByStandings(normalized);
 }
 
-export function completeTournamentEarly(tournament) {
+function completeTournamentEarlyLegacy(tournament) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '?脰?銝?') throw new Error('目前沒有進行中的賽事可提前結束。');
   const standings = getTournamentStandings(normalized);
@@ -465,6 +465,14 @@ export function completeTournamentEarly(tournament) {
 /** 建立並列名次者的循環加賽；加賽結果只用於決定該組最終名次。 */
 export function startRoundRobinTieBreak(tournament, candidates) {
   return createRoundRobinTieBreak(normalizeTournament(tournament), candidates);
+}
+
+export function completeTournamentEarly(tournament) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '進行中') throw new Error('目前沒有進行中的賽事可提前結束。');
+  const standings = getTournamentStandings(normalized);
+  const tied = standings.filter((row) => row.rank === 1).length > 1;
+  return { ...normalized, status: '已完成', champion: tied ? null : standings[0]?.player || null, endedEarly: true, endedEarlyAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
 }
 
 export function updateRegistrationSettings(tournament, settings) {
