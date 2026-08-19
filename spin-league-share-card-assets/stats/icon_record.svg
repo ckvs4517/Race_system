@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" style="color:#F3F3EF">
-<path d="M80 10 L139 35 V80 C139 114 118 139 80 151 C42 139 21 114 21 80 V35 Z" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
-<path d="M48 107 V79 H65 V107 M72 107 V58 H89 V107 M96 107 V40 H113 V107" fill="none" stroke="currentColor" stroke-width="10"/><path d="M96 107 V72 H113 V107" stroke="#E52B32" stroke-width="10"/>
-</svg>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" style="color:#F3F3EF">
-<path d="M24 132 H139" stroke="currentColor" stroke-width="7"/><path d="M30 117 L57 91 L82 101 L110 61 L134 43" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
-<circle cx="30" cy="117" r="7" fill="#E52B32"/><circle cx="57" cy="91" r="7" fill="#E52B32"/><circle cx="82" cy="101" r="7" fill="#E52B32"/><circle cx="110" cy="61" r="7" fill="#E52B32"/>
-<path d="M134 26 V68 M134 28 L154 36 L134 45" fill="none" stroke="#E52B32" stroke-width="7"/>
-</svg>
