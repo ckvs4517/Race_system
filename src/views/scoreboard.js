@@ -18,7 +18,7 @@ export function scoreboardView(options = {}) {
       <div class="versus"><span>VS</span><i></i></div>
       ${scoreSide('b', 'RED SIDE', options.playerB || '選手 B', 'red', isMatch)}
     </div>
-    <div class="score-toolbar"><button data-action="undo-score">↶ 復原上一步</button><span>${isMatch ? '確認前仍可調整比分' : '點擊按鈕記分，最低為 0 分'}</span><button data-action="swap-sides" ${isMatch ? 'disabled' : ''}>⇄ 交換選手</button></div>
+    <div class="score-toolbar"><button data-action="undo-score">↶ 復原上一步</button><span>${isMatch ? '確認前仍可調整比分' : '點擊按鈕記分，最低為 0 分'}</span><button data-action="swap-sides">⇄ ${isMatch ? '交換邊' : '交換選手'}</button></div>
     ${isMatch ? `<div class="match-confirm"><p>勝方必須至少取得 4 分；送出後會自動更新晉級與排名。</p><button class="button button-primary" data-action="complete-match">確認結果並完成比賽</button></div>
     <div class="match-administrative"><div><b>棄賽判定</b><span>裁判判定後，對手將以 4：0 獲勝。</span></div><div><button class="button button-secondary" data-forfeit-player="${escapeAttribute(options.playerA || '')}">${escapeText(options.playerA || '選手 A')} 棄賽</button><button class="button button-secondary" data-forfeit-player="${escapeAttribute(options.playerB || '')}">${escapeText(options.playerB || '選手 B')} 棄賽</button></div></div>` : ''}
   </section>`;
@@ -31,6 +31,7 @@ function scoreSide(id, label, name, color, readonly) {
 export function bindScoreboard(root, options = {}) {
   // history 保存每次按鍵前的快照，讓復原功能不必判斷上一個操作類型。
   const score = { a: options.scoreA || 0, b: options.scoreB || 0 };
+  const sidePlayers = { a: options.playerA, b: options.playerB };
   const history = [];
   const render = () => Object.entries(score).forEach(([key, value]) => { root.querySelector(`[data-score="${key}"]`).textContent = value; });
   const snapshot = () => history.push({ ...score });
@@ -53,23 +54,24 @@ export function bindScoreboard(root, options = {}) {
     score.a = previous.a; score.b = previous.b; render();
   });
 
-  root.querySelector('[data-action="swap-sides"]:not([disabled])')?.addEventListener('click', () => {
+  root.querySelector('[data-action="swap-sides"]')?.addEventListener('click', () => {
     snapshot(); [score.a, score.b] = [score.b, score.a];
-    const names = root.querySelectorAll('[data-name]'); [names[0].value, names[1].value] = [names[1].value, names[0].value]; render();
+    [sidePlayers.a, sidePlayers.b] = [sidePlayers.b, sidePlayers.a];
+    const names = root.querySelectorAll('[data-name]'); [names[0].value, names[1].value] = [sidePlayers.a, sidePlayers.b]; render();
   });
 
   root.querySelector('[data-action="back-bracket"]')?.addEventListener('click', () => options.onBack?.());
   root.querySelector('[data-action="complete-match"]')?.addEventListener('click', async (event) => {
     if (score.a === score.b) return alert('目前比分相同，請完成決勝後再確認結果。');
     if (Math.max(score.a, score.b) < 4) return alert('勝方最終比分必須至少為 4 分。');
-    const winner = score.a > score.b ? options.playerA : options.playerB;
+    const winner = score.a > score.b ? sidePlayers.a : sidePlayers.b;
     if (!confirm(`確定由「${winner}」獲勝並晉級嗎？`)) return;
     const button = event.currentTarget;
     const originalText = button.textContent;
     button.disabled = true;
     button.textContent = '正在同步賽果…';
     try {
-      await options.onComplete?.(score.a, score.b);
+      await options.onComplete?.(sidePlayers.a === options.playerA ? score.a : score.b, sidePlayers.a === options.playerA ? score.b : score.a);
     } catch (error) {
       // 若網路逾時或其他非預期錯誤沒有觸發整頁重繪，仍需恢復按鈕，避免只能靠重新整理解鎖。
       if (button.isConnected) {

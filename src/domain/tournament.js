@@ -424,12 +424,42 @@ export function startSwissFinal(tournament, finalists, mode = 'round_robin') {
   return format.startFinal(normalized, finalists, mode);
 }
 
+export function startSwissFinalTieBreak(tournament, players) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.format !== 'swiss' || normalized.swissStage !== 'completed' || !normalized.finalTie) throw new Error('目前沒有需要加賽的四強並列冠軍。');
+  const selected = [...new Set(players || [])];
+  if (selected.length !== 2 || !selected.every((player) => (normalized.finalists || []).includes(player))) throw new Error('加賽必須選擇並列第一的兩位選手。');
+  return { ...normalized, rounds: [...normalized.rounds, { name: '冠軍加賽', phase: 'final', phaseRound: 99, seriesId: 'final-tiebreak', seriesPlayers: selected, matches: [{ id: 'swiss-final-tiebreak', playerA: selected[0], playerB: selected[1], scoreA: null, scoreB: null, winner: null, status: '?舫?憪?' }] }], swissStage: 'final', finalTie: false, champion: null, updatedAt: new Date().toISOString() };
+}
+
+export function confirmSwissFinalTie(tournament) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.format !== 'swiss' || normalized.swissStage !== 'completed' || !normalized.finalTie) throw new Error('目前沒有可保留的並列冠軍。');
+  return { ...normalized, status: '撌脣???', champion: null, finalTie: true, tieResolved: 'standings', updatedAt: new Date().toISOString() };
+}
+
 /** 以四輪瑞士輪積分榜直接結算，不建立額外四強賽程。 */
 export function completeSwissByStandings(tournament) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (format.id !== 'swiss' || !format.completeByStandings) throw new Error('這場賽事不支援瑞士輪積分榜結算。');
   return format.completeByStandings(normalized);
+}
+
+export function completeTournamentEarly(tournament) {
+  const normalized = normalizeTournament(tournament);
+  if (normalized.status !== '?脰?銝?') throw new Error('目前沒有進行中的賽事可提前結束。');
+  const standings = getTournamentStandings(normalized);
+  const leader = standings[0];
+  const tied = standings.filter((row) => row.rank === 1).length > 1;
+  return {
+    ...normalized,
+    status: '撌脣???',
+    champion: tied ? null : leader?.player || null,
+    endedEarly: true,
+    endedEarlyAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /** 建立並列名次者的循環加賽；加賽結果只用於決定該組最終名次。 */
@@ -499,7 +529,7 @@ export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, sc
   return {
     ...normalized,
     ...result,
-    status: result.champion ? '已完成' : '進行中',
+    status: result.champion || result.swissStage === 'completed' ? '已完成' : '進行中',
   };
 }
 

@@ -148,7 +148,8 @@ export const swiss = {
       }
       const finalStats = deriveStats(tournament.finalists, rounds.filter((item) => item.phase === 'final'));
       const finalRanking = rankByRecordAndPoints(tournament.finalists, finalStats);
-      return { rounds, champion: finalRanking[0]?.player || null, swissStage: 'completed' };
+      const tiedLeaders = finalRanking.filter((row) => row.rank === 1);
+      return { rounds, champion: finalRanking[0]?.player || null, finalTie: tiedLeaders.length > 1, swissStage: 'completed' };
     }
 
     const preliminaryRounds = rounds.filter((item) => (item.phase || 'preliminary') === 'preliminary');

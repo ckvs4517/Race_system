@@ -575,9 +575,23 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;
     beginSwissFinal(state.selectedTournamentId, finalists, mode);
   });
+  app.querySelector('[data-swiss-final-tiebreak-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const players = [...event.currentTarget.querySelectorAll('input[name="tiebreakPlayer"]:checked')].map((input) => input.value);
+    if (players.length !== 2) return alert('請選擇兩位並列第一的選手。');
+    try { await executeTournamentAction(state.selectedTournamentId, 'start_swiss_final_tiebreak', { players }); } catch (error) { alert(error.message); }
+  });
+  app.querySelector('[data-final-tie-standings]')?.addEventListener('click', async () => {
+    if (!confirm('確定保留並列冠軍，不進行加賽嗎？')) return;
+    try { await executeTournamentAction(state.selectedTournamentId, 'confirm_swiss_final_tie'); } catch (error) { alert(error.message); }
+  });
   app.querySelector('[data-complete-swiss-standings]')?.addEventListener('click', () => {
     if (!confirm('確定以目前瑞士輪積分榜作為最終成績並結束賽事嗎？此操作不會再建立四強賽程。')) return;
     completeSwissByStandings(state.selectedTournamentId);
+  });
+  app.querySelector('[data-action="complete-tournament-early"]')?.addEventListener('click', async () => {
+    if (!confirm('確定要提前結束賽事，依目前勝敗與總得分結算嗎？')) return;
+    try { await executeTournamentAction(state.selectedTournamentId, 'complete_tournament_early'); } catch (error) { alert(error.message); }
   });
   app.querySelector('[data-round-robin-tiebreak-form]')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -585,6 +599,16 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定為選取的 ${candidates.length} 位並列選手建立同分加賽嗎？`)) return;
     beginRoundRobinTieBreak(state.selectedTournamentId, candidates);
   });
+  app.querySelectorAll('[data-opening-pairings-form] select').forEach((select) => select.addEventListener('change', () => {
+    const form = select.form;
+    const selected = [...form.querySelectorAll('select')];
+    const duplicate = selected.find((other) => other !== select && other.value === select.value);
+    if (!duplicate) return;
+    const previous = select.dataset.previousValue || duplicate.dataset.previousValue || '';
+    if (previous && previous !== select.value) duplicate.value = previous;
+    selected.forEach((item) => { item.dataset.previousValue = item.value; });
+  }));
+  app.querySelectorAll('[data-opening-pairings-form] select').forEach((select) => { select.dataset.previousValue = select.value; });
   app.querySelector('[data-opening-pairings-form]')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const pairs = [...event.currentTarget.querySelectorAll('[data-pairing-row]')].map((row) => [
