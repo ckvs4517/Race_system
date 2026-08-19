@@ -44,7 +44,7 @@ function bracketView(tournament, canManage) {
   const moreActions = canManage
     ? `<details class="schedule-more"><summary class="button button-secondary">⋯ 更多</summary><div class="schedule-more-menu">${isDraft ? '<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>' : ''}${isScheduling && rounds.length ? '<button class="button button-secondary" data-action="randomize-schedule">重新隨機分組</button>' : ''}<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button></div></details>`
     : '';
-  const earlyFinish = canManage && tournament.status === '?脰?銝?' ? '<button class="button button-danger" data-action="complete-tournament-early">提前結束比賽</button>' : '';
+  const earlyFinish = canManage && tournament.status === '進行中' ? '<button class="button button-danger" data-action="complete-tournament-early">提前結束比賽</button>' : '';
   const headerActions = `<div class="schedule-header-actions"><button class="button button-secondary" data-action="back-events">← 返回列表</button>${canManage ? primaryAction : ''}${earlyFinish}${moreActions}</div>`;
   const guide = isDraft
     ? `<span><i class="draft-dot"></i>目前只確認報到名單，不會提前產生賽程</span><span>確認報到後才會進入隨機分組與手動調整階段</span>`
