@@ -5,7 +5,13 @@ export async function deliverBlob(blob, filename, { title = filename } = {}) {
   if (FileConstructor && navigatorObject?.share) {
     const file = new FileConstructor([blob], filename, { type: blob.type || 'application/octet-stream' });
     let canShareFiles = false;
-    try { canShareFiles = Boolean(navigatorObject.canShare?.({ files: [file] })); } catch { canShareFiles = false; }
+    try {
+      // Some iOS WebViews expose share() but omit canShare(). In that case,
+      // attempt file sharing and use the normal download only if it fails.
+      canShareFiles = typeof navigatorObject.canShare !== 'function'
+        ? true
+        : Boolean(navigatorObject.canShare({ files: [file] }));
+    } catch { canShareFiles = false; }
     if (canShareFiles) {
       try {
         await navigatorObject.share({ files: [file], title });
