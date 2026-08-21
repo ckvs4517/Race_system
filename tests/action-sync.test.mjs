@@ -1,4 +1,4 @@
-/** 後端指令同步測試：小型 payload、衝突重試與 ETag 無變更不重繪。 */
+/** 後端指令同步測試：小型 payload、衝突重試、ETag 與記分後單次重繪。 */
 const storage = new Map([['spin-admin-token', 'token']]);
 globalThis.sessionStorage = {
   getItem: (key) => storage.get(key) || null,
@@ -42,6 +42,7 @@ assert(changed === false && notifications === 0, '304 回應不解析資料也�
 const saved = await executeTournamentAction(1, 'record_match', { roundIndex: 0, matchIndex: 0, scoreA: 4, scoreB: 2 });
 assert(actionCalls === 2, '不同裁判同時操作時安全重試一次');
 assert(saved.revision === 3 && saved.remoteMarker && getState().tournaments[0].localMarker, '重試後保留最新後端狀態');
+assert(notifications === 0, '正式記分成功後由 main.js 導航並只重繪一次，不先通知重畫舊記分板');
 unsubscribe();
 
 console.log('PASS backend action sync and ETag tests');
