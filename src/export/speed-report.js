@@ -3,7 +3,6 @@ import '../../node_modules/html-to-image/dist/html-to-image.js';
 import { calculateShootStats } from '../domain/battle-pass.js';
 import { speedLineChartSvg } from '../ui/speed-chart.js';
 import { buildPdfBytesFromJpegs } from './jpeg-pdf.js';
-import { deliverBlob } from './file-delivery.js';
 
 const PDF_WIDTH = 1080;
 const PDF_HEIGHT = 1528;
@@ -140,4 +139,4 @@ function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;')
 function nextFrame() { return new Promise((resolve) => requestAnimationFrame(() => resolve())); }
 function ascii(value) { return new TextEncoder().encode(value); }
 function concatBytes(...chunks) { const length = chunks.reduce((total, chunk) => total + chunk.length, 0); const result = new Uint8Array(length); let offset = 0; chunks.forEach((chunk) => { result.set(chunk, offset); offset += chunk.length; }); return result; }
-function downloadBlob(blob, filename) { return deliverBlob(blob, filename); }
+function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
