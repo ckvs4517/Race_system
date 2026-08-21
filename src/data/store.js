@@ -21,6 +21,7 @@ let state = {
 const listeners = new Set();
 let refreshInFlight = false;
 const responseEtags = new Map();
+const EXPLICIT_RENDER_ACTIONS = new Set(['record_match', 'forfeit_match', 'replay_match']);
 
 function notify() {
   listeners.forEach((listener) => listener(getState()));
@@ -284,7 +285,9 @@ export async function executeTournamentAction(tournamentId, type, payload = {}, 
       replaceTournament(result.tournament);
       state.syncStatus = 'saved';
       state.error = null;
-      notify();
+      // 正式記分、棄賽與重賽在 main.js 會先完成畫面導航後再 render。
+      // 這裡若再 notify，會先重畫一次舊畫面，隨後又重畫賽程，造成平板額外負擔。
+      if (!EXPLICIT_RENDER_ACTIONS.has(type)) notify();
       return result.tournament;
     } catch (error) {
       if (error.status === 409) {
