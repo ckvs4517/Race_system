@@ -1,4 +1,5 @@
 /** 所有頁面共用的導覽、同步狀態、主內容與頁尾框架。 */
+import { buildVersionLabel } from '../core/build-info.js';
 import { icons } from './icons.js';
 
 export function shell(route, content, state = {}) {
@@ -36,6 +37,7 @@ export function shell(route, content, state = {}) {
       <div class="footer-links">
         <a class="footer-github" href="https://github.com/ckvs4517/Race_system" target="_blank" rel="noopener noreferrer" aria-label="在新分頁開啟 GitHub 專案">GitHub 專案 ↗</a>
         <span>CLOUD SYNC · ${icons.bolt} READY</span>
+        <span class="build-version" title="部署來源版本">${buildVersionLabel()}</span>
       </div>
     </footer>
   `;

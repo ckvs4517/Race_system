@@ -20,6 +20,8 @@ assert.match(guide, /建立私密填寫連結/, '說明頁包含私密參賽資�
 assert.match(guide, /管理名單/, '說明頁說明安全移除模式');
 assert.match(guide, /進入排程時舊網址會撤銷/, '說明頁解釋未填截止時間的關閉規則');
 assert.match(guide, /送出後會直接加入正式名單/, '說明頁解釋填寫後不需核准');
-assert.match(shell('guide', guide, { isAdmin: false }), /nav-item active[^>]*data-route="guide"/, '導覽列可開啟並標示使用說明頁');
+const guideShell = shell('guide', guide, { isAdmin: false });
+assert.match(guideShell, /nav-item active[^>]*data-route="guide"/, '導覽列可開啟並標示使用說明頁');
+assert.match(guideShell, /BUILD DEV/, '原始碼預覽時頁尾顯示開發版本標記');
 
 console.log('PASS getting started guide');
