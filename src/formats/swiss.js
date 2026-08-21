@@ -25,6 +25,7 @@ export const swiss = {
       // or seed a four-player knockout. Keeping this choice on the tournament
       // preserves previously generated rounds and makes old events compatible.
       swissFinalMode: null,
+      finalTieBreakCount: 0,
     };
   },
 
@@ -57,17 +58,13 @@ export const swiss = {
 
     const finalists = tournament.swissFinalMode === 'single_elimination'
       ? rankSingleEliminationFinalists(tournament, finalStats)
-      : rankByRecordAndPoints(
-      tournament.finalists,
-      finalStats,
-      tournament,
-      );
+      : rankRoundRobinFinalists(tournament, finalStats, finalRounds);
 
     const finalistSet = new Set(tournament.finalists);
     const remaining = preliminary.filter((row) => !finalistSet.has(row.player));
     return [...finalists, ...remaining].map((row, index) => ({
       ...row,
-      rank: index + 1,
+      rank: finalistSet.has(row.player) ? (row.rank ?? index + 1) : index + 1,
       isChampion: tournament.champion === row.player,
       participantStatus: tournament.participantStates?.[row.player]?.status || 'active',
       stage: finalistSet.has(row.player) ? 'final' : 'preliminary',
@@ -86,6 +83,13 @@ export const swiss = {
     const rounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === phase
       && (!qualifierSeriesId || round.seriesId === qualifierSeriesId));
     const stats = deriveStats(players, rounds);
+    if (phase === 'final' && tournament.swissFinalMode !== 'single_elimination') {
+      return rankRoundRobinFinalists(tournament, stats, rounds).map((row) => ({
+        ...row,
+        isChampion: tournament.champion === row.player,
+        participantStatus: tournament.participantStates?.[row.player]?.status || 'active',
+      }));
+    }
     return addRanks(
       rankByRecordAndPoints(players, stats, tournament),
       tournament,
@@ -146,10 +150,34 @@ export const swiss = {
           .find((item) => item.id === 'swiss-final-championship');
         return { rounds, champion: championship?.winner || null, swissStage: 'completed' };
       }
-      const finalStats = deriveStats(tournament.finalists, rounds.filter((item) => item.phase === 'final'));
-      const finalRanking = rankByRecordAndPoints(tournament.finalists, finalStats);
+      const finalRounds = rounds.filter((item) => item.phase === 'final');
+      const finalStats = deriveStats(tournament.finalists, finalRounds);
+      const rankingTournament = { ...tournament, rounds };
+      const finalRanking = rankRoundRobinFinalists(rankingTournament, finalStats, finalRounds);
       const tiedLeaders = finalRanking.filter((row) => row.rank === 1);
-      return { rounds, champion: finalRanking[0]?.player || null, finalTie: tiedLeaders.length > 1, swissStage: 'completed' };
+      if (tiedLeaders.length > 1) {
+        const seriesNumber = Number(tournament.finalTieBreakCount || 0) + 1;
+        const tiedPlayers = tiedLeaders.map((row) => row.player);
+        rounds.push(...createRoundRobinRounds(
+          tiedPlayers,
+          'final',
+          `final-tiebreak-${seriesNumber}`,
+          `四強同分加賽 ${seriesNumber}`,
+        ));
+        return {
+          rounds,
+          champion: null,
+          finalTie: true,
+          finalTieBreakCount: seriesNumber,
+          swissStage: 'final',
+        };
+      }
+      return {
+        rounds,
+        champion: finalRanking[0]?.player || null,
+        finalTie: false,
+        swissStage: 'completed',
+      };
     }
 
     const preliminaryRounds = rounds.filter((item) => (item.phase || 'preliminary') === 'preliminary');
@@ -195,6 +223,8 @@ export const swiss = {
       swissStage: 'final',
       swissFinalMode: mode,
       champion: null,
+      finalTie: false,
+      finalTieBreakCount: 0,
       updatedAt: new Date().toISOString(),
     };
   },
@@ -379,6 +409,57 @@ function rankByRecordAndPoints(
     || b.totalPoints - a.totalPoints
     || order.get(a.player) - order.get(b.player)
   ));
+}
+
+function rankRoundRobinFinalists(tournament, stats, rounds) {
+  const ranked = rankByRecordAndPoints(tournament.finalists, stats, tournament);
+  const result = [];
+  let index = 0;
+
+  while (index < ranked.length) {
+    const score = finalStandingKey(tournament, ranked[index]);
+    const tied = [];
+    while (index + tied.length < ranked.length
+      && finalStandingKey(tournament, ranked[index + tied.length]) === score) {
+      tied.push(ranked[index + tied.length]);
+    }
+
+    const baseRank = index + 1;
+    if (tied.length === 2) {
+      const winner = latestHeadToHeadWinner(rounds, tied[0].player, tied[1].player);
+      if (winner) {
+        tied.sort((left, right) => (left.player === winner ? -1 : right.player === winner ? 1 : 0));
+        tied.forEach((row, offset) => result.push({ ...row, rank: baseRank + offset }));
+      } else {
+        tied.forEach((row) => result.push({ ...row, rank: baseRank }));
+      }
+    } else if (tied.length > 1) {
+      tied.forEach((row) => result.push({ ...row, rank: baseRank }));
+    } else {
+      result.push({ ...tied[0], rank: baseRank });
+    }
+    index += tied.length;
+  }
+
+  return result;
+}
+
+function finalStandingKey(tournament, row) {
+  return `${participantRankingGroup(tournament, row.player)}:${rankingKey(row)}`;
+}
+
+function latestHeadToHeadWinner(rounds, playerA, playerB) {
+  for (let roundIndex = rounds.length - 1; roundIndex >= 0; roundIndex -= 1) {
+    const matches = rounds[roundIndex].matches || [];
+    for (let matchIndex = matches.length - 1; matchIndex >= 0; matchIndex -= 1) {
+      const match = matches[matchIndex];
+      if (!match.winner) continue;
+      const samePair = (match.playerA === playerA && match.playerB === playerB)
+        || (match.playerA === playerB && match.playerB === playerA);
+      if (samePair) return match.winner;
+    }
+  }
+  return null;
 }
 
 function rankSingleEliminationFinalists(tournament, stats) {
