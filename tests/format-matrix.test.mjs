@@ -51,7 +51,12 @@ for (const format of ['single_elimination', 'swiss']) {
     const standings = getTournamentStandings(tournament);
     assert.equal(standings.length, playerCount, `${format} ${playerCount} 人排行榜人數正確`);
     assert.equal(standings[0].player, tournament.champion, `${format} ${playerCount} 人排行榜首位是冠軍`);
-    assert.deepEqual(standings.map((row) => row.rank), Array.from({ length: playerCount }, (_, index) => index + 1), `${format} ${playerCount} 人名次連續`);
+    assert.equal(standings[0].rank, 1, `${format} ${playerCount} 人冠軍排名第一`);
+    assert.equal(standings.filter((row) => row.rank === 1).length, 1, `${format} ${playerCount} 人完成後不得保留並列冠軍`);
+    assert.ok(standings.slice(1).every((row, index) => row.rank >= standings[index].rank), `${format} ${playerCount} 人名次不得逆序`);
+    if (format === 'single_elimination') {
+      assert.deepEqual(standings.map((row) => row.rank), Array.from({ length: playerCount }, (_, index) => index + 1), `${format} ${playerCount} 人淘汰賽名次連續`);
+    }
     assert.ok(tournament.rounds.every((round) => round.matches.every((match) => match.status !== '可開始')), `${format} ${playerCount} 人完成後沒有未結算對戰`);
     if (format === 'single_elimination') {
       assert.equal(buildRounds(tournament).length, Math.ceil(Math.log2(playerCount)), `${playerCount} 人單淘汰輪數正確`);
