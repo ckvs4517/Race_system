@@ -572,6 +572,13 @@ footer { font-size: 12px; }
 .result-share-card .share-stats b, .result-share-card .share-stats small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result-share-card .share-stats b { font-size: 25px; }
 .result-share-card .share-stats small { margin-top: 8px; color: #b7bdc7; font-size: 18px; }
+.result-share-card .share-stage-stats { margin-top: 18px; padding: 16px 20px; border: 1px solid rgba(255,255,255,.18); background: rgba(5,7,10,.76); }
+.result-share-card .share-stage-stats h2 { margin: 0 0 11px; color: #ff6262; font-size: 20px; letter-spacing: .08em; }
+.result-share-card .share-stage-stats > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.result-share-card .share-stage-stats span { display: block; min-width: 0; padding: 9px 11px; border: 1px solid rgba(255,255,255,.13); background: rgba(10,13,18,.74); }
+.result-share-card .share-stage-stats b, .result-share-card .share-stage-stats i { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-share-card .share-stage-stats b { font-size: 17px; }
+.result-share-card .share-stage-stats i { margin-top: 5px; color: #b7bdc7; font-size: 15px; font-style: normal; }
 .result-share-card .share-history { min-height: 442px; margin-top: 28px; padding: 25px 28px; border: 1px solid rgba(255,255,255,.18); background: rgba(5,7,10,.76); }
 .result-share-card .share-history h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 17px; font-size: 27px; }
 .result-share-card .share-history h2 img { width: 31px; height: 31px; }

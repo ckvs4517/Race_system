@@ -19,6 +19,7 @@ export function buildShareCardData(sourceTournament, playerName) {
   const wins = matches.filter((match) => match.result === 'win').length;
   const losses = matches.length - wins;
   const totalScore = matches.reduce((total, match) => total + match.scoreFor, 0);
+  const stageStats = completedStageStats(tournament, playerName);
 
   return {
     tournamentName: tournament.name || 'Spin League 賽事',
@@ -30,8 +31,25 @@ export function buildShareCardData(sourceTournament, playerName) {
     losses,
     totalScore,
     winRate: matches.length ? Math.round((wins / matches.length) * 100) : 0,
+    stageStats,
     matches,
   };
+}
+
+function completedStageStats(tournament, playerName) {
+  const groups = new Map();
+  (tournament.rounds || []).forEach((round) => {
+    const phase = round.phase || 'preliminary';
+    const label = phase === 'preliminary' ? '瑞士輪' : phase === 'qualifier' ? '同分加賽' : '四強／決賽';
+    if (!groups.has(label)) groups.set(label, { wins: 0, losses: 0, points: 0 });
+    (round.matches || []).filter((match) => isFormalCompletedMatch(match) && [match.playerA, match.playerB].includes(playerName)).forEach((match) => {
+      const value = groups.get(label);
+      const isA = match.playerA === playerName;
+      value.points += Number(isA ? match.scoreA : match.scoreB) || 0;
+      if (match.winner === playerName) value.wins += 1; else value.losses += 1;
+    });
+  });
+  return [...groups].map(([label, value]) => ({ label, ...value }));
 }
 
 function completedPlayerMatches(tournament, playerName) {
