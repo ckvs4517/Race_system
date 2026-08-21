@@ -4,6 +4,7 @@ import { getState, refreshTournament, refreshTournaments } from '../data/store.j
 let recoveryInFlight = false;
 
 export async function recoverMobileSession() {
+  // 一般前景切換仍由 main.js 的 visibilitychange polling 處理；這裡只補它涵蓋不到的恢復事件。
   if (recoveryInFlight || document.visibilityState !== 'visible' || navigator.onLine === false) return false;
   const state = getState();
   if (state.loading) return false;
