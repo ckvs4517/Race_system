@@ -16,6 +16,7 @@ const tests = [
   'tests/battle-pass.test.mjs',
   'tests/screen-wake-lock.test.mjs',
   'tests/speed-report.test.mjs',
+  'tests/file-delivery.test.mjs',
 ];
 
 const started = Date.now();

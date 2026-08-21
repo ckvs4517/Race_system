@@ -1,6 +1,7 @@
 /** 資料管理頁，以及可獨立測試的 JSON 備份與 CSV 轉換函式。 */
 import { pageHeader } from '../ui/shell.js';
 import { getTournamentFormat } from '../formats/registry.js';
+import { deliverBlob } from '../export/file-delivery.js';
 
 const BACKUP_FORMAT = 'spin-league-backup';
 const BACKUP_VERSION = 1;
@@ -132,10 +133,7 @@ function escapeText(value) {
 }
 
 function download(filename, content, type) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = filename; anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return deliverBlob(new Blob([content], { type }), filename, { title: filename });
 }
 
 function dateStamp() {

@@ -4,6 +4,7 @@ import '../../../node_modules/html-to-image/dist/html-to-image.js';
 import { buildShareCardData, resolveShareCardPresentation } from '../domain/share-card.js';
 import { shareCardAssets } from '../config/share-card-assets.js';
 import { ResultShareCard } from '../views/result-share-card.js';
+import { deliverBlob } from './file-delivery.js';
 
 /**
  * 預載字型與同源素材後，將共用 DOM 模板匯出為固定 1080 × 1350 PNG。
@@ -31,7 +32,7 @@ export async function exportShareCardAsPng(tournament, playerName) {
     const card = node.querySelector('[data-result-share-card]');
     const blob = await globalThis.htmlToImage.toBlob(card, { width: 1080, height: 1350, canvasWidth: 1080, canvasHeight: 1350, pixelRatio: 1, cacheBust: false, backgroundColor: '#080a0d' });
     if (!blob) throw new Error('戰績圖產生失敗，請再試一次。');
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${safe(data.tournamentName)}-${safe(playerName)}-戰績圖.png`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    await deliverBlob(blob, `${safe(data.tournamentName)}-${safe(playerName)}-戰績圖.png`, { title: 'Spin League 戰績圖' });
   } finally { node.remove(); }
 }
 
