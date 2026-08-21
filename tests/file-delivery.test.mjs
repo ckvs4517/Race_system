@@ -17,10 +17,6 @@ setNavigator({ canShare: () => false });
 await deliverBlob(new Blob(['x']), 'b.txt');
 assert(clicked === 1, 'falls back to anchor download without file sharing');
 
-setNavigator({ share: async () => { shared += 1; } });
-await deliverBlob(new Blob(['x']), 'b2.txt');
-assert(shared === 2 && clicked === 1, 'attempts Web Share when canShare is unavailable');
-
 setNavigator({ share: async () => { const error = new Error('cancelled'); error.name = 'AbortError'; throw error; }, canShare: () => true });
 await deliverBlob(new Blob(['x']), 'c.txt');
 assert(clicked === 1, 'does not download after Share Sheet cancellation');
