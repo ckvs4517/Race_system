@@ -26,6 +26,7 @@ let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: fa
 let registrationEntryContext = { source: 'navigation', tournamentId: null };
 let toastTimer = null;
 let lastRenderedRoute = null;
+let scheduleScrollRestore = null;
 
 function showToast(message, type = 'success') {
   document.querySelector('.action-toast')?.remove();
@@ -131,6 +132,11 @@ function render(resetScroll = false) {
   if (route === 'registration' && !state.isAdmin) bindControlEvents();
   if (route === 'register') bindPublicRegistrationEvents();
   if (route === 'schedule') bindScheduleEvents(state);
+  if (route === 'schedule' && !state.selectedMatch && scheduleScrollRestore) {
+    const position = scheduleScrollRestore;
+    scheduleScrollRestore = null;
+    requestAnimationFrame(() => window.scrollTo({ top: position.top, left: position.left, behavior: 'auto' }));
+  }
   // 雲端同步只更新內容，不把裁判正在查看的位置強制拉回頁首。
   if (resetScroll) scrollPageToTop();
 }
@@ -368,6 +374,7 @@ function bindScheduleEvents(state) {
     copyTournament(Number(button.dataset.copyTournament));
   }));
   app.querySelectorAll('.match-card.is-ready').forEach((card) => card.addEventListener('click', () => {
+    scheduleScrollRestore = { top: window.scrollY, left: window.scrollX };
     selectMatch(card.dataset.roundIndex, card.dataset.matchIndex);
     render(true);
   }));
