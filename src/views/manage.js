@@ -20,7 +20,7 @@ export function manageView(tournament = null) {
     : '先建立準備中的賽事，確認參賽名單後再正式開始。';
   const backButton = `<div class="header-actions">${isEditing ? '<button class="button button-secondary" data-action="cancel-edit">← 返回賽程</button>' : ''}<button class="button button-secondary" data-route="guide">查看操作說明</button></div>`;
   const playerText = tournament?.players?.join('\n') || '';
-  const eventInfo = tournament?.eventInfo || DEFAULT_EVENT_INFO_for_88cafe;
+  const eventInfo = tournament?.eventInfo || { ...DEFAULT_EVENT_INFO_for_88cafe, ...defaultEventSchedule() };
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
   const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
@@ -59,6 +59,20 @@ export function manageView(tournament = null) {
       <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；可直接以積分榜結束，或先確認四強後選擇循環決賽／單淘汰決賽。資格線同分時也可先建立資格積分決定賽。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
+}
+
+function defaultEventSchedule(now = new Date()) {
+  const date = new Date(now);
+  const time = (offsetMinutes) => {
+    const value = new Date(date.getTime() + offsetMinutes * 60_000);
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  };
+  return {
+    date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+    checkInStart: time(0),
+    checkInEnd: time(30),
+    startTime: time(60),
+  };
 }
 
 export function bindManage(root, options) {
