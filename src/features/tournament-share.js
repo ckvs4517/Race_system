@@ -1,5 +1,5 @@
 /** 在賽事資訊列加入公開分享按鈕、QR Code 與可分享的深連結。 */
-import { getState, updateState } from '../data/store.js';
+import { getState, subscribe, updateState } from '../data/store.js';
 import { currentRoute } from '../core/router.js';
 import { sharedTournamentIdFromHash, tournamentQrImageUrl, tournamentShareUrl } from '../core/tournament-share.js';
 
@@ -171,6 +171,13 @@ if (app) {
   new MutationObserver(() => enhanceTournamentPage()).observe(app, { childList: true, subtree: true });
   queueMicrotask(enhanceTournamentPage);
 }
+
+// The initial hash can be processed before the store finishes loading. Retry
+// selection whenever the store publishes its loaded tournament records.
+subscribe(() => {
+  syncSelectionFromHash();
+  queueMicrotask(enhanceTournamentPage);
+});
 
 window.addEventListener('pagehide', () => {
   if (dialog?.open) dialog.close();
