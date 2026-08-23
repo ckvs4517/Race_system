@@ -6,6 +6,7 @@ import { sharedTournamentIdFromHash, tournamentQrImageUrl, tournamentShareUrl } 
 const app = document.querySelector('#app');
 let dialog = null;
 let lastShareTournamentId = null;
+let sharedUrlSelectionId = null;
 
 function currentTournament() {
   const state = getState();
@@ -19,6 +20,7 @@ function syncSelectionFromHash() {
   const state = getState();
   if (state.loading || state.selectedTournamentId === tournamentId) return;
   if (!state.tournaments.some((item) => item.id === tournamentId)) return;
+  sharedUrlSelectionId = tournamentId;
   updateState((current) => ({ ...current, selectedTournamentId: tournamentId, selectedMatch: null }));
 }
 
@@ -26,6 +28,9 @@ function syncHashFromSelection() {
   if (currentRoute() !== 'schedule') return;
   const state = getState();
   const sharedId = sharedTournamentIdFromHash(location.hash);
+  // A shared URL is authoritative during startup; do not replace it with the
+  // tournament that was selected in the previous local session.
+  if (sharedId != null && sharedUrlSelectionId !== sharedId) return;
   if (state.selectedTournamentId != null) {
     if (sharedId === state.selectedTournamentId) return;
     history.replaceState(null, '', `${location.pathname}${location.search}#schedule/${state.selectedTournamentId}`);
