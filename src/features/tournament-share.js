@@ -31,7 +31,10 @@ function syncHashFromSelection() {
     history.replaceState(null, '', `${location.pathname}${location.search}#schedule/${state.selectedTournamentId}`);
     return;
   }
-  if (sharedId != null) history.replaceState(null, '', `${location.pathname}${location.search}#schedule`);
+  // During startup the shared ID may be waiting for the store to finish loading.
+  // Never erase it before syncSelectionFromHash can select the requested tournament.
+  if (sharedId != null) return;
+  if (location.hash !== '#schedule') history.replaceState(null, '', `${location.pathname}${location.search}#schedule`);
 }
 
 async function copyText(text) {
