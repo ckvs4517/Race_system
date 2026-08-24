@@ -18,8 +18,6 @@ import {
   completeTournamentEarly,
   setDraftPlayerCheckedIn,
   startSwissFinal,
-  startSwissFinalTieBreak,
-  confirmSwissFinalTie,
   startSwissQualifier,
   startRoundRobinTieBreak,
   startTournament,
@@ -422,10 +420,6 @@ function applyTournamentAction(tournament, type, payload) {
       return startSwissQualifier(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
     case 'start_swiss_final':
       return startSwissFinal(tournament, Array.isArray(payload.players) ? payload.players.map(String) : [], String(payload.mode || 'round_robin'));
-    case 'start_swiss_final_tiebreak':
-      return startSwissFinalTieBreak(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
-    case 'confirm_swiss_final_tie':
-      return confirmSwissFinalTie(tournament);
     case 'complete_swiss_by_standings':
       return completeSwissByStandings(tournament);
     case 'complete_tournament_early':
