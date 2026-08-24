@@ -424,20 +424,6 @@ export function startSwissFinal(tournament, finalists, mode = 'round_robin') {
   return format.startFinal(normalized, finalists, mode);
 }
 
-export function startSwissFinalTieBreak(tournament, players) {
-  const normalized = normalizeTournament(tournament);
-  if (normalized.format !== 'swiss' || normalized.swissStage !== 'completed' || !normalized.finalTie) throw new Error('目前沒有需要加賽的四強並列冠軍。');
-  const selected = [...new Set(players || [])];
-  if (selected.length !== 2 || !selected.every((player) => (normalized.finalists || []).includes(player))) throw new Error('加賽必須選擇並列第一的兩位選手。');
-  return { ...normalized, rounds: [...normalized.rounds, { name: '冠軍加賽', phase: 'final', phaseRound: 99, seriesId: 'final-tiebreak', seriesPlayers: selected, matches: [{ id: 'swiss-final-tiebreak', playerA: selected[0], playerB: selected[1], scoreA: null, scoreB: null, winner: null, status: '?舫?憪?' }] }], swissStage: 'final', finalTie: false, champion: null, updatedAt: new Date().toISOString() };
-}
-
-export function confirmSwissFinalTie(tournament) {
-  const normalized = normalizeTournament(tournament);
-  if (normalized.format !== 'swiss' || normalized.swissStage !== 'completed' || !normalized.finalTie) throw new Error('目前沒有可保留的並列冠軍。');
-  return { ...normalized, status: '撌脣???', champion: null, finalTie: true, tieResolved: 'standings', updatedAt: new Date().toISOString() };
-}
-
 /** 以四輪瑞士輪積分榜直接結算，不建立額外四強賽程。 */
 export function completeSwissByStandings(tournament) {
   const normalized = normalizeTournament(tournament);
@@ -494,7 +480,8 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   if (normalized.bracketVersion !== 2) throw new Error('舊版進行中賽事不支援回退比賽。');
   if (normalized.status !== '進行中' && normalized.status !== '已完成') throw new Error('這場賽事目前不能重新比賽。');
   const rounds = structuredClone(normalized.rounds.slice(0, roundIndex + 1));
-  const match = rounds[roundIndex]?.matches[matchIndex];
+  const resetRound = rounds[roundIndex];
+  const match = resetRound?.matches[matchIndex];
   if (!match || match.status !== '已完成') throw new Error('只有已完成的比賽可以重新開始。');
 
   match.scoreA = null;
@@ -506,7 +493,7 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   delete match.forfeitPlayer;
   delete match.resolutionReason;
   const format = getTournamentFormat(normalized.format);
-  const resetPhase = rounds[roundIndex]?.phase || 'preliminary';
+  const resetPhase = resetRound?.phase || 'preliminary';
   const swissStage = normalized.format === 'swiss'
     ? resetPhase === 'preliminary' ? 'preliminary' : resetPhase
     : undefined;
@@ -520,7 +507,7 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
       swissStage,
       finalists: swissStage === 'preliminary' ? [] : normalized.finalists,
       swissFinalMode: swissStage === 'preliminary' ? null : normalized.swissFinalMode,
-      activeQualifierSeriesId: swissStage === 'qualifier' ? round.seriesId : normalized.activeQualifierSeriesId,
+      activeQualifierSeriesId: swissStage === 'qualifier' ? resetRound.seriesId : normalized.activeQualifierSeriesId,
     } : {}),
     updatedAt: new Date().toISOString(),
   };
