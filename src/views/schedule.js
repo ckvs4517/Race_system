@@ -277,13 +277,22 @@ function swissDecisionPanel(tournament, canManage) {
   }
   if (stage === 'final') {
     const isKnockout = tournament.swissFinalMode === 'single_elimination';
-    return `<section class="swiss-decision-panel"><p class="kicker">TOP 4 FINAL</p><h2>${isKnockout ? '前四名單淘汰決賽' : '前四名循環決賽'}</h2><p>${isKnockout ? '依瑞士輪排名進行第 1 對第 4、第 2 對第 3 的準決賽；其後同時進行冠軍賽與季軍賽，統一使用戰鬥台 1。' : '四位選手統一使用戰鬥台 1，各互打一場，共三輪、六場；最終依勝場與總得分排列。'}</p><div class="swiss-finalists">${(tournament.finalists || []).map((player) => `<span>${escapeText(player)}</span>`).join('')}</div></section>`;
+    const activeTieBreakRound = !isKnockout && tournament.finalTie
+      ? [...(tournament.rounds || [])].reverse().find((round) => round.phase === 'final'
+        && String(round.seriesId || '').startsWith('final-tiebreak-')
+        && round.matches.some((match) => ['可開始', '等待前輪'].includes(match.status)))
+      : null;
+    const isAutomaticTieBreak = Boolean(activeTieBreakRound);
+    const displayPlayers = isAutomaticTieBreak ? activeTieBreakRound.seriesPlayers || [] : tournament.finalists || [];
+    const title = isAutomaticTieBreak ? '四強同分加賽進行中' : isKnockout ? '前四名單淘汰決賽' : '前四名循環決賽';
+    const description = isAutomaticTieBreak
+      ? '四強循環決賽出現三人以上完全同分，系統已依規則自動建立循環加賽；完成後若仍無法分出唯一第一名，會再自動建立下一組加賽。'
+      : isKnockout
+        ? '依瑞士輪排名進行第 1 對第 4、第 2 對第 3 的準決賽；其後同時進行冠軍賽與季軍賽，統一使用戰鬥台 1。'
+        : '四位選手統一使用戰鬥台 1，各互打一場，共三輪、六場；依勝場、敗場、總得分排序，兩人完全同分時以直接對戰結果決定名次。';
+    return `<section class="swiss-decision-panel"><p class="kicker">${isAutomaticTieBreak ? 'AUTOMATIC TIE BREAK' : 'TOP 4 FINAL'}</p><h2>${title}</h2><p>${description}</p><div class="swiss-finalists">${displayPlayers.map((player) => `<span>${escapeText(player)}</span>`).join('')}</div></section>`;
   }
-  if (stage === 'completed') {
-    if (!tournament.finalTie) return '';
-    const tied = getTournamentStandings(tournament).filter((row) => row.rank === 1);
-    return `<section class="swiss-decision-panel"><p class="kicker">FINAL TIE</p><h2>冠軍並列，需要加賽</h2><p>前二名同分同戰績，請選擇是否進行冠軍加賽。</p>${canManage ? `<form data-swiss-final-tiebreak-form><div class="swiss-player-choices">${tied.map((row) => `<label class="swiss-player-choice"><input type="checkbox" name="tiebreakPlayer" value="${escapeAttribute(row.player)}" checked><span><b>${escapeText(row.player)}</b><small>${row.wins} 勝 ${row.losses} 敗 · 總得分 ${row.totalPoints}</small></span></label>`).join('')}</div><button class="button button-primary" type="submit">進行冠軍加賽</button></form><button class="button button-secondary" data-final-tie-standings>保留並列冠軍</button>` : ''}</section>`;
-  }
+  if (stage === 'completed') return '';
 
   const rows = getTournamentStandings(tournament);
   const latestQualifier = tournament.qualifierSeriesCount ? getSwissPhaseStandings(tournament, 'qualifier') : [];
@@ -342,7 +351,7 @@ function swissStageGuide(tournament) {
     preliminary: '完成第四輪後會暫停，由主辦方確認四強資格',
     qualification: '四輪預賽完成，等待主辦方確認四強或建立資格加賽',
     qualifier: '資格積分決定賽進行中',
-    final: tournament.swissFinalMode === 'single_elimination' ? '前四名單淘汰決賽進行中' : '前四名循環決賽進行中',
+    final: tournament.finalTie && tournament.swissFinalMode !== 'single_elimination' ? '四強同分自動加賽進行中' : tournament.swissFinalMode === 'single_elimination' ? '前四名單淘汰決賽進行中' : '前四名循環決賽進行中',
     completed: tournament.swissFinalMode === 'standings' ? '已以瑞士輪積分榜結束賽事' : tournament.swissFinalMode === 'single_elimination' ? '前四名單淘汰決賽已完成' : '前四名循環決賽已完成',
   }[tournament.swissStage || 'preliminary'];
 }
@@ -379,9 +388,20 @@ function swissLiveLeaderboardRows(tournament) {
 
 function leaderboardView(tournament, rows, isSwiss) {
   const metric = '總得分';
-  const description = isSwiss ? '依勝場、敗場、總得分依序排名' : '依冠軍、勝場、總分與得失分差排序';
+  const description = leaderboardDescription(tournament, isSwiss);
   const completed = tournament.status === '已完成';
-  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰${completed ? '與下載戰績圖' : ''}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row, completed)).join('')}</div></section>`;
+  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰${completed ? '與下載戰績圖' : ''}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row, completed, rows)).join('')}</div></section>`;
+}
+
+function leaderboardDescription(tournament, isSwiss) {
+  if (!isSwiss) return '依冠軍、勝場、總分與得失分差排序';
+  if (tournament.swissFinalMode === 'single_elimination' && ['final', 'completed'].includes(tournament.swissStage)) {
+    return '四強名次依淘汰賽結果，其餘選手依瑞士輪成績排序';
+  }
+  if (tournament.swissFinalMode === 'round_robin' && ['final', 'completed'].includes(tournament.swissStage)) {
+    return '四強循環依勝場、敗場、總得分排序；兩人完全同分時比較直接對戰，三人以上同分會自動加賽';
+  }
+  return '依勝場、敗場、總得分依序排名';
 }
 
 function leaderboardPlayerRowLegacy(tournament, row, canDownloadShareCard) {
@@ -396,12 +416,25 @@ function leaderboardPlayerRowLegacy(tournament, row, canDownloadShareCard) {
   </details>`;
 }
 
-function leaderboardPlayerRow(tournament, row, canDownloadShareCard) {
+function leaderboardPlayerRow(tournament, row, canDownloadShareCard, rows = []) {
   const matches = playerCompletedMatches(tournament, row.player);
   const history = matches.length ? matches.map((entry) => `<li><span>${escapeText(roundPhaseLabel(entry.round, entry.roundIndex))}</span><b>${escapeText(entry.opponent)}</b><i>${escapeText(entry.result)}</i></li>`).join('') : '<li class="player-history-empty">尚無已完成對戰</li>';
   const stages = stageSummaryView(tournament, row.player);
   const status = row.isChampion ? '<small>CHAMPION</small>' : '';
-  return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''}"><summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary><div class="player-history"><h3>${escapeText(row.player)}的階段成績</h3>${stages}<ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div></details>`;
+  const rankingReason = swissDirectMatchReason(tournament, row, rows);
+  return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''}"><summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}${rankingReason}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary><div class="player-history"><h3>${escapeText(row.player)}的階段成績</h3>${stages}<ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div></details>`;
+}
+
+function swissDirectMatchReason(tournament, row, rows) {
+  if (tournament.format !== 'swiss' || tournament.swissFinalMode !== 'round_robin') return '';
+  if (!(tournament.finalists || []).includes(row.player)) return '';
+  const sameRecord = rows.filter((candidate) => candidate.player !== row.player
+    && (tournament.finalists || []).includes(candidate.player)
+    && candidate.wins === row.wins
+    && candidate.losses === row.losses
+    && candidate.totalPoints === row.totalPoints);
+  if (sameRecord.length !== 1 || sameRecord[0].rank === row.rank) return '';
+  return row.rank < sameRecord[0].rank ? '<small>直接對戰優勢</small>' : '<small>直接對戰劣勢</small>';
 }
 
 function stageSummaryView(tournament, player) {
