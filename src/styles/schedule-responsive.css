@@ -1,0 +1,24 @@
+/* 賽程頁手機操作列：同時顯示返回、快速登分、提前結束與更多時必須留在容器內。 */
+@media (max-width: 620px) {
+  .schedule-header-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-header-actions > .button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 12px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .schedule-header-actions > .button:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .schedule-header-actions > .schedule-more {
+    grid-column: 2;
+    justify-self: end;
+  }
+}
