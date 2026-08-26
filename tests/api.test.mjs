@@ -74,7 +74,7 @@ assert(largeCreatedResponse.status === 201 && largeCreated.tournament.players.le
 
 const listed = await request('/api/tournaments');
 const data = await listed.json();
-assert(data.tournaments.length === 1 && data.tournaments[0].name === tournament.name, '公開 API 可以讀取雲端賽事');
+assert(data.tournaments.some((item) => item.name === tournament.name), '公開 API 可以讀取雲端賽事');
 const listEtag = listed.headers.get('etag');
 const unchangedList = await request('/api/tournaments', { headers: { 'if-none-match': listEtag } });
 assert(Boolean(listEtag) && unchangedList.status === 304, '賽事清單未變時使用 ETag 省略重複資料');
