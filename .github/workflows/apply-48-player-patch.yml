@@ -25,8 +25,6 @@ jobs:
         run: |
           from pathlib import Path
 
-          MAX_PLAYERS = 48
-
           def replace(path, old, new, expected=1):
               file = Path(path)
               text = file.read_text(encoding='utf-8')
@@ -110,6 +108,16 @@ jobs:
               'worker/index.js',
               "if (!Array.isArray(value.players) || value.players.length > 32 || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');",
               "if (!Array.isArray(value.players) || value.players.length > MAX_TOURNAMENT_PLAYERS || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');",
+          )
+          replace(
+              'worker/index.js',
+              "if (!Number.isInteger(Number(settings.capacity)) || Number(settings.capacity) < 2 || Number(settings.capacity) > 32) throw new Error('Invalid registration capacity');",
+              "if (!Number.isInteger(Number(settings.capacity)) || Number(settings.capacity) < 2 || Number(settings.capacity) > MAX_TOURNAMENT_PLAYERS) throw new Error('Invalid registration capacity');",
+          )
+          replace(
+              'worker/index.js',
+              "if (!players.length || players.length > 32) throw new Error('請選擇要移除的選手。');",
+              "if (!players.length || players.length > MAX_TOURNAMENT_PLAYERS) throw new Error('請選擇要移除的選手。');",
           )
 
           # API regression: the Worker must accept a full 48-player draft.
