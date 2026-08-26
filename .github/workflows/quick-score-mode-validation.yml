@@ -1,0 +1,47 @@
+name: Quick score mode validation
+
+on:
+  push:
+    branches:
+      - feature/quick-score-mode
+    paths:
+      - .github/workflows/quick-score-mode-validation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v5
+        with:
+          ref: feature/quick-score-mode
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply quick score mode
+        run: python3 scripts/apply-quick-score-mode.py
+      - name: Project health
+        run: node scripts/project-health.mjs
+      - name: Focused quick score regression
+        run: node tests/quick-score.test.mjs
+      - name: Fast regression
+        run: node scripts/test-fast.mjs
+      - name: Full regression, browser flows and build
+        run: node scripts/test-full.mjs --browser=required
+      - name: Commit tested implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main.js src/views/schedule.js src/styles/app.css tests/full-flow.test.js
+          git diff --cached --check
+          git commit -m "Add in-schedule quick score mode"
+          git push origin HEAD:feature/quick-score-mode
