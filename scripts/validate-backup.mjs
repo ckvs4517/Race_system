@@ -82,7 +82,10 @@ function validateSwiss(tournament, label, errorsList, warningsList) {
   if (tournament.swissStage === 'preliminary' && preliminary.length >= 4 && preliminary.every(roundComplete)) {
     warningsList.push(`${label}: four preliminary rounds are complete but swissStage is still preliminary.`);
   }
-  if (['final', 'completed'].includes(tournament.swissStage) && (tournament.finalists || []).length !== 4) {
+  const expectedFinalists = tournament.swissFinalMode === 'standings'
+    ? 0
+    : Number(tournament.swissStage2Config?.advanceCount) === 8 ? 8 : 4;
+  if (['final', 'completed'].includes(tournament.swissStage) && (tournament.finalists || []).length !== expectedFinalists) {
     errorsList.push(`${label}: final/completed Swiss stage requires exactly four finalists.`);
   }
   if (tournament.swissStage === 'qualification' && tournament.activeQualifierSeriesId) {
