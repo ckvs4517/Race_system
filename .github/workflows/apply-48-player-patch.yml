@@ -1,0 +1,208 @@
+name: Apply 48-player tournament patch
+
+on:
+  push:
+    branches: [feature/48-player-tournaments]
+    paths:
+      - .github/workflows/apply-48-player-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v5
+        with:
+          ref: feature/48-player-tournaments
+          fetch-depth: 0
+
+      - name: Apply centralized 48-player limit
+        shell: python
+        run: |
+          from pathlib import Path
+
+          MAX_PLAYERS = 48
+
+          def replace(path, old, new, expected=1):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f'{path}: expected {expected} occurrence(s), found {count}: {old!r}')
+              file.write_text(text.replace(old, new), encoding='utf-8')
+
+          # Canonical system-wide tournament roster limit. Format-specific limits may be lower.
+          replace(
+              'src/domain/tournament.js',
+              "const PENDING = '待定';\n",
+              "const PENDING = '待定';\n\n// 系統級參賽名單上限；小型賽制仍可透過 format.maxPlayers 設定更低上限。\nexport const MAX_TOURNAMENT_PLAYERS = 48;\n",
+          )
+          replace(
+              'src/domain/tournament.js',
+              "if (players.length > 32) throw new Error('參賽者人數不可超過 32 位。');",
+              "if (players.length > MAX_TOURNAMENT_PLAYERS) throw new Error(`參賽者人數不可超過 ${MAX_TOURNAMENT_PLAYERS} 位。`);",
+          )
+          replace(
+              'src/domain/tournament.js',
+              'const maximum = format?.maxPlayers || 32;',
+              'const maximum = format?.maxPlayers || MAX_TOURNAMENT_PLAYERS;',
+          )
+          replace(
+              'src/domain/tournament.js',
+              '    capacity: 32,',
+              '    capacity: MAX_TOURNAMENT_PLAYERS,',
+          )
+          replace(
+              'src/domain/tournament.js',
+              '    capacity: Number.isInteger(capacity) && capacity >= 2 && capacity <= 32 ? capacity : 32,',
+              '    capacity: Number.isInteger(capacity) && capacity >= 2 && capacity <= MAX_TOURNAMENT_PLAYERS ? capacity : MAX_TOURNAMENT_PLAYERS,',
+          )
+
+          replace(
+              'src/views/manage.js',
+              "import { createTournament, updateDraftTournament } from '../domain/tournament.js';",
+              "import { MAX_TOURNAMENT_PLAYERS, createTournament, updateDraftTournament } from '../domain/tournament.js';",
+          )
+          replace('src/views/manage.js', '一行手動輸入一位，最多 32 位', '一行手動輸入一位，最多 ${MAX_TOURNAMENT_PLAYERS} 位')
+          replace(
+              'src/views/manage.js',
+              "if (playerList.length > 32) return alert('參賽者人數不可超過 32 位。');",
+              'if (playerList.length > MAX_TOURNAMENT_PLAYERS) return alert(`參賽者人數不可超過 ${MAX_TOURNAMENT_PLAYERS} 位。`);',
+          )
+
+          replace(
+              'src/views/registration-admin.js',
+              "import { createDrinkSummary } from '../domain/drinks.js';",
+              "import { createDrinkSummary } from '../domain/drinks.js';\nimport { MAX_TOURNAMENT_PLAYERS } from '../domain/tournament.js';",
+          )
+          replace(
+              'src/views/registration-admin.js',
+              '<input name="capacity" type="number" min="2" max="32" value="${Number(settings.capacity) || 32}" required>',
+              '<input name="capacity" type="number" min="2" max="${MAX_TOURNAMENT_PLAYERS}" value="${Number(settings.capacity) || MAX_TOURNAMENT_PLAYERS}" required>',
+          )
+
+          replace(
+              'src/views/guide.js',
+              "import { pageHeader } from '../ui/shell.js';",
+              "import { pageHeader } from '../ui/shell.js';\nimport { MAX_TOURNAMENT_PLAYERS } from '../domain/tournament.js';",
+          )
+          replace(
+              'src/views/guide.js',
+              "  ['01', '建立賽事', '登入主辦方後台，填寫賽事資訊、選擇賽制與戰鬥台數。名單可以先留空；單淘汰支援 2～32 位、瑞士制 4～32 位，循環賽與連勝制則支援 3～8 位。'],",
+              "  ['01', '建立賽事', `登入主辦方後台，填寫賽事資訊、選擇賽制與戰鬥台數。名單可以先留空；單淘汰支援 2～${MAX_TOURNAMENT_PLAYERS} 位、瑞士制 4～${MAX_TOURNAMENT_PLAYERS} 位，循環賽與連勝制則支援 3～8 位。`],",
+          )
+
+          replace(
+              'worker/index.js',
+              'import {\n  addConfirmedParticipant,',
+              'import {\n  MAX_TOURNAMENT_PLAYERS,\n  addConfirmedParticipant,',
+          )
+          replace(
+              'worker/index.js',
+              "if (tournament.players.length >= 32) return json({ error: '正式名單已達 32 人上限。', tournament }, 409);",
+              "if (tournament.players.length >= MAX_TOURNAMENT_PLAYERS) return json({ error: `正式名單已達 ${MAX_TOURNAMENT_PLAYERS} 人上限。`, tournament }, 409);",
+          )
+          replace(
+              'worker/index.js',
+              "if (!Array.isArray(value.players) || value.players.length > 32 || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');",
+              "if (!Array.isArray(value.players) || value.players.length > MAX_TOURNAMENT_PLAYERS || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');",
+          )
+
+          # API regression: the Worker must accept a full 48-player draft.
+          replace(
+              'tests/api.test.mjs',
+              "import { createTournament } from '../src/domain/tournament.js';",
+              "import { MAX_TOURNAMENT_PLAYERS, createTournament } from '../src/domain/tournament.js';",
+          )
+          api_anchor = "assert(created.status === 201 && createdData.tournament.revision === 1, '登入後可建立單一賽事並取得版本');\n"
+          api_block = api_anchor + "\nconst largePlayers = Array.from({ length: MAX_TOURNAMENT_PLAYERS }, (_, index) => `大型選手${index + 1}`);\nconst largeDraft = { ...createTournament('48 人 API 測試賽', largePlayers, 'swiss'), id: 48 };\nconst largeCreatedResponse = await request('/api/tournaments', { method: 'POST', headers: authorizedHeaders, body: JSON.stringify({ tournament: largeDraft }) });\nconst largeCreated = await largeCreatedResponse.json();\nassert(largeCreatedResponse.status === 201 && largeCreated.tournament.players.length === MAX_TOURNAMENT_PLAYERS, '後端允許建立 48 人大型賽事');\n"
+          replace('tests/api.test.mjs', api_anchor, api_block)
+          replace("tests/api.test.mjs", "console.log('PASS 20 API tests');", "console.log('PASS 21 API tests');")
+
+          # Registration regression: shared capacity also drives the admin input.
+          replace(
+              'tests/registration.test.mjs',
+              "import { createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';",
+              "import { MAX_TOURNAMENT_PLAYERS, createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';",
+          )
+          registration_anchor = "const adminHeaders = jsonHeaders(token);\n"
+          registration_block = registration_anchor + "\nconst maxCapacityDraft = updateRegistrationSettings(createTournament('48 人報名設定', [], 'swiss'), { capacity: MAX_TOURNAMENT_PLAYERS });\nassert.equal(maxCapacityDraft.registrationSettings.capacity, MAX_TOURNAMENT_PLAYERS, '私密報名名額可設定到大型賽事上限');\n"
+          replace('tests/registration.test.mjs', registration_anchor, registration_block)
+          view_anchor = "assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');\n"
+          view_block = view_anchor + "assert.match(scheduleEntryView, new RegExp(`max=\\\"${MAX_TOURNAMENT_PLAYERS}\\\"`), '報名管理畫面沿用共用人數上限');\n"
+          replace('tests/registration.test.mjs', view_anchor, view_block)
+
+          # Full domain regression for both large formats and the two intentionally small formats.
+          Path('tests/tournament-capacity.test.mjs').write_text("""/** 大型賽事上限：單淘汰／瑞士制支援 48 人，小型賽制仍維持 8 人。 */
+          import assert from 'node:assert/strict';
+          import {
+            MAX_TOURNAMENT_PLAYERS,
+            createTournament,
+            prepareTournamentSchedule,
+            randomizeTournamentSchedule,
+            setDraftPlayerCheckedIn,
+          } from '../src/domain/tournament.js';
+
+          const players = Array.from({ length: MAX_TOURNAMENT_PLAYERS }, (_, index) => `P${index + 1}`);
+
+          let single = checkInAll(createTournament('48 人單淘汰', players, 'single_elimination'));
+          single = randomizeTournamentSchedule(prepareTournamentSchedule(single), () => 0);
+          assert.equal(single.rounds[0].matches.length, MAX_TOURNAMENT_PLAYERS / 2, '48 人單淘汰首輪產生 24 場');
+
+          let swiss = checkInAll(createTournament('48 人瑞士制', players, 'swiss'));
+          swiss = randomizeTournamentSchedule(prepareTournamentSchedule(swiss), () => 0);
+          assert.equal(swiss.rounds[0].matches.length, MAX_TOURNAMENT_PLAYERS / 2, '48 人瑞士制首輪產生 24 場');
+
+          const overLimit = [...players, 'P49'];
+          assert.throws(() => createTournament('49 人超額賽事', overLimit, 'swiss'), /48 位/, '第 49 位選手會被共用上限拒絕');
+
+          for (const format of ['round_robin', 'win_streak']) {
+            const smallPlayers = Array.from({ length: 9 }, (_, index) => `${format}-${index + 1}`);
+            const draft = checkInAll(createTournament('小型賽制上限', smallPlayers, format));
+            assert.throws(() => prepareTournamentSchedule(draft), /3 至 8 位/, `${format} 仍維持 8 人上限`);
+          }
+
+          const registrationDraft = createTournament('報名上限', [], 'swiss');
+          assert.equal(registrationDraft.registrationSettings.capacity, MAX_TOURNAMENT_PLAYERS, '新賽事預設報名名額沿用共用上限');
+
+          console.log('PASS tournament capacity');
+
+          function checkInAll(tournament) {
+            let current = tournament;
+            for (const player of current.players) current = setDraftPlayerCheckedIn(current, player, true);
+            return current;
+          }
+          """.replace('          ', ''), encoding='utf-8')
+
+          replace(
+              'scripts/test-fast.mjs',
+              "  'tests/swiss.test.mjs',\n",
+              "  'tests/swiss.test.mjs',\n  'tests/tournament-capacity.test.mjs',\n",
+          )
+
+          # These files must no longer contain the old large-event hard limit.
+          for target in [
+              'src/domain/tournament.js',
+              'src/views/manage.js',
+              'src/views/registration-admin.js',
+              'src/views/guide.js',
+              'worker/index.js',
+          ]:
+              leftovers = [(i, line) for i, line in enumerate(Path(target).read_text(encoding='utf-8').splitlines(), 1) if '32' in line]
+              if leftovers:
+                  raise SystemExit(f'{target}: leftover hardcoded 32 values: {leftovers}')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src worker tests scripts
+          git diff --cached --check
+          git commit -m "feat: support up to 48-player large tournaments"
+          git push origin HEAD:feature/48-player-tournaments
