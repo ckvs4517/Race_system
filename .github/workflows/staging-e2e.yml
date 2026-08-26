@@ -1,0 +1,77 @@
+# 手動執行真正的 spin-league-test UI + Test D1 E2E；嚴禁正式站。
+name: Staging E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: '要測試的 Git branch/ref'
+        required: true
+        default: 'v2/codebase-refactor'
+        type: string
+      expected_sha:
+        description: '預期已部署的 Git SHA，可填 7～40 碼；留空只驗證網站有合法 GIT marker'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spin-league-staging-e2e
+  cancel-in-progress: false
+
+jobs:
+  staging-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      STAGING_SITE_URL: https://spin-league-test.ckvs4517.chatgpt.site/
+      STAGING_ADMIN_PIN: ${{ secrets.STAGING_ADMIN_PIN }}
+      EXPECTED_GIT_SHA: ${{ inputs.expected_sha }}
+    steps:
+      - name: Checkout target source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require staging admin secret
+        shell: bash
+        run: |
+          if [ -z "${STAGING_ADMIN_PIN}" ]; then
+            echo "Missing repository secret STAGING_ADMIN_PIN."
+            exit 1
+          fi
+
+      - name: Refuse production target
+        shell: bash
+        run: |
+          case "$STAGING_SITE_URL" in
+            https://spin-league-test.ckvs4517.chatgpt.site/ ) ;;
+            * ) echo "Refusing non-staging target: $STAGING_SITE_URL"; exit 1 ;;
+          esac
+
+      - name: Read-only deployment smoke
+        run: node scripts/verify-deployment.mjs "$STAGING_SITE_URL"
+
+      - name: Run live staging browser E2E
+        run: node scripts/verify-staging-e2e.mjs "$STAGING_SITE_URL"
+
+      - name: Save E2E report and failure screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-e2e-${{ github.run_id }}
+          path: |
+            artifacts/staging-e2e-report.json
+            artifacts/staging-e2e-failure.png
+          if-no-files-found: warn
+          retention-days: 14
