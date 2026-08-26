@@ -1,5 +1,6 @@
 /** 公開首頁與主要功能入口。 */
 import { icons } from '../ui/icons.js';
+import { MAX_TOURNAMENT_PLAYERS } from '../domain/tournament.js';
 
 const publicFeatureCards = [
   ['scoreboard', icons.bolt, 'QUICK MATCH', '獨立記分板', '練習或臨時對戰專用，快速開場、清楚記分。', '立即記分'],
@@ -22,7 +23,7 @@ export function homeView(tournamentCount, isAdmin = false) {
           <button class="button button-secondary" data-route="scoreboard">開啟記分板</button>
           <button class="button button-secondary" data-route="guide">第一次使用？</button>
         </div>
-        <div class="hero-stats"><div><b>${String(tournamentCount).padStart(2, '0')}</b><span>已建立賽事</span></div><div><b>02</b><span>支援賽制</span></div><div><b>32</b><span>最多參賽人數</span></div><div><b>∞</b><span>對戰熱情</span></div></div>
+        <div class="hero-stats"><div><b>${String(tournamentCount).padStart(2, '0')}</b><span>已建立賽事</span></div><div><b>02</b><span>支援賽制</span></div><div><b>${MAX_TOURNAMENT_PLAYERS}</b><span>最多參賽人數</span></div><div><b>∞</b><span>對戰熱情</span></div></div>
       </div>
       <div class="arena-visual" aria-hidden="true">
         <div class="arena-grid"></div><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
