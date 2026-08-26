@@ -1,9 +1,8 @@
 /**
  * Spin League V2 architecture guard.
  *
- * Phase 0 deliberately enforces boundaries that the current codebase can obey
- * before the larger refactor begins. Tighten this script as each V2 phase lands
- * so migrated responsibilities cannot drift back into legacy hotspots.
+ * Rules are tightened as each migration phase lands so migrated
+ * responsibilities cannot drift back into legacy hotspots.
  */
 import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -14,12 +13,16 @@ const warnings = [];
 
 const HOTSPOT_BASELINES = new Map([
   ['src/main.js', 42035],
-  ['src/views/schedule.js', 52725],
   ['src/domain/tournament.js', 39715],
   ['worker/index.js', 29513],
   ['src/styles/app.css', 106621],
 ]);
 
+const MIGRATED_FILE_LIMITS = new Map([
+  ['src/views/schedule.js', 2_000],
+]);
+const SCHEDULE_MODULE_SOFT_LIMIT = 15_000;
+const SCHEDULE_MODULE_HARD_LIMIT = 20_000;
 const MAX_HOTSPOT_GROWTH = 1.05;
 const GENERIC_MODULE_NAMES = new Set([
   'utils.js',
@@ -178,7 +181,7 @@ function visit(file) {
 
 for (const file of jsFiles) visit(file);
 
-// 4. Existing hotspots may shrink freely, but they must not keep expanding.
+// 4. Legacy hotspots may shrink freely, but they must not keep expanding.
 for (const [file, baseline] of HOTSPOT_BASELINES) {
   try {
     const content = await readFile(file);
@@ -194,7 +197,31 @@ for (const [file, baseline] of HOTSPOT_BASELINES) {
   }
 }
 
-// 5. Guardrail files themselves are part of the architecture contract.
+// 5. Migrated façades must stay thin after their phase is complete.
+for (const [file, hardLimit] of MIGRATED_FILE_LIMITS) {
+  try {
+    const content = await readFile(file);
+    const size = content.byteLength;
+    if (size > hardLimit) {
+      errors.push(`${file}: ${size} bytes exceeds the migrated façade limit ${hardLimit} bytes. Keep orchestration thin and put view responsibilities in the owning modules.`);
+    }
+  } catch {
+    errors.push(`${file}: migrated architecture façade is missing.`);
+  }
+}
+
+// 6. Phase 2 schedule modules are bounded so the old monolith cannot reappear under a new filename.
+for (const file of jsFiles.filter((item) => item.startsWith('src/views/schedule/'))) {
+  const content = await readFile(file);
+  const size = content.byteLength;
+  if (size > SCHEDULE_MODULE_HARD_LIMIT) {
+    errors.push(`${file}: ${size} bytes exceeds the schedule module hard limit ${SCHEDULE_MODULE_HARD_LIMIT}; split the responsibility before adding more behavior.`);
+  } else if (size > SCHEDULE_MODULE_SOFT_LIMIT) {
+    warnings.push(`${file}: ${size} bytes is approaching the schedule module hard limit; consider a responsibility split.`);
+  }
+}
+
+// 7. Guardrail files themselves are part of the architecture contract.
 for (const required of ['ARCHITECTURE.md', 'AGENTS.md']) {
   try { await access(required); } catch { errors.push(`Missing architecture contract file: ${required}`); }
 }
