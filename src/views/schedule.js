@@ -536,7 +536,7 @@ function roundMatchesView(tournament, round, roundIndex, scoringEnabled, replayE
 }
 
 function scoreGroupedMatchesView(tournament, round, roundIndex, entries, scoringEnabled, replayEnabled, seedNames, isSwiss) {
-  if (!isSwiss || roundIndex === 0 || (round.phase || 'preliminary') !== 'preliminary') return `<div class="station-match-list">${entries.map(({ match, matchIndex }) => matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss)).join('')}</div>`;
+  if (!isSwiss || roundIndex === 0 || (round.phase || 'preliminary') !== 'preliminary') return `<div class="station-match-list">${entries.map(({ match, matchIndex }) => matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss, tournament.status)).join('')}</div>`;
 
   const groups = new Map();
   entries.forEach((entry) => {
@@ -544,7 +544,7 @@ function scoreGroupedMatchesView(tournament, round, roundIndex, entries, scoring
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label).push(entry);
   });
-  return [...groups].map(([label, matches]) => `<section class="swiss-score-group"><div class="swiss-score-group-title"><span>${escapeText(label)}</span><i>${matches.length} 場對戰</i></div><div class="swiss-score-group-matches">${matches.map(({ match, matchIndex }) => matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss)).join('')}</div></section>`).join('');
+  return [...groups].map(([label, matches]) => `<section class="swiss-score-group"><div class="swiss-score-group-title"><span>${escapeText(label)}</span><i>${matches.length} 場對戰</i></div><div class="swiss-score-group-matches">${matches.map(({ match, matchIndex }) => matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss, tournament.status)).join('')}</div></section>`).join('');
 }
 
 function swissGroupLabel(tournament, roundIndex, match) {
@@ -559,8 +559,8 @@ function swissGroupLabel(tournament, roundIndex, match) {
   return `${Math.max(winsA, winsB)} 勝／${Math.min(winsA, winsB)} 勝跨組配對`;
 }
 
-function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, seedReason, isSwiss) {
-  const interactive = scoringEnabled && match.status === '可開始';
+function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, seedReason, isSwiss, tournamentStatus) {
+  const interactive = scoringEnabled && tournamentStatus === '進行中' && match.status === '可開始';
   const scoreA = match.scoreA ?? '—';
   const scoreB = match.scoreB ?? '—';
   const displayStatus = match.outcome === 'withdrawal'
@@ -575,6 +575,7 @@ function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled,
       ? '隨機種子晉級'
       : !scoringEnabled && match.status === '輪空晉級'
     ? '預定輪空'
+    : match.status === '可開始' && tournamentStatus === '已完成' ? '未進行（賽事已結束）'
     : !scoringEnabled && match.status === '可開始' ? '等待賽事開始' : match.status;
   const content = `<div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''} ${match.forfeitPlayer === match.playerA ? 'administrative-loser' : ''}"><span>${escapeText(match.playerA)}${seedNames.has(match.playerA) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerA ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''} ${match.forfeitPlayer === match.playerB ? 'administrative-loser' : ''}"><span>${escapeText(match.playerB)}${seedNames.has(match.playerB) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerB ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreB}</b></div>`;
   if (interactive) return `<button class="match-card is-ready" data-round-index="${roundIndex}" data-match-index="${matchIndex}">${content}</button>`;

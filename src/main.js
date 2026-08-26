@@ -106,9 +106,10 @@ function render(resetScroll = false) {
   }
   if (route === 'schedule') {
     const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
-    const matchSelection = state.selectedMatch;
-    if (tournament && matchSelection) {
-      const match = tournament.rounds[matchSelection.roundIndex].matches[matchSelection.matchIndex];
+    const matchSelection = state.selectedMatch;    const match = tournament && matchSelection
+      ? tournament.rounds?.[matchSelection.roundIndex]?.matches?.[matchSelection.matchIndex]
+      : null;
+    if (tournament && matchSelection && tournament.status === '進行中' && match?.status === '可開始') {
       view = scoreboardView({
         mode: 'match',
         tournamentName: tournament.name,
@@ -404,10 +405,14 @@ async function shareRegistration(tournament) {
 
 function bindScheduleEvents(state) {
   // selectedMatch 存在時，schedule 路由會暫時顯示正式比賽記分板。
-  if (state.selectedMatch) {
-    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+  if (state.selectedMatch) {    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const { roundIndex, matchIndex } = state.selectedMatch;
-    const match = tournament.rounds[roundIndex].matches[matchIndex];
+    const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];
+    if (!tournament || !match || tournament.status !== '進行中' || match.status !== '可開始') {
+      selectMatch(null, null);
+      render();
+      return;
+    }
     bindScoreboard(app, {
       playerA: match.playerA,
       playerB: match.playerB,
