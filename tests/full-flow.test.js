@@ -24,6 +24,7 @@ const result = document.querySelector('#result');
 const records = new Map();
 const alerts = [];
 const scrollCalls = [];
+let failNextRecordMatch = false;
 let assertions = 0;
 
 location.hash = 'control';
@@ -86,7 +87,25 @@ try {
   click('[data-action="back-bracket"]');
   await waitFor('.match-card.is-ready');
 
-  await completeReadyMatch(4, 2);
+  expect(document.querySelector('[data-action="toggle-quick-score"]'), '進行中的 Admin 賽程提供快速登分模式');
+  click('[data-action="toggle-quick-score"]');
+  await waitUntil(() => document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'true');
+  expectText('快速登分模式已開啟', '快速登分模式有清楚的賽程頁提示');
+  click('.match-card.is-ready');
+  await waitFor('[data-quick-score-dialog][open]');
+  expect(!document.querySelector('[data-scoreboard].match-mode'), '快速登分點對局不會跳到完整記分板');
+  fill('[data-quick-score-form] [name="scoreA"]', '6');
+  fill('[data-quick-score-form] [name="scoreB"]', '4');
+  failNextRecordMatch = true;
+  submit('[data-quick-score-form]');
+  await waitFor('[data-quick-score-dialog][open] [data-quick-score-error]:not([hidden])');
+  expect(document.querySelector('[data-quick-score-form] [name="scoreA"]').value === '6' && document.querySelector('[data-quick-score-form] [name="scoreB"]').value === '4', '快速登分同步失敗會保留尚未送出的比分');
+  submit('[data-quick-score-form]');
+  await waitFor('.match-card.is-ready');
+  expect(document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'true', '成功登分後仍維持快速登分模式');
+  expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 4))), '快速登分可送出 6:4 等 overshoot 比分');
+  click('[data-action="toggle-quick-score"]');
+  await waitUntil(() => document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'false');
   await forfeitReadyMatch();
   await completeReadyMatch(5, 3);
   await waitFor('.leaderboard');
@@ -236,6 +255,10 @@ async function mockFetch(input, options = {}) {
     const id = decodeURIComponent(actionMatch[1]);
     const current = records.get(id);
     const { type, payload = {}, expectedRevision } = JSON.parse(options.body);
+    if (type === 'record_match' && failNextRecordMatch) {
+      failNextRecordMatch = false;
+      throw new Error('模擬快速登分同步失敗');
+    }
     if (!current || current.revision !== expectedRevision) return json({ error: '資料衝突', tournament: current }, 409);
     const saved = { ...applyAction(current, type, payload), revision: current.revision + 1 };
     records.set(id, saved);

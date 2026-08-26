@@ -7,9 +7,9 @@ import { getTournamentFormat } from '../formats/registry.js';
 import { SWISS_RANKING_RULE_BUCHHOLZ, normalizeSwissRankingRule } from '../domain/ranking/swiss-ranking.js';
 import { drinkSelectionFields } from './drink-fields.js';
 
-export function scheduleView(tournaments, selectedId, canManage = false) {
+export function scheduleView(tournaments, selectedId, canManage = false, quickScoreMode = false) {
   const selected = tournaments.find((item) => item.id === selectedId);
-  if (selected) return bracketView(selected, canManage);
+  if (selected) return bracketView(selected, canManage, quickScoreMode);
   const orderedTournaments = [...tournaments].sort(compareEventDates);
   const activeTournaments = orderedTournaments.filter((item) => item.status !== '已完成');
   const completedTournaments = orderedTournaments
@@ -75,7 +75,7 @@ function compareCompletedEventDates(left, right) {
   return rightDate.localeCompare(leftDate) || Number(right.id || 0) - Number(left.id || 0);
 }
 
-function bracketView(tournament, canManage) {
+function bracketView(tournament, canManage, quickScoreMode = false) {
   const rounds = buildRounds(tournament);
   const format = getTournamentFormat(tournament.format);
   const isSwiss = format.id === 'swiss';
@@ -105,7 +105,10 @@ function bracketView(tournament, canManage) {
     ? `<details class="schedule-more"><summary class="button button-secondary">⋯ 更多</summary><div class="schedule-more-menu">${isDraft ? '<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>' : ''}${isScheduling && rounds.length ? '<button class="button button-secondary" data-action="randomize-schedule">重新隨機分組</button>' : ''}<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button></div></details>`
     : '';
   const earlyFinish = canManage && tournament.status === '進行中' ? '<button class="button button-danger" data-action="complete-tournament-early">提前結束比賽</button>' : '';
-  const headerActions = `<div class="schedule-header-actions"><button class="button button-secondary" data-action="back-events">← 返回列表</button>${canManage ? primaryAction : ''}${earlyFinish}${moreActions}</div>`;
+  const quickScoreAction = canManage && tournament.status === '進行中'
+    ? `<button type="button" class="button button-secondary quick-score-toggle ${quickScoreMode ? 'is-active' : ''}" data-action="toggle-quick-score" aria-pressed="${quickScoreMode ? 'true' : 'false'}">⚡ 快速登分${quickScoreMode ? ' ON' : ''}</button>`
+    : '';
+  const headerActions = `<div class="schedule-header-actions"><button class="button button-secondary" data-action="back-events">← 返回列表</button>${canManage ? primaryAction : ''}${quickScoreAction}${earlyFinish}${moreActions}</div>`;
   const guide = isDraft
     ? `<span><i class="draft-dot"></i>目前只確認報到名單，不會提前產生賽程</span><span>確認報到後才會進入隨機分組與手動調整階段</span>`
     : isScheduling
@@ -117,7 +120,28 @@ function bracketView(tournament, canManage) {
   const leaderboardRows = isSwiss ? swissLiveLeaderboardRows(tournament) : getTournamentStandings(tournament);
   const leaderboard = !isDraft && !isScheduling ? leaderboardView(tournament, leaderboardRows, isSwiss) : '';
   const preliminaryCount = rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary').length;
-  return `<section class="section-wrap page-section">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}</section>`;
+  const quickScoreNotice = canManage && tournament.status === '進行中' && quickScoreMode
+    ? '<div class="quick-score-notice"><b>⚡ 快速登分模式已開啟</b><span>點擊未完成對局會直接在本頁輸入裁判回報的最終比分。</span></div>'
+    : '';
+  const quickScoreDialog = canManage && tournament.status === '進行中' ? quickScoreDialogView() : '';
+  return `<section class="section-wrap page-section${canManage && tournament.status === '進行中' && quickScoreMode ? ' quick-score-active' : ''}">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${quickScoreNotice}${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}${quickScoreDialog}</section>`;
+}
+
+function quickScoreDialogView() {
+  return `<dialog class="mobile-sheet quick-score-dialog" data-quick-score-dialog>
+    <form class="mobile-sheet-card quick-score-card" data-quick-score-form novalidate>
+      <div class="mobile-sheet-heading"><div><p class="kicker">QUICK SCORE</p><h2>快速登分</h2></div><button type="button" data-quick-score-close aria-label="關閉">×</button></div>
+      <div class="quick-score-context"><span data-quick-score-round>目前輪次</span><b data-quick-score-arena>戰鬥台 1</b></div>
+      <div class="quick-score-grid">
+        <label><span data-quick-score-player-a>選手 A</span><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" name="scoreA" aria-label="選手 A 最終分數" required></label>
+        <i>:</i>
+        <label><span data-quick-score-player-b>選手 B</span><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" name="scoreB" aria-label="選手 B 最終分數" required></label>
+      </div>
+      <p class="quick-score-help">直接輸入裁判回報的最終比分；允許 5：3、6：4 等超過 4 分的合法結果。</p>
+      <p class="quick-score-error" data-quick-score-error role="alert" hidden></p>
+      <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-quick-score-close>取消</button><button type="submit" class="button button-primary" data-quick-score-submit>確認登分</button></div>
+    </form>
+  </dialog>`;
 }
 
 function currentRoundEntries(tournament, projectedRounds, isSwiss) {
