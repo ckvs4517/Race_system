@@ -26,7 +26,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Apply quick score mode
-        run: python3 scripts/apply-quick-score-mode.py
+        shell: bash
+        run: |
+          python3 scripts/apply-quick-score-mode.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/full-flow.test.js')
+          text = path.read_text(encoding='utf-8')
+          old = "expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 4)), '快速登分可送出 6:4 等 overshoot 比分');"
+          new = "expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 4))), '快速登分可送出 6:4 等 overshoot 比分');"
+          if old not in text:
+              raise RuntimeError('expected quick score assertion patch not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          node --check tests/full-flow.test.js
       - name: Project health
         run: node scripts/project-health.mjs
       - name: Focused quick score regression
