@@ -1,0 +1,102 @@
+name: Final score threshold patch
+
+on:
+  push:
+    branches:
+      - fix/final-score-threshold
+    paths:
+      - .github/workflows/fix-final-score-threshold.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v5
+        with:
+          ref: fix/final-score-threshold
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply final score rule correction
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise RuntimeError(f'expected block not found: {label}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src/core/quick-score.js',
+              "  if (Math.max(a, b) < 4) throw new Error('勝方最終比分必須至少為 4 分。');\n  return { scoreA: a, scoreB: b };",
+              "  if (Math.max(a, b) < 4) throw new Error('勝方最終比分必須至少為 4 分。');\n  if (Math.min(a, b) >= 4) throw new Error('敗方最終比分必須低於 4 分；任一方達到或超過 4 分即結束比賽。');\n  return { scoreA: a, scoreB: b };",
+              'quick score loser threshold',
+          )
+
+          replace_once(
+              'src/domain/tournament.js',
+              "function validateFinalScore(scoreA, scoreB) {\n  if (![scoreA, scoreB].every((score) => Number.isInteger(score) && score >= 0)) throw new Error('比分必須是 0 以上的整數。');\n  if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');\n  if (Math.max(scoreA, scoreB) < 4) throw new Error('勝方最終比分必須至少為 4 分。');\n}",
+              "function validateFinalScore(scoreA, scoreB) {\n  if (![scoreA, scoreB].every((score) => Number.isInteger(score) && score >= 0)) throw new Error('比分必須是 0 以上的整數。');\n  if (scoreA === scoreB) throw new Error('比分相同時無法確認勝者。');\n  if (Math.max(scoreA, scoreB) < 4) throw new Error('勝方最終比分必須至少為 4 分。');\n  if (Math.min(scoreA, scoreB) >= 4) throw new Error('敗方最終比分必須低於 4 分；任一方達到或超過 4 分即結束比賽。');\n}",
+              'domain final score loser threshold',
+          )
+
+          replace_once(
+              'src/views/schedule.js',
+              '<p class="quick-score-help">直接輸入裁判回報的最終比分；允許 5：3、6：4 等超過 4 分的合法結果。</p>',
+              '<p class="quick-score-help">直接輸入裁判回報的最終比分；任一方達到或超過 4 分即獲勝，因此敗方最終比分必須低於 4 分。</p>',
+              'quick score help copy',
+          )
+
+          replace_once(
+              'tests/quick-score.test.mjs',
+              "import { createTournament, setDraftPlayerCheckedIn, startTournament } from '../src/domain/tournament.js';",
+              "import { createTournament, recordMatchResult, setDraftPlayerCheckedIn, startTournament } from '../src/domain/tournament.js';",
+              'quick score test domain import',
+          )
+          replace_once(
+              'tests/quick-score.test.mjs',
+              "expect(JSON.stringify(validateQuickScoreInput('6', '4')) === JSON.stringify({ scoreA: 6, scoreB: 4 }), '6:4 overshoot 可快速登分');\nfor (const [a, b, label] of [['2', '1', '勝方未達 4 分'], ['4', '4', '平手'], ['-1', '4', '負數'], ['4.5', '2', '非整數'], ['', '4', '空白']]) {",
+              "expect(JSON.stringify(validateQuickScoreInput('6', '3')) === JSON.stringify({ scoreA: 6, scoreB: 3 }), '勝方超過 4 分但敗方未達 4 分可快速登分');\nfor (const [a, b, label] of [['2', '1', '勝方未達 4 分'], ['4', '4', '平手'], ['6', '4', '敗方已達 4 分'], ['-1', '4', '負數'], ['4.5', '2', '非整數'], ['', '4', '空白']]) {",
+              'quick score input regression',
+          )
+          replace_once(
+              'tests/quick-score.test.mjs',
+              "tournament = startTournament(tournament);\nconst normal = scheduleView([tournament], tournament.id, true, false);",
+              "tournament = startTournament(tournament);\nlet invalidDomainScoreRejected = false;\ntry { recordMatchResult(tournament, 0, 0, 6, 4); } catch { invalidDomainScoreRejected = true; }\nexpect(invalidDomainScoreRejected, '正式賽果領域層拒絕敗方已達 4 分的 6:4');\nconst normal = scheduleView([tournament], tournament.id, true, false);",
+              'domain score regression',
+          )
+
+          replace_once('tests/full-flow.test.js', "fill('[data-quick-score-form] [name=\"scoreB\"]', '4');", "fill('[data-quick-score-form] [name=\"scoreB\"]', '3');", 'browser scoreB input')
+          replace_once('tests/full-flow.test.js', "document.querySelector('[data-quick-score-form] [name=\"scoreB\"]').value === '4'", "document.querySelector('[data-quick-score-form] [name=\"scoreB\"]').value === '3'", 'browser preserved scoreB')
+          replace_once('tests/full-flow.test.js', "match.scoreA === 6 && match.scoreB === 4))), '快速登分可送出 6:4 等 overshoot 比分'", "match.scoreA === 6 && match.scoreB === 3))), '快速登分可送出勝方超過 4 分且敗方低於 4 分的結果'", 'browser final score assertion')
+          PY
+      - name: Project health
+        run: node scripts/project-health.mjs
+      - name: Focused quick score regression
+        run: node tests/quick-score.test.mjs
+      - name: Fast regression
+        run: node scripts/test-fast.mjs
+      - name: Full regression and browser flows
+        run: node scripts/test-full.mjs --browser=required
+      - name: Commit tested correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/core/quick-score.js src/domain/tournament.js src/views/schedule.js tests/quick-score.test.mjs tests/full-flow.test.js
+          git diff --cached --check
+          git commit -m "Enforce first-to-four final score rule"
+          git push origin HEAD:fix/final-score-threshold
