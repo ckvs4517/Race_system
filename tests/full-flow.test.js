@@ -10,6 +10,7 @@ import {
   removeDraftPlayer,
   resetCompletedMatch,
   setDraftPlayerCheckedIn,
+  setAllDraftPlayersCheckedIn,
   prepareTournamentSchedule,
   startSwissFinal,
   startSwissQualifier,
@@ -206,13 +207,14 @@ function pause() {
 }
 
 async function checkInAllPlayers() {
-  while (true) {
-    const input = document.querySelector('[data-check-in-player]:not(:checked)');
-    if (!input) break;
-    input.click();
-    await waitUntil(() => !document.contains(input));
-    await pause();
-  }
+  const button = document.querySelector('[data-check-in-all]');
+  if (!button) throw new Error('找不到全部報到按鈕');
+  button.click();
+  await waitUntil(() => [...records.values()].some((tournament) => (
+    tournament.players.length > 0
+      && tournament.players.every((player) => tournament.participantStates?.[player]?.checkedIn)
+  )));
+  await waitUntil(() => [...document.querySelectorAll('[data-check-in-player]')].every((input) => input.checked));
 }
 
 async function mockFetch(input, options = {}) {
@@ -261,6 +263,7 @@ function applyAction(tournament, type, payload) {
   delete source.revision;
   const actions = {
     set_check_in: () => setDraftPlayerCheckedIn(source, payload.player, payload.checkedIn),
+    set_all_check_in: () => setAllDraftPlayersCheckedIn(source),
     add_player: () => addDraftPlayer(source, payload.player),
     remove_player: () => removeDraftPlayer(source, payload.player),
     remove_players: () => payload.players.reduce((current, player) => removeDraftPlayer(current, player), source),

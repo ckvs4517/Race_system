@@ -18,6 +18,7 @@ import {
   completeSwissByStandings,
   completeTournamentEarly,
   setDraftPlayerCheckedIn,
+  setAllDraftPlayersCheckedIn,
   startSwissFinal,
   startSwissQualifier,
   startRoundRobinTieBreak,
@@ -384,6 +385,8 @@ function applyTournamentAction(tournament, type, payload) {
   switch (type) {
     case 'set_check_in':
       return setDraftPlayerCheckedIn(tournament, String(payload.player || ''), Boolean(payload.checkedIn));
+    case 'set_all_check_in':
+      return setAllDraftPlayersCheckedIn(tournament);
     case 'add_player':
       return addDraftPlayer(tournament, String(payload.player || ''), payload.details || {});
     case 'update_participant':

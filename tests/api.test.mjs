@@ -71,6 +71,15 @@ const largeDraft = { ...createTournament('48 人 API 測試賽', largePlayers, '
 const largeCreatedResponse = await request('/api/tournaments', { method: 'POST', headers: authorizedHeaders, body: JSON.stringify({ tournament: largeDraft }) });
 const largeCreated = await largeCreatedResponse.json();
 assert(largeCreatedResponse.status === 201 && largeCreated.tournament.players.length === MAX_TOURNAMENT_PLAYERS, '後端允許建立 48 人大型賽事');
+const largeCheckInResponse = await request('/api/tournaments/48/actions', {
+  method: 'POST',
+  headers: authorizedHeaders,
+  body: JSON.stringify({ type: 'set_all_check_in', payload: {}, expectedRevision: 1 }),
+});
+const largeCheckedIn = (await largeCheckInResponse.json()).tournament;
+assert(largeCheckInResponse.status === 200
+  && largeCheckedIn.revision === 2
+  && largeCheckedIn.players.every((player) => largeCheckedIn.participantStates[player].checkedIn), '48 人一鍵報到只寫入一個新版本');
 
 const listed = await request('/api/tournaments');
 const data = await listed.json();
