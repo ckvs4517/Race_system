@@ -709,7 +709,11 @@ function bindScheduleEvents(state) {
   const syncStage2RoundsField = () => {
     const roundsField = swissFinalForm?.querySelector('[data-stage2-rounds]');
     if (!roundsField) return;
-    roundsField.hidden = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value !== 'swiss';
+    const roundsInput = roundsField.querySelector('input[name="swissStage2Rounds"]');
+    const showRounds = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value === 'swiss';
+    roundsField.hidden = !showRounds;
+    roundsField.style.display = showRounds ? '' : 'none';
+    if (roundsInput) roundsInput.disabled = !showRounds;
   };
   swissFinalForm?.querySelectorAll('input[name="swissFinalMode"]').forEach((input) => input.addEventListener('change', syncStage2RoundsField));
   syncStage2RoundsField();

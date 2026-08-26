@@ -6,6 +6,7 @@ const tests = [
   'tests/check-in.test.mjs',
   'tests/swiss.test.mjs',
   'tests/swiss-ranking.test.mjs',
+  'tests/stage2-rounds-visibility.test.mjs',
   'tests/tournament-capacity.test.mjs',
   'tests/tournament-list.test.mjs',
   'tests/early-finish-lock.test.mjs',
