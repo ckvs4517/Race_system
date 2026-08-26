@@ -55,7 +55,10 @@ const requiredFiles = [
   [join(serverDir, 'domain', 'tournament.js'), 20_000],
   [join(serverDir, 'formats', 'registry.js'), 100],
   [join(clientDir, 'index.html'), 500],
-  [join(clientDir, 'src', 'main.js'), 10_000],
+  // V2: main.js 是 coordinator，功能實作已移到 features；不再用肥大的入口檔作為建置完整性指標。
+  [join(clientDir, 'src', 'main.js'), 4_000],
+  [join(clientDir, 'src', 'features', 'schedule', 'controller.js'), 8_000],
+  [join(clientDir, 'src', 'features', 'registration', 'controller.js'), 2_000],
   [buildInfoPath, 100],
   [join(dist, '.openai', 'hosting.json'), 20],
 ];
