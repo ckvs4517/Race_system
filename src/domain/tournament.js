@@ -16,6 +16,9 @@ import {
 const BYE = '輪空';
 const PENDING = '待定';
 
+// 系統級參賽名單上限；小型賽制仍可透過 format.maxPlayers 設定更低上限。
+export const MAX_TOURNAMENT_PLAYERS = 48;
+
 export function nextPowerOfTwo(value) {
   return 2 ** Math.ceil(Math.log2(Math.max(2, value)));
 }
@@ -608,7 +611,7 @@ function projectFutureRounds(sourceRounds) {
 
 function validatePlayers(players, format = null) {
   const minimum = format?.minPlayers || 2;
-  const maximum = format?.maxPlayers || 32;
+  const maximum = format?.maxPlayers || MAX_TOURNAMENT_PLAYERS;
   if (players.length < minimum || players.length > maximum) throw new Error(`${format?.name || '此賽制'}參賽者人數需要介於 ${minimum} 至 ${maximum} 位。`);
   if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
 }
@@ -638,7 +641,7 @@ function validateOpeningPairs(pairs, activePlayers) {
 }
 
 function validateDraftPlayers(players) {
-  if (players.length > 32) throw new Error('參賽者人數不可超過 32 位。');
+  if (players.length > MAX_TOURNAMENT_PLAYERS) throw new Error(`參賽者人數不可超過 ${MAX_TOURNAMENT_PLAYERS} 位。`);
   if (new Set(players).size !== players.length) throw new Error('參賽者名稱不可重複。');
 }
 
@@ -753,7 +756,7 @@ function createRegistrationSettings() {
   return {
     enabled: false,
     token: createPublicToken(),
-    capacity: 32,
+    capacity: MAX_TOURNAMENT_PLAYERS,
     deadline: '',
     fields: [],
   };
@@ -783,7 +786,7 @@ function normalizeRegistrationSettings(value = {}) {
   return {
     enabled: Boolean(settings.enabled),
     token: typeof settings.token === 'string' && settings.token.length >= 16 ? settings.token : createPublicToken(),
-    capacity: Number.isInteger(capacity) && capacity >= 2 && capacity <= 32 ? capacity : 32,
+    capacity: Number.isInteger(capacity) && capacity >= 2 && capacity <= MAX_TOURNAMENT_PLAYERS ? capacity : MAX_TOURNAMENT_PLAYERS,
     deadline: typeof settings.deadline === 'string' ? settings.deadline.slice(0, 30) : '',
     fields,
   };

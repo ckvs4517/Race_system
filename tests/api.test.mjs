@@ -1,6 +1,6 @@
 /** Worker API 測試：登入、權限、CRUD、revision 衝突與工作階段。 */
 import worker from '../worker/index.js';
-import { createTournament } from '../src/domain/tournament.js';
+import { MAX_TOURNAMENT_PLAYERS, createTournament } from '../src/domain/tournament.js';
 
 class MockStatement {
   constructor(database, sql) { this.database = database; this.sql = sql; this.values = []; }
@@ -65,6 +65,12 @@ const tournament = { id: 1, name: 'API 測試賽', status: '準備中', players:
 const created = await request('/api/tournaments', { method: 'POST', headers: authorizedHeaders, body: JSON.stringify({ tournament }) });
 const createdData = await created.json();
 assert(created.status === 201 && createdData.tournament.revision === 1, '登入後可建立單一賽事並取得版本');
+
+const largePlayers = Array.from({ length: MAX_TOURNAMENT_PLAYERS }, (_, index) => `大型選手${index + 1}`);
+const largeDraft = { ...createTournament('48 人 API 測試賽', largePlayers, 'swiss'), id: 48 };
+const largeCreatedResponse = await request('/api/tournaments', { method: 'POST', headers: authorizedHeaders, body: JSON.stringify({ tournament: largeDraft }) });
+const largeCreated = await largeCreatedResponse.json();
+assert(largeCreatedResponse.status === 201 && largeCreated.tournament.players.length === MAX_TOURNAMENT_PLAYERS, '後端允許建立 48 人大型賽事');
 
 const listed = await request('/api/tournaments');
 const data = await listed.json();
@@ -153,7 +159,7 @@ assert(staleAction.status === 409 && (await staleAction.json()).tournament.revis
 const session = await request('/api/admin/session', { headers: { authorization: `Bearer ${token}` } });
 assert((await session.json()).authenticated === true, '有效登入權杖可以恢復後台工作階段');
 
-console.log('PASS 20 API tests');
+console.log('PASS 21 API tests');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
