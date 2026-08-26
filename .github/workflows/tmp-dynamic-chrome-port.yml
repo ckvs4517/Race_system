@@ -1,0 +1,73 @@
+name: Fix staging Chrome startup
+
+on:
+  push:
+    branches: [v2/codebase-refactor]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Fix staging Chrome startup'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+          fetch-depth: 0
+      - name: Patch dynamic DevTools port
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/verify-staging-browser-e2e.mjs')
+          s = p.read_text()
+          s = s.replace("import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';", "import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';")
+          s = s.replace("import { findChrome, spawnBackground, waitForUrl } from './lib/test-runner.mjs';", "import { findChrome, spawnBackground } from './lib/test-runner.mjs';")
+          s = s.replace("  const debugPort = 19227;\n", "")
+          s = s.replace("    `--remote-debugging-port=${debugPort}`,", "    '--remote-debugging-port=0',")
+          old = """  await waitForUrl(`http://127.0.0.1:${debugPort}/json/version`, 10_000);\n  const targets = await fetch(`http://127.0.0.1:${debugPort}/json/list`).then((response) => response.json());\n"""
+          new = """  const debugPort = await waitForChromeDevTools(profile, browser, () => browserError);\n  const targetsResponse = await fetch(`http://127.0.0.1:${debugPort}/json/list`, { cache: 'no-store' });\n  if (!targetsResponse.ok) throw new Error(`Chrome DevTools target list 回傳 HTTP ${targetsResponse.status}`);\n  const targets = await targetsResponse.json();\n"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          marker = "async function waitForSiteBootstrap() {"
+          helper = r'''async function waitForChromeDevTools(profileDir, child, getStderr) {
+  const activePortFile = join(profileDir, 'DevToolsActivePort');
+  const deadline = Date.now() + 15_000;
+  let lastError = '';
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      const stderr = String(getStderr?.() || '').trim();
+      throw new Error(`Chrome 在 DevTools 啟動前退出（code ${child.exitCode}）。${stderr ? ` stderr: ${stderr.slice(-1500)}` : ''}`);
+    }
+    try {
+      const text = await readFile(activePortFile, 'utf8');
+      const [portText] = text.trim().split(/\r?\n/);
+      const port = Number(portText);
+      if (Number.isInteger(port) && port > 0 && port <= 65535) return port;
+      lastError = `DevToolsActivePort 內容無效：${JSON.stringify(text)}`;
+    } catch (error) {
+      lastError = error?.message || String(error);
+    }
+    await delay(100);
+  }
+  const stderr = String(getStderr?.() || '').trim();
+  throw new Error(`Chrome DevTools 在 15 秒內未就緒。${lastError ? ` ${lastError}` : ''}${stderr ? ` stderr: ${stderr.slice(-1500)}` : ''}`);
+}
+
+'''
+          assert marker in s
+          s = s.replace(marker, helper + marker, 1)
+          p.write_text(s)
+          PY
+          node --check scripts/verify-staging-browser-e2e.mjs
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-dynamic-chrome-port.yml
+          git add scripts/verify-staging-browser-e2e.mjs
+          git commit -m "Use dynamic Chrome DevTools port"
+          git push origin HEAD:v2/codebase-refactor
