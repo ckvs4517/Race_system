@@ -1,9 +1,9 @@
-# 每次推送／PR 都在 GitHub 雲端執行規則、瀏覽器、建置與產物檢查。
+# 每次推送／PR 都在 GitHub 雲端執行架構、規則、瀏覽器、建置與產物檢查。
 name: Test and build
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2/codebase-refactor]
   pull_request:
   workflow_dispatch:
 
@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate project instructions and Sites identity
-        run: node scripts/project-health.mjs
+      - name: Validate project, architecture, and Sites identity
+        run: npm run health
 
       - name: Run all Node tests and build
         run: node scripts/test-full.mjs
