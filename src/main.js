@@ -23,6 +23,7 @@ import { bindDrinkSelectionFields, drinkSelectionFields, readDrinkSelection } fr
 const app = document.querySelector('#app');
 let publicRegistrationState = { key: '', loading: false, data: null, error: '', success: false };
 let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
+let tournamentListUiState = { tab: 'recent', query: '', year: 'all', format: 'all' };
 let registrationEntryContext = { source: 'navigation', tournamentId: null };
 let toastTimer = null;
 let lastRenderedRoute = null;
@@ -331,6 +332,62 @@ function applyRosterUi() {
   if (empty) empty.hidden = visibleCount > 0 || panel.querySelectorAll('[data-roster-player]').length === 0;
 }
 
+function bindTournamentListEvents() {
+  const root = app.querySelector('[data-tournament-list]');
+  if (!root) return;
+  root.querySelectorAll('[data-tournament-list-tab]').forEach((button) => button.addEventListener('click', () => {
+    tournamentListUiState.tab = button.dataset.tournamentListTab;
+    applyTournamentListUi(root);
+  }));
+  root.querySelector('[data-history-search]')?.addEventListener('input', (event) => {
+    tournamentListUiState.query = event.target.value;
+    applyTournamentListUi(root);
+  });
+  root.querySelector('[data-history-year]')?.addEventListener('change', (event) => {
+    tournamentListUiState.year = event.target.value;
+    applyTournamentListUi(root);
+  });
+  root.querySelector('[data-history-format]')?.addEventListener('change', (event) => {
+    tournamentListUiState.format = event.target.value;
+    applyTournamentListUi(root);
+  });
+  applyTournamentListUi(root);
+}
+
+function applyTournamentListUi(root) {
+  const tab = tournamentListUiState.tab === 'history' ? 'history' : 'recent';
+  root.querySelectorAll('[data-tournament-list-tab]').forEach((button) => {
+    const active = button.dataset.tournamentListTab === tab;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  root.querySelectorAll('[data-tournament-list-panel]').forEach((panel) => {
+    panel.hidden = panel.dataset.tournamentListPanel !== tab;
+  });
+  const search = root.querySelector('[data-history-search]');
+  const year = root.querySelector('[data-history-year]');
+  const format = root.querySelector('[data-history-format]');
+  if (search && search.value !== tournamentListUiState.query) search.value = tournamentListUiState.query;
+  if (year && [...year.options].some((option) => option.value === tournamentListUiState.year)) year.value = tournamentListUiState.year;
+  else tournamentListUiState.year = 'all';
+  if (format && [...format.options].some((option) => option.value === tournamentListUiState.format)) format.value = tournamentListUiState.format;
+  else tournamentListUiState.format = 'all';
+  const query = tournamentListUiState.query.trim().toLocaleLowerCase('zh-TW');
+  const rows = [...root.querySelectorAll('[data-history-row]')];
+  let visible = 0;
+  rows.forEach((row) => {
+    const matchesQuery = !query || row.dataset.historySearchText.includes(query);
+    const matchesYear = tournamentListUiState.year === 'all' || row.dataset.historyYear === tournamentListUiState.year;
+    const matchesFormat = tournamentListUiState.format === 'all' || row.dataset.historyFormat === tournamentListUiState.format;
+    row.hidden = !(matchesQuery && matchesYear && matchesFormat);
+    if (!row.hidden) visible += 1;
+  });
+  const count = root.querySelector('[data-history-count]');
+  if (count) count.textContent = rows.length ? `顯示 ${visible} / ${rows.length} 場` : '0 場';
+  const empty = root.querySelector('[data-history-empty]');
+  if (empty) empty.hidden = visible > 0 || rows.length === 0;
+}
+
 async function shareRegistration(tournament) {
   const url = registrationUrl(tournament.id, tournament.registrationSettings?.token || '');
   if (navigator.share) {
@@ -360,6 +417,7 @@ function bindScheduleEvents(state) {
     });
     return;
   }
+  bindTournamentListEvents();
   prepareRosterUi(state.selectedTournamentId);
   app.querySelectorAll('[data-tournament-id]').forEach((card) => card.addEventListener('click', () => {
     selectTournament(card.dataset.tournamentId);
