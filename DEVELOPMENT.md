@@ -264,7 +264,7 @@ View 不保存正式資料。搜尋文字、篩選條件、對話框、暫時勾
   registrationSettings: {
     enabled: true,
     token: '不可預測且至少 16 字元的公開 token',
-    capacity: 32,
+    capacity: 48,
     deadline: '2026-07-24T15:00:00.000Z',
     fields: []
   },
@@ -972,9 +972,9 @@ CI 在 Ubuntu runner 使用 Headless Chrome 開啟兩份 HTML，並搜尋 `PASS`
 
 `tests/format-matrix.test.mjs` 會完整跑完：
 
-- 2～32 人單淘汰
-- 4～32 人新版瑞士制
-- 合計 60 場模擬賽事
+- 2～48 人單淘汰
+- 4～48 人新版瑞士制
+- 合計 92 場模擬賽事
 - 驗證人數、輪數、可完成性、冠軍、排行榜與剩餘節點
 
 ### GitHub Actions
