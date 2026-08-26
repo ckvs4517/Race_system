@@ -1,13 +1,16 @@
-/** 快速檢查 repository 的 AI 規則、Sites 身分與必要檔案是否完整。 */
+/** 快速檢查 repository 的 AI 規則、架構契約、Sites 身分與必要檔案是否完整。 */
 import { access, readFile } from 'node:fs/promises';
 
 const required = [
   'AGENTS.md',
+  'ARCHITECTURE.md',
+  '.github/pull_request_template.md',
   '.agents/skills/spin-league-debug/SKILL.md',
   '.agents/skills/spin-league-test/SKILL.md',
   '.agents/skills/spin-league-deploy/SKILL.md',
   '.agents/skills/spin-league-backup/SKILL.md',
   '.openai/hosting.json',
+  'scripts/check-architecture.mjs',
   'src/domain/tournament.js',
   'src/formats/swiss.js',
   'src/formats/single-elimination.js',
@@ -30,9 +33,19 @@ try {
 const worker = await readFile('worker/index.js', 'utf8');
 if (!worker.includes("from '../src/domain/tournament.js'")) errors.push('Worker shared domain import changed; update build-site.mjs packaging rule.');
 
+const agents = await readFile('AGENTS.md', 'utf8');
+if (!agents.includes('ARCHITECTURE.md')) errors.push('AGENTS.md must point agents to ARCHITECTURE.md.');
+if (!agents.includes('npm run check:architecture')) errors.push('AGENTS.md must require the architecture check.');
+
+const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+if (packageJson.scripts?.['check:architecture'] !== 'node scripts/check-architecture.mjs') {
+  errors.push('package.json must expose npm run check:architecture.');
+}
+if (!packageJson.scripts?.health) errors.push('package.json must expose npm run health.');
+
 if (errors.length) {
   errors.forEach((message) => console.error(`ERROR ${message}`));
   process.exitCode = 1;
 } else {
-  console.log(`PASS project health: ${required.length} required files, Sites identity, and Worker packaging import.`);
+  console.log(`PASS project health: ${required.length} required files, V2 architecture contract, Sites identity, and Worker packaging import.`);
 }
