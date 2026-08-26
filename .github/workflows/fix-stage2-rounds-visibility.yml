@@ -2,7 +2,8 @@ name: Fix Stage 2 rounds visibility
 
 on:
   push:
-    branches: [fix/stage2-rounds-visibility]
+    branches:
+      - fix/stage2-rounds-visibility
     paths:
       - .github/workflows/fix-stage2-rounds-visibility.yml
 
@@ -14,49 +15,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout feature branch
+        uses: actions/checkout@v5
         with:
           ref: fix/stage2-rounds-visibility
-      - uses: actions/setup-node@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
       - name: Apply visibility fix
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          main_path = Path('src/main.js')
-          main = main_path.read_text(encoding='utf-8')
-          old = '''  const syncStage2RoundsField = () => {
-    const roundsField = swissFinalForm?.querySelector('[data-stage2-rounds]');
-    if (!roundsField) return;
-    roundsField.hidden = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value !== 'swiss';
-  };'''
-          new = '''  const syncStage2RoundsField = () => {
-    const roundsField = swissFinalForm?.querySelector('[data-stage2-rounds]');
-    if (!roundsField) return;
-    const roundsInput = roundsField.querySelector('input[name="swissStage2Rounds"]');
-    const showRounds = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value === 'swiss';
-    roundsField.hidden = !showRounds;
-    roundsField.style.display = showRounds ? '' : 'none';
-    if (roundsInput) roundsInput.disabled = !showRounds;
-  };'''
-          if old not in main:
-              raise SystemExit('expected main.js block not found')
-          main_path.write_text(main.replace(old, new, 1), encoding='utf-8')
-
-          css_path = Path('src/styles/app.css')
-          css = css_path.read_text(encoding='utf-8')
-          marker = '.swiss-final-mode-options small { color: var(--muted); line-height: 1.45; }\n'
-          rule = '[data-stage2-rounds][hidden] { display: none !important; }\n'
-          if rule not in css:
-              if marker not in css:
-                  raise SystemExit('expected app.css marker not found')
-              css = css.replace(marker, marker + rule, 1)
-          css_path.write_text(css, encoding='utf-8')
-          PY
+        run: python3 scripts/fix-stage2-rounds-visibility.py
       - name: Project health
         run: node scripts/project-health.mjs
       - name: Focused visibility regression
