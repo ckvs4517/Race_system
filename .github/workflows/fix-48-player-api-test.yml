@@ -1,0 +1,40 @@
+name: Fix 48-player API regression test
+
+on:
+  push:
+    branches: [feature/48-player-tournaments]
+    paths:
+      - .github/workflows/fix-48-player-api-test.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/48-player-tournaments
+      - name: Keep list assertion valid after adding the 48-player fixture
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('tests/api.test.mjs')
+          text = path.read_text(encoding='utf-8')
+          old = "assert(data.tournaments.length === 1 && data.tournaments[0].name === tournament.name, '公開 API 可以讀取雲端賽事');"
+          new = "assert(data.tournaments.some((item) => item.name === tournament.name), '公開 API 可以讀取雲端賽事');"
+          if text.count(old) != 1:
+              raise SystemExit('API list assertion anchor not found exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/api.test.mjs
+          git diff --cached --check
+          git commit -m "test: keep API list assertion compatible with 48-player fixture"
+          git push origin HEAD:feature/48-player-tournaments
