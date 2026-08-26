@@ -914,6 +914,7 @@ footer { font-size: 12px; }
 .swiss-final-mode-options input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--red); }
 .swiss-final-mode-options span { display: grid; gap: 2px; }
 .swiss-final-mode-options small { color: var(--muted); line-height: 1.45; }
+[data-stage2-rounds][hidden] { display: none !important; }
 .swiss-standings-finish { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; padding: 16px; border: 1px dashed rgba(180, 195, 215, .38); border-radius: 12px; }
 .swiss-standings-finish h3 { margin: 0 0 4px; }
 .swiss-standings-finish p { max-width: 620px; margin: 0; color: var(--muted); line-height: 1.55; }
