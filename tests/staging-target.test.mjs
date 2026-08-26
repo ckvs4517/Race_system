@@ -1,5 +1,7 @@
-/** Staging destructive E2E 的網域與測試資料命名防呆。 */
+/** Staging destructive E2E 的網域、命名、runner 與 workflow 防呆。 */
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import {
   E2E_NAME_PREFIX,
   STAGING_HOSTNAME,
@@ -25,5 +27,13 @@ const name = createE2ETournamentName(1_700_000_000_000, 0.25);
 assert.ok(name.startsWith(E2E_NAME_PREFIX));
 assert.equal(assertE2ETournamentName(name), name);
 assert.throws(() => assertE2ETournamentName('一般測試賽'), /拒絕刪除非/);
+
+const syntax = spawnSync(process.execPath, ['--check', 'scripts/verify-staging-e2e.mjs'], { encoding: 'utf8' });
+assert.equal(syntax.status, 0, `staging E2E runner 語法錯誤：${syntax.stderr || syntax.stdout}`);
+
+const workflow = await readFile(new URL('../.github/workflows/staging-e2e.yml', import.meta.url), 'utf8');
+assert.match(workflow, /STAGING_SITE_URL: https:\/\/spin-league-test\.ckvs4517\.chatgpt\.site\//, 'workflow 固定指向測試站');
+assert.match(workflow, /STAGING_ADMIN_PIN: \$\{\{ secrets\.STAGING_ADMIN_PIN \}\}/, 'PIN 只能從 GitHub Actions secret 讀取');
+assert.doesNotMatch(workflow, /spin-league-tournament\.ckvs4517\.chatgpt\.site/, 'workflow 不得包含正式站目標');
 
 console.log('PASS staging E2E safety guard');
