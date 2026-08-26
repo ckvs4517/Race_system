@@ -3,10 +3,10 @@
  * All staging HTTP requests are executed inside Chrome because ChatGPT Sites may
  * reject server-side Node fetch requests from CI runners with HTTP 401.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findChrome, spawnBackground, waitForUrl } from './lib/test-runner.mjs';
+import { findChrome, spawnBackground } from './lib/test-runner.mjs';
 import { assertE2ETournamentName, createE2ETournamentName, normalizeStagingUrl } from './lib/staging-target.mjs';
 
 const baseUrl = normalizeStagingUrl(process.argv[2] || process.env.STAGING_SITE_URL || 'https://spin-league-test.ckvs4517.chatgpt.site/');
@@ -41,7 +41,6 @@ try {
   const chrome = await findChrome();
   if (!chrome) throw new Error('找不到 Chrome/Chromium。');
 
-  const debugPort = 19227;
   profile = await mkdtemp(join(tmpdir(), 'spin-league-staging-browser-e2e-'));
   browser = spawnBackground(chrome, [
     '--headless=new',
@@ -49,15 +48,17 @@ try {
     '--disable-gpu',
     '--no-first-run',
     '--disable-background-networking',
-    `--remote-debugging-port=${debugPort}`,
+    '--remote-debugging-port=0',
     '--remote-debugging-address=127.0.0.1',
     `--user-data-dir=${profile}`,
     `${baseUrl.origin}/#home`,
   ]);
   browser.stderr.on('data', (chunk) => { browserError += chunk; });
 
-  await waitForUrl(`http://127.0.0.1:${debugPort}/json/version`, 10_000);
-  const targets = await fetch(`http://127.0.0.1:${debugPort}/json/list`).then((response) => response.json());
+  const debugPort = await waitForChromeDevTools(profile, browser, () => browserError);
+  const targetsResponse = await fetch(`http://127.0.0.1:${debugPort}/json/list`, { cache: 'no-store' });
+  if (!targetsResponse.ok) throw new Error(`Chrome DevTools target list 回傳 HTTP ${targetsResponse.status}`);
+  const targets = await targetsResponse.json();
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
   if (!page) throw new Error('找不到 Chrome page debugging target。');
 
@@ -129,6 +130,30 @@ console.log(`PASS staging E2E: ${report.checks.length} checks, ${baseUrl.origin}
 
 function mark(label) {
   if (!report.checks.includes(label)) report.checks.push(label);
+}
+
+async function waitForChromeDevTools(profileDir, child, getStderr) {
+  const activePortFile = join(profileDir, 'DevToolsActivePort');
+  const deadline = Date.now() + 15_000;
+  let lastError = '';
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      const stderr = String(getStderr?.() || '').trim();
+      throw new Error(`Chrome 在 DevTools 啟動前退出（code ${child.exitCode}）。${stderr ? ` stderr: ${stderr.slice(-1500)}` : ''}`);
+    }
+    try {
+      const text = await readFile(activePortFile, 'utf8');
+      const [portText] = text.trim().split(/\r?\n/);
+      const port = Number(portText);
+      if (Number.isInteger(port) && port > 0 && port <= 65535) return port;
+      lastError = `DevToolsActivePort 內容無效：${JSON.stringify(text)}`;
+    } catch (error) {
+      lastError = error?.message || String(error);
+    }
+    await delay(100);
+  }
+  const stderr = String(getStderr?.() || '').trim();
+  throw new Error(`Chrome DevTools 在 15 秒內未就緒。${lastError ? ` ${lastError}` : ''}${stderr ? ` stderr: ${stderr.slice(-1500)}` : ''}`);
 }
 
 async function waitForSiteBootstrap() {
