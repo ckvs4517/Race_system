@@ -27,6 +27,7 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           schedule_path = Path('src/views/schedule.js')
           schedule = schedule_path.read_text()
@@ -54,32 +55,40 @@ jobs:
           main_path = Path('src/main.js')
           main = main_path.read_text()
 
-          old_render_head = """    if (tournament && matchSelection) {
-              const match = tournament.rounds[matchSelection.roundIndex].matches[matchSelection.matchIndex];
-              view = scoreboardView({"""
-          new_render_head = """    const match = tournament && matchSelection
-              ? tournament.rounds?.[matchSelection.roundIndex]?.matches?.[matchSelection.matchIndex]
-              : null;
-            if (tournament && matchSelection && tournament.status === '進行中' && match?.status === '可開始') {
-              view = scoreboardView({"""
-          assert main.count(old_render_head) == 1, main.count(old_render_head)
-          main = main.replace(old_render_head, new_render_head)
+          render_pattern = re.compile(
+            r"(?P<indent>\s*)if \(tournament && matchSelection\) \{\n"
+            r"\s*const match = tournament\.rounds\[matchSelection\.roundIndex\]\.matches\[matchSelection\.matchIndex\];\n"
+            r"\s*view = scoreboardView\(\{"
+          )
+          render_replacement = (
+            "    const match = tournament && matchSelection\n"
+            "      ? tournament.rounds?.[matchSelection.roundIndex]?.matches?.[matchSelection.matchIndex]\n"
+            "      : null;\n"
+            "    if (tournament && matchSelection && tournament.status === '進行中' && match?.status === '可開始') {\n"
+            "      view = scoreboardView({"
+          )
+          main, render_count = render_pattern.subn(render_replacement, main, count=1)
+          assert render_count == 1, render_count
 
-          old_bind = """    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
-              const { roundIndex, matchIndex } = state.selectedMatch;
-              const match = tournament.rounds[roundIndex].matches[matchIndex];
-              bindScoreboard(app, {"""
-          new_bind = """    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
-              const { roundIndex, matchIndex } = state.selectedMatch;
-              const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];
-              if (!tournament || !match || tournament.status !== '進行中' || match.status !== '可開始') {
-                selectMatch(null, null);
-                render();
-                return;
-              }
-              bindScoreboard(app, {"""
-          assert main.count(old_bind) == 1, main.count(old_bind)
-          main = main.replace(old_bind, new_bind)
+          bind_pattern = re.compile(
+            r"(?P<indent>\s*)const tournament = state\.tournaments\.find\(\(item\) => item\.id === state\.selectedTournamentId\);\n"
+            r"\s*const \{ roundIndex, matchIndex \} = state\.selectedMatch;\n"
+            r"\s*const match = tournament\.rounds\[roundIndex\]\.matches\[matchIndex\];\n"
+            r"\s*bindScoreboard\(app, \{"
+          )
+          bind_replacement = (
+            "    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);\n"
+            "    const { roundIndex, matchIndex } = state.selectedMatch;\n"
+            "    const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];\n"
+            "    if (!tournament || !match || tournament.status !== '進行中' || match.status !== '可開始') {\n"
+            "      selectMatch(null, null);\n"
+            "      render();\n"
+            "      return;\n"
+            "    }\n"
+            "    bindScoreboard(app, {"
+          )
+          main, bind_count = bind_pattern.subn(bind_replacement, main, count=1)
+          assert bind_count == 1, bind_count
           main_path.write_text(main)
 
       - name: Run focused and fast regression tests
