@@ -4,6 +4,7 @@ import { pageHeader } from '../ui/shell.js';
 import { MAX_TOURNAMENT_PLAYERS, buildRounds, getSwissPhaseStandings, getTournamentStandings } from '../domain/tournament.js';
 import { createDrinkSummary } from '../domain/drinks.js';
 import { getTournamentFormat } from '../formats/registry.js';
+import { SWISS_RANKING_RULE_BUCHHOLZ, normalizeSwissRankingRule } from '../domain/ranking/swiss-ranking.js';
 import { drinkSelectionFields } from './drink-fields.js';
 
 export function scheduleView(tournaments, selectedId, canManage = false) {
@@ -545,14 +546,17 @@ function swissLiveLeaderboardRows(tournament) {
 }
 
 function leaderboardView(tournament, rows, isSwiss) {
-  const metric = '總得分';
-  const description = leaderboardDescription(tournament, isSwiss);
+  const showOpponentWins = shouldShowSwissOpponentWins(tournament);
+  const rowClass = showOpponentWins ? ' has-buchholz' : '';
+  const opponentHeader = showOpponentWins ? '<span>對手勝場</span>' : '';
+  const description = leaderboardDescription(tournament, isSwiss, showOpponentWins);
   const completed = tournament.status === '已完成';
-  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">${isSwiss ? 'LIVE STANDINGS' : 'LIVE STANDINGS'}</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰${completed ? '與下載戰績圖' : ''}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header"><span>名次</span><span>選手</span><span>勝</span><span>敗</span><span>${metric}</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row, completed, rows)).join('')}</div></section>`;
+  return `<section class="leaderboard"><div class="leaderboard-heading"><div><p class="kicker">LIVE STANDINGS</p><h2>賽事排行榜</h2></div><span>${description}；點選選手可查看已完成對戰${completed ? '與下載戰績圖' : ''}</span></div><div class="leaderboard-table"><div class="leaderboard-row leaderboard-header${rowClass}"><span>名次</span><span>選手</span><span>勝</span><span>敗</span>${opponentHeader}<span>總得分</span></div>${rows.map((row) => leaderboardPlayerRow(tournament, row, completed, rows, showOpponentWins)).join('')}</div></section>`;
 }
 
-function leaderboardDescription(tournament, isSwiss) {
+function leaderboardDescription(tournament, isSwiss, showOpponentWins = false) {
   if (!isSwiss) return '依冠軍、勝場、總分與得失分差排序';
+  if (showOpponentWins) return '依勝場、對手勝場總和、總得分、直接對戰依序排名；輪空以該階段總輪數一半計入對手勝場';
   if (tournament.swissFinalMode === 'single_elimination' && ['final', 'completed'].includes(tournament.swissStage)) {
     return '四強名次依淘汰賽結果，其餘選手依瑞士輪成績排序';
   }
@@ -560,6 +564,16 @@ function leaderboardDescription(tournament, isSwiss) {
     return '四強循環依勝場、敗場、總得分排序；兩人完全同分時比較直接對戰，三人以上同分會自動加賽';
   }
   return '依勝場、敗場、總得分依序排名';
+}
+
+function shouldShowSwissOpponentWins(tournament) {
+  if (tournament.format !== 'swiss'
+    || normalizeSwissRankingRule(tournament.swissRankingRule) !== SWISS_RANKING_RULE_BUCHHOLZ) return false;
+  const stage = tournament.swissStage || 'preliminary';
+  if (['preliminary', 'qualification'].includes(stage)) return true;
+  if (stage === 'qualifier') return false;
+  if (['final', 'completed'].includes(stage) && tournament.swissFinalMode === 'swiss') return true;
+  return stage === 'completed' && tournament.swissFinalMode === 'standings';
 }
 
 function leaderboardPlayerRowLegacy(tournament, row, canDownloadShareCard) {
@@ -574,13 +588,21 @@ function leaderboardPlayerRowLegacy(tournament, row, canDownloadShareCard) {
   </details>`;
 }
 
-function leaderboardPlayerRow(tournament, row, canDownloadShareCard, rows = []) {
+function leaderboardPlayerRow(tournament, row, canDownloadShareCard, rows = [], showOpponentWins = false) {
   const matches = playerCompletedMatches(tournament, row.player);
   const history = matches.length ? matches.map((entry) => `<li><span>${escapeText(roundPhaseLabel(entry.round, entry.roundIndex))}</span><b>${escapeText(entry.opponent)}</b><i>${escapeText(entry.result)}</i></li>`).join('') : '<li class="player-history-empty">尚無已完成對戰</li>';
   const stages = stageSummaryView(tournament, row.player);
-  const status = row.isChampion ? '<small>CHAMPION</small>' : '';
-  const rankingReason = swissDirectMatchReason(tournament, row, rows);
-  return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''}"><summary class="leaderboard-row"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}${rankingReason}</strong><span>${row.wins}</span><span>${row.losses}</span><b>${row.totalPoints}</b></summary><div class="player-history"><h3>${escapeText(row.player)}的階段成績</h3>${stages}<ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div></details>`;
+  const status = row.isChampion ? '<small>CHAMPION</small>' : row.participantStatus === 'no_show' ? '<small>未出席</small>' : row.participantStatus === 'withdrawn' ? '<small>已退賽</small>' : '';
+  const rankingReason = row.rankResolution?.criterion === 'head_to_head'
+    ? '<small>直接對戰判定</small>'
+    : swissDirectMatchReason(tournament, row, rows);
+  const opponentWins = showOpponentWins ? `<span>${formatOpponentWins(row.opponentWins)}</span>` : '';
+  return `<details class="leaderboard-player ${row.isChampion ? 'is-champion' : ''} ${row.participantStatus !== 'active' ? 'is-inactive' : ''}"><summary class="leaderboard-row${showOpponentWins ? ' has-buchholz' : ''}"><span class="rank">${row.rank === 1 ? icons.trophy : String(row.rank).padStart(2, '0')}</span><strong>${escapeText(row.player)}${status}${rankingReason}</strong><span>${row.wins}</span><span>${row.losses}</span>${opponentWins}<b>${row.totalPoints}</b></summary><div class="player-history"><h3>${escapeText(row.player)}的階段成績</h3>${stages}<ul>${history}</ul>${canDownloadShareCard ? `<button class="button button-primary player-share-card" data-download-share-card="${escapeAttribute(row.player)}">下載戰績圖</button>` : ''}</div></details>`;
+}
+
+function formatOpponentWins(value) {
+  const number = Number(value) || 0;
+  return Number.isInteger(number) ? String(number) : number.toFixed(1);
 }
 
 function swissDirectMatchReason(tournament, row, rows) {
@@ -599,16 +621,41 @@ function stageSummaryView(tournament, player) {
   const groups = new Map();
   (tournament.rounds || []).forEach((round) => {
     const phase = round.phase || 'preliminary';
-    const label = phase === 'preliminary' ? '瑞士輪' : phase === 'qualifier' ? '同分加賽' : '四強／決賽';
-    if (!groups.has(label)) groups.set(label, { wins: 0, losses: 0, points: 0 });
+    const key = phase === 'preliminary'
+      ? 'preliminary'
+      : phase === 'qualifier'
+        ? 'qualifier'
+        : phase === 'placement'
+          ? 'placement'
+          : round.seriesId === 'stage2-swiss'
+            ? 'stage2'
+            : 'final';
+    const label = {
+      preliminary: '瑞士輪',
+      qualifier: '同分加賽',
+      placement: '冠亞名次加賽',
+      stage2: '第二階段瑞士輪',
+      final: '四強／決賽',
+    }[key];
+    if (!groups.has(key)) groups.set(key, { label, wins: 0, losses: 0, points: 0, opponentWins: null });
     round.matches.filter((match) => match.status === '已完成' && [match.playerA, match.playerB].includes(player)).forEach((match) => {
-      const group = groups.get(label);
+      const group = groups.get(key);
       const isA = match.playerA === player;
       group.points += Number(isA ? match.scoreA : match.scoreB) || 0;
       if (match.winner === player) group.wins += 1; else group.losses += 1;
     });
   });
-  return `<div class="leaderboard-stage-summary">${[...groups].map(([label, value]) => `<span><b>${label}</b><i>${value.wins} 勝 ${value.losses} 敗 · ${value.points} 分</i></span>`).join('')}</div>`;
+
+  if (normalizeSwissRankingRule(tournament.swissRankingRule) === SWISS_RANKING_RULE_BUCHHOLZ) {
+    const preliminary = getSwissPhaseStandings(tournament, 'preliminary').find((row) => row.player === player);
+    if (groups.has('preliminary') && preliminary) groups.get('preliminary').opponentWins = preliminary.opponentWins;
+    if (tournament.swissFinalMode === 'swiss' && groups.has('stage2')) {
+      const stage2 = getSwissPhaseStandings(tournament, 'final').find((row) => row.player === player);
+      if (stage2) groups.get('stage2').opponentWins = stage2.opponentWins;
+    }
+  }
+
+  return `<div class="leaderboard-stage-summary">${[...groups.values()].map((value) => `<span><b>${value.label}</b><i>${value.wins} 勝 ${value.losses} 敗 · ${value.points} 分${value.opponentWins == null ? '' : ` · 對手勝場 ${formatOpponentWins(value.opponentWins)}`}</i></span>`).join('')}</div>`;
 }
 
 function playerCompletedMatches(tournament, player) {

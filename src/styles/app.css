@@ -982,3 +982,11 @@ footer { font-size: 12px; }
  .leaderboard-stage-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .leaderboard-stage-summary span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; background: #111a24; border: 1px solid #2a394a; border-radius: 6px; font-size: 11px; }
 .leaderboard-stage-summary b { color: #f2c94c; }.leaderboard-stage-summary i { color: #c8d1de; font-style: normal; }
+
+
+/* Buchholz 排名欄位：只在使用新瑞士輪排名規則時套用，舊排行榜版型不變。 */
+.leaderboard-row.has-buchholz { grid-template-columns: 90px minmax(180px, 1fr) 76px 76px 112px 110px; }
+.result-share-card .share-stage-stats i + i { margin-top: 4px; color: #ff9b95; }
+@media (max-width: 620px) {
+  .leaderboard-row.has-buchholz { min-width: 0; grid-template-columns: 38px minmax(82px, 1fr) 34px 34px 58px 48px; }
+}

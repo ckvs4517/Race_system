@@ -4,6 +4,12 @@ import { icons } from '../ui/icons.js';
 import { MAX_TOURNAMENT_PLAYERS, createTournament, updateDraftTournament } from '../domain/tournament.js';
 import { createDefaultDrinkSettings, normalizeDrinkSettings } from '../domain/drinks.js';
 import { listTournamentFormats } from '../formats/registry.js';
+import {
+  DEFAULT_SWISS_RANKING_RULE,
+  SWISS_RANKING_RULE_BUCHHOLZ,
+  SWISS_RANKING_RULE_LEGACY,
+  normalizeSwissRankingRule,
+} from '../domain/ranking/swiss-ranking.js';
 
 const DEFAULT_EVENT_INFO_for_88cafe = {
   venueName: '88coffee&tattoo',
@@ -24,6 +30,10 @@ export function manageView(tournament = null) {
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
   const swissStage2 = normalizeSwissStage2Config(tournament?.swissStage2Config);
+  const swissRankingRule = normalizeSwissRankingRule(
+    tournament?.swissRankingRule,
+    tournament ? SWISS_RANKING_RULE_LEGACY : DEFAULT_SWISS_RANKING_RULE,
+  );
   const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
 
   return `<section class="section-wrap page-section">
@@ -35,6 +45,7 @@ export function manageView(tournament = null) {
         <label class="field"><span>賽事名稱</span><input name="name" maxlength="40" value="${escapeAttribute(tournament?.name || '')}" placeholder="例如：夏季陀螺公開賽" required></label>
         <label class="field"><span>比賽賽制</span><select name="format">${formatOptions}</select></label>
         <div data-swiss-stage2-settings ${selectedFormat === 'swiss' ? '' : 'hidden'}>
+          <label class="field"><span>瑞士輪排名方式</span><select name="swissRankingRule"><option value="${SWISS_RANKING_RULE_BUCHHOLZ}" ${swissRankingRule === SWISS_RANKING_RULE_BUCHHOLZ ? 'selected' : ''}>對手強度排名（推薦）</option><option value="${SWISS_RANKING_RULE_LEGACY}" ${swissRankingRule === SWISS_RANKING_RULE_LEGACY ? 'selected' : ''}>傳統排名（舊版相容）</option></select><small>推薦：勝場 → 對手勝場總和 → 總得分 → 直接對戰；賽事開始後鎖定。</small></label>
           <div class="field-grid">
             <label class="field"><span>第二階段晉級人數</span><select name="swissAdvanceCount"><option value="4" ${swissStage2.advanceCount === 4 ? 'selected' : ''}>Top 4</option><option value="8" ${swissStage2.advanceCount === 8 ? 'selected' : ''}>Top 8</option></select><small>第一階段固定打 4 輪瑞士輪，再依排名進入第二階段。</small></label>
             <label class="field"><span>第二階段賽制</span><select name="swissStage2Format"><option value="single_elimination" ${swissStage2.format === 'single_elimination' ? 'selected' : ''}>單淘汰</option><option value="swiss" ${swissStage2.format === 'swiss' ? 'selected' : ''}>瑞士輪</option></select><small>規則在開賽前鎖定，第一階段完成後只執行既定設定。</small></label>
@@ -133,6 +144,7 @@ export function bindManage(root, options) {
         ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings)
         : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings);
       result = applySwissStage2Config(result, form);
+      result = applySwissRankingRule(result, form);
       options.onSubmit(result);
     } catch (error) {
       alert(error.message);
@@ -191,6 +203,17 @@ function applySwissStage2Config(tournament, form) {
     format: form.elements.swissStage2Format?.value,
     rounds: form.elements.swissStage2Rounds?.value,
   });
+  return next;
+}
+
+function applySwissRankingRule(tournament, form) {
+  const next = { ...tournament };
+  delete next.swissRankingRule;
+  if (next.format !== 'swiss') return next;
+  next.swissRankingRule = normalizeSwissRankingRule(
+    form.elements.swissRankingRule?.value,
+    DEFAULT_SWISS_RANKING_RULE,
+  );
   return next;
 }
 

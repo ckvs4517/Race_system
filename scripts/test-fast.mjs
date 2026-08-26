@@ -5,6 +5,7 @@ const tests = [
   'tests/roster-filter.test.mjs',
   'tests/check-in.test.mjs',
   'tests/swiss.test.mjs',
+  'tests/swiss-ranking.test.mjs',
   'tests/tournament-capacity.test.mjs',
   'tests/tournament-list.test.mjs',
   'tests/early-finish-lock.test.mjs',
