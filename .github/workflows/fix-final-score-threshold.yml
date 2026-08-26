@@ -81,6 +81,7 @@ jobs:
           replace_once('tests/full-flow.test.js', "fill('[data-quick-score-form] [name=\"scoreB\"]', '4');", "fill('[data-quick-score-form] [name=\"scoreB\"]', '3');", 'browser scoreB input')
           replace_once('tests/full-flow.test.js', "document.querySelector('[data-quick-score-form] [name=\"scoreB\"]').value === '4'", "document.querySelector('[data-quick-score-form] [name=\"scoreB\"]').value === '3'", 'browser preserved scoreB')
           replace_once('tests/full-flow.test.js', "match.scoreA === 6 && match.scoreB === 4))), '快速登分可送出 6:4 等 overshoot 比分'", "match.scoreA === 6 && match.scoreB === 3))), '快速登分可送出勝方超過 4 分且敗方低於 4 分的結果'", 'browser final score assertion')
+          replace_once('tests/swiss.test.mjs', 'result = recordMatchResult(result, roundIndex, matchIndex, 7, index);', 'result = recordMatchResult(result, roundIndex, matchIndex, 7, index % 4);', 'Swiss helper legal loser score')
           PY
       - name: Project health
         run: node scripts/project-health.mjs
@@ -96,7 +97,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/core/quick-score.js src/domain/tournament.js src/views/schedule.js tests/quick-score.test.mjs tests/full-flow.test.js
+          git add src/core/quick-score.js src/domain/tournament.js src/views/schedule.js tests/quick-score.test.mjs tests/full-flow.test.js tests/swiss.test.mjs
           git diff --cached --check
           git commit -m "Enforce first-to-four final score rule"
           git push origin HEAD:fix/final-score-threshold
