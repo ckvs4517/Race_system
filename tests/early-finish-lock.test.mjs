@@ -34,7 +34,8 @@ assert.throws(
 );
 
 const mainSource = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
+const scheduleControllerSource = await readFile(new URL('../src/features/schedule/controller.js', import.meta.url), 'utf8');
 assert.match(mainSource, /tournament\.status === '進行中' && match\?\.status === '可開始'/, '路由只在進行中且可開始時顯示正式記分板');
-assert.match(mainSource, /tournament\.status !== '進行中' \|\| match\.status !== '可開始'/, '同步後若賽事已結束會清除舊的記分選取狀態');
+assert.match(scheduleControllerSource, /tournament\.status !== '進行中' \|\| match\.status !== '可開始'/, '同步後若賽事已結束會清除舊的記分選取狀態');
 
 console.log('PASS early finish locks unfinished matches');

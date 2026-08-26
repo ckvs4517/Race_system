@@ -135,7 +135,7 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
 
   bindRosterEvents(root, state, requestRender);
   bindMatchAdministration(root, state, requestRender);
-  bindTournamentLifecycle(root, state);
+  bindTournamentLifecycle(root, state, requestRender);
   applyRosterUi(root);
   restoreScheduleScroll();
 }
@@ -294,7 +294,7 @@ function bindMatchAdministration(root, state, requestRender) {
   });
 }
 
-function bindTournamentLifecycle(root, state) {
+function bindTournamentLifecycle(root, state, requestRender) {
   root.querySelectorAll('[data-opening-pairings-form] select').forEach((select) => select.addEventListener('change', () => {
     const form = select.form;
     const selected = [...form.querySelectorAll('select')];
@@ -371,7 +371,7 @@ function bindTournamentLifecycle(root, state) {
   });
   root.querySelector('[data-action="back-events"]')?.addEventListener('click', () => {
     selectTournament(null);
-    // Store selection update會觸發 render；保留顯式 navigation 狀態不變。
+    requestRender();
   });
 }
 
