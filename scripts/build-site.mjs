@@ -1,8 +1,8 @@
 /** 產生 Sites 部署目錄；使用 Node fs，確保 Windows 與 CI 的檔案複製結果一致。 */
-import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveSourceVersion, sourceVersionToken } from './lib/source-version.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(projectRoot, 'dist');
@@ -11,7 +11,8 @@ if (!dist.startsWith(`${projectRoot}${sep}`)) throw new Error('Invalid build out
 const serverDir = join(dist, 'server');
 const clientDir = join(dist, 'client');
 const drizzleDir = join(dist, '.openai', 'drizzle');
-const buildVersion = resolveBuildVersion();
+const sourceVersion = await resolveSourceVersion({ cwd: projectRoot });
+const buildVersion = sourceVersionToken(sourceVersion);
 
 await rm(dist, { recursive: true, force: true });
 await Promise.all([
@@ -72,27 +73,4 @@ for (const [path, minimumBytes] of requiredFiles) {
 const packagedBuildInfo = await readFile(buildInfoPath, 'utf8');
 if (packagedBuildInfo.includes(buildInfoToken)) throw new Error('Build version token was not replaced.');
 
-console.log(`Build completed (${buildVersion}).`);
-
-function resolveBuildVersion() {
-  const environmentSha = [process.env.GITHUB_SHA, process.env.SOURCE_COMMIT, process.env.COMMIT_SHA]
-    .map((value) => String(value || '').trim())
-    .find((value) => /^[0-9a-f]{7,40}$/i.test(value));
-  if (environmentSha) return environmentSha.slice(0, 7).toLowerCase();
-
-  try {
-    const sha = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    const dirty = execFileSync('git', ['status', '--porcelain'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    return dirty ? `${sha}+dirty` : sha;
-  } catch {
-    return 'UNKNOWN';
-  }
-}
+console.log(`Build completed (${buildVersion}, resolved via ${sourceVersion.source}).`);
