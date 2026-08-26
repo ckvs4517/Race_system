@@ -27,6 +27,7 @@ jobs:
         run: |
           python3 scripts/tmp-buchholz-patch.py
           python3 scripts/tmp-buchholz-test-fix.py
+          python3 scripts/tmp-buchholz-compat-fix.py
       - name: Focused ranking tests
         run: node tests/swiss-ranking.test.mjs
       - name: Fast regression
@@ -34,7 +35,7 @@ jobs:
       - name: Full browser regression
         run: node scripts/test-full.mjs --browser=required
       - name: Remove temporary files
-        run: rm -f scripts/tmp-buchholz-patch.py scripts/tmp-buchholz-test-fix.py .github/workflows/tmp-buchholz-integration.yml
+        run: rm -f scripts/tmp-buchholz-patch.py scripts/tmp-buchholz-test-fix.py scripts/tmp-buchholz-compat-fix.py .github/workflows/tmp-buchholz-integration.yml
       - name: Commit tested changes
         run: |
           git config user.name "ckvs4517"
