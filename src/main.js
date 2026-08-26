@@ -643,7 +643,11 @@ function bindScheduleEvents(state) {
     event.preventDefault();
     const finalists = [...event.currentTarget.querySelectorAll('input[name="finalist"]:checked')].map((input) => input.value);
     const mode = event.currentTarget.querySelector('input[name="swissFinalMode"]:checked')?.value;
-    const label = mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
+    const selectedTournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const configuredStage2 = selectedTournament?.swissStage2Config;
+    const label = configuredStage2
+      ? `第二階段${mode === 'single_elimination' ? '單淘汰賽' : '瑞士輪'}`
+      : mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
     if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;
     beginSwissFinal(state.selectedTournamentId, finalists, mode);
   });
