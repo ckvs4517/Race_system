@@ -23,6 +23,6 @@ assert.match(guide, /進入排程時舊網址會撤銷/, '說明頁解釋未填�
 assert.match(guide, /送出後會直接加入正式名單/, '說明頁解釋填寫後不需核准');
 const guideShell = shell('guide', guide, { isAdmin: false });
 assert.match(guideShell, /nav-item active[^>]*data-route="guide"/, '導覽列可開啟並標示使用說明頁');
-assert.match(guideShell, /BUILD DEV/, '原始碼預覽時頁尾顯示開發版本標記');
+assert.match(guideShell, /GIT DEV/, '原始碼預覽時頁尾顯示開發來源標記');
 
 console.log('PASS getting started guide');
