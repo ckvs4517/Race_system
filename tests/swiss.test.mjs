@@ -194,13 +194,13 @@ assert.match(manageView(changed), /option value="swiss" selected/);
 assert.match(manageView(), /瑞士制/);
 assert.match(manageView(), /name="arenaCount"/);
 assert.match(manageView(), /name="swissAdvanceCount"/);
-assert.match(manageView(), /name="swissStage2Format"/);
-assert.match(manageView(), /name="swissStage2Rounds"/);
+assert.doesNotMatch(manageView(), /name="swissStage2Format"/, '建立賽事時不應先選第二階段賽制');
+assert.doesNotMatch(manageView(), /name="swissStage2Rounds"/, '建立賽事時不應先選第二階段瑞士輪輪數');
 
 const top8Players = Array.from({ length: 12 }, (_, index) => `Top8-${index + 1}`);
 let top8Stage = {
   ...createTournament('48人流程縮小驗證', top8Players, 'swiss', 2),
-  swissStage2Config: { advanceCount: 8, format: 'swiss', rounds: 4 },
+  swissStage2Config: { advanceCount: 8 },
 };
 top8Stage = startTournament(checkInAll(top8Stage));
 while (top8Stage.swissStage === 'preliminary') top8Stage = finishCurrentRound(top8Stage);
@@ -209,11 +209,19 @@ const top8Rows = getTournamentStandings(top8Stage);
 const top8Finalists = top8Rows.slice(0, 8).map((row) => row.player);
 const top8QualificationView = scheduleView([top8Stage], top8Stage.id, true);
 assert.match(top8QualificationView, /確認 Top 8 並建立第二階段/);
-assert.match(top8QualificationView, /value="swiss" checked hidden/);
-top8Stage = startSwissFinal(top8Stage, top8Finalists, 'single_elimination');
-assert.equal(top8Stage.swissFinalMode, 'swiss', '賽前設定應鎖定第二階段為瑞士輪');
+assert.match(top8QualificationView, /value="round_robin"/);
+assert.match(top8QualificationView, /value="single_elimination"/);
+assert.match(top8QualificationView, /value="swiss" checked/);
+assert.match(top8QualificationView, /name="swissStage2Rounds"/);
+top8Stage = startSwissFinal(top8Stage, top8Finalists, 'swiss', 4);
+assert.equal(top8Stage.swissFinalMode, 'swiss', '第二階段應使用第一階段完成後選定的瑞士輪');
+assert.deepEqual(top8Stage.swissStage2Config, { advanceCount: 8, format: 'swiss', rounds: 4 });
 assert.equal(top8Stage.finalists.length, 8);
 assert.equal(top8Stage.rounds.at(-1).matches.length, 4);
+const top8LiveView = scheduleView([top8Stage], top8Stage.id, true);
+assert.match(top8LiveView, /第一階段止步選手（4）/);
+assert.match(top8LiveView, /查看排名、完整戰績與戰績圖/);
+assert.match(top8LiveView, /data-download-share-card=/, '第二階段進行中，未晉級選手仍可下載戰績圖');
 assert.ok(getSwissPhaseStandings(top8Stage, 'final').every((row) => row.wins === 0 && row.totalPoints === 0), '第二階段統計應從零開始');
 while (top8Stage.swissStage === 'final') top8Stage = finishCurrentRound(top8Stage);
 assert.equal(top8Stage.status, '已完成');
@@ -231,7 +239,7 @@ const top8TieProbe = {
   ...createTournament('Top8切線同分', tenWayTiePlayers, 'swiss'),
   status: '進行中',
   swissStage: 'qualification',
-  swissStage2Config: { advanceCount: 8, format: 'swiss', rounds: 4 },
+  swissStage2Config: { advanceCount: 8 },
 };
 const top8TieView = scheduleView([top8TieProbe], top8TieProbe.id, true);
 const top8QualifierForm = top8TieView.match(/<form data-swiss-qualifier-form>[\s\S]*?<\/form>/)?.[0] || '';
@@ -245,14 +253,52 @@ let top8Knockout = {
   ...createTournament('Top8單淘汰第二階段', top8Players, 'swiss'),
   status: '進行中',
   swissStage: 'qualification',
-  swissStage2Config: { advanceCount: 8, format: 'single_elimination', rounds: 4 },
+  swissStage2Config: { advanceCount: 8 },
 };
-top8Knockout = startSwissFinal(top8Knockout, top8Players.slice(0, 8), 'swiss');
+top8Knockout = startSwissFinal(top8Knockout, top8Players.slice(0, 8), 'single_elimination');
 assert.equal(top8Knockout.swissFinalMode, 'single_elimination');
+assert.equal(top8Knockout.swissStage2Config.format, 'single_elimination');
 assert.equal(top8Knockout.rounds.at(-1).matches.length, 4);
 while (top8Knockout.swissStage === 'final') top8Knockout = finishCurrentRound(top8Knockout);
 assert.equal(top8Knockout.status, '已完成');
 assert.equal(getTournamentStandings(top8Knockout).filter((row) => top8Knockout.finalists.includes(row.player)).length, 8, 'Top8 單淘汰完成後八位晉級者都要保留在排行榜');
+
+const top4ChoiceProbe = {
+  ...createTournament('Top4第二階段選擇', players.slice(0, 4), 'swiss'),
+  status: '進行中',
+  swissStage: 'qualification',
+  swissStage2Config: { advanceCount: 4 },
+};
+const top4ChoiceView = scheduleView([top4ChoiceProbe], top4ChoiceProbe.id, true);
+assert.match(top4ChoiceView, /value="round_robin" checked/);
+assert.match(top4ChoiceView, /value="single_elimination"/);
+assert.doesNotMatch(top4ChoiceView, /value="swiss"/, 'Top4 第二階段不可選瑞士輪');
+
+let top8RoundRobin = {
+  ...createTournament('Top8循環第二階段', top8Players, 'swiss'),
+  status: '進行中',
+  swissStage: 'qualification',
+  swissStage2Config: { advanceCount: 8 },
+};
+top8RoundRobin = startSwissFinal(top8RoundRobin, top8Players.slice(0, 8), 'round_robin');
+assert.equal(top8RoundRobin.swissFinalMode, 'round_robin');
+assert.equal(top8RoundRobin.rounds.filter((round) => round.phase === 'final').length, 7, 'Top8 循環應建立 7 輪');
+assert.equal(top8RoundRobin.rounds.filter((round) => round.phase === 'final').flatMap((round) => round.matches).length, 28, 'Top8 循環應建立 28 場');
+const top8TieBreakPreview = {
+  ...top8RoundRobin,
+  finalTie: true,
+  rounds: [...top8RoundRobin.rounds, {
+    name: 'Top 8 第二階段同分加賽 1－第 1 輪',
+    phase: 'final',
+    phaseRound: 1,
+    seriesId: 'final-tiebreak-1',
+    seriesPlayers: top8Players.slice(0, 2),
+    matches: [{ id: 'preview-tie', playerA: top8Players[0], playerB: top8Players[1], scoreA: null, scoreB: null, winner: null, status: '可開始' }],
+  }],
+};
+const top8TieBreakPreviewView = scheduleView([top8TieBreakPreview], top8TieBreakPreview.id, true);
+assert.match(top8TieBreakPreviewView, /Top 8 第二階段同分加賽進行中/);
+assert.match(top8TieBreakPreviewView, /AUTOMATIC TIE BREAK/);
 
 const multiArena = startTournament(checkInAll(createTournament('雙台瑞士賽', players, 'swiss', 2)));
 assert.equal(multiArena.arenaCount, 2);

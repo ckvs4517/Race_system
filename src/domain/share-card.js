@@ -55,7 +55,7 @@ function completedStageStats(tournament, playerName) {
       qualifier: '同分加賽',
       placement: '冠亞名次加賽',
       stage2: '第二階段瑞士輪',
-      final: '四強／決賽',
+      final: tournament.swissStage2Config ? '第二階段' : '四強／決賽',
     }[key];
     if (!groups.has(key)) groups.set(key, { label, wins: 0, losses: 0, points: 0, opponentWins: null });
     (round.matches || []).filter((match) => isFormalCompletedMatch(match) && [match.playerA, match.playerB].includes(playerName)).forEach((match) => {
@@ -110,7 +110,7 @@ function phaseLabel(round, index) {
   if (round.phase === 'qualifier') return '資格積分決定賽';
   if (round.phase === 'placement') return '冠亞名次加賽';
   if (round.seriesId === 'stage2-swiss') return '第二階段瑞士輪';
-  if (round.phase === 'final') return '四強循環決賽';
+  if (round.phase === 'final') return String(round.name || '').includes('第二階段') ? round.name : '四強循環決賽';
   return round.name || `ROUND ${String(index + 1).padStart(2, '0')}`;
 }
 
