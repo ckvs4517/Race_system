@@ -1,5 +1,6 @@
 /** 主辦方參賽資料填寫管理：私密連結、正式名單與飲品統計。 */
 import { createDrinkSummary } from '../domain/drinks.js';
+import { MAX_TOURNAMENT_PLAYERS } from '../domain/tournament.js';
 import { pageHeader } from '../ui/shell.js';
 
 export function registrationAdminView(tournaments, selectedId, legacyRegistrations = [], returnToTournament = false) {
@@ -26,7 +27,7 @@ export function registrationAdminView(tournaments, selectedId, legacyRegistratio
         <label class="registration-checkbox"><input name="enabled" type="checkbox" ${settings.enabled ? 'checked' : ''}><span>啟用參賽資料填寫連結</span></label>
         <p class="page-description">只有取得連結的人可填寫。送出後會直接加入正式名單，不需再次核准；停用連結或開始賽事後，原連結立即失效。</p>
         <div class="field-grid">
-          <label class="field"><span>人數上限</span><input name="capacity" type="number" min="2" max="32" value="${Number(settings.capacity) || 32}" required></label>
+          <label class="field"><span>人數上限</span><input name="capacity" type="number" min="2" max="${MAX_TOURNAMENT_PLAYERS}" value="${Number(settings.capacity) || MAX_TOURNAMENT_PLAYERS}" required></label>
           <label class="field"><span>填寫截止（選填）</span><input name="deadline" type="datetime-local" value="${escapeAttribute(formatDateTimeInput(settings.deadline))}"></label>
         </div>
         <button class="button button-primary" type="submit">儲存設定</button>

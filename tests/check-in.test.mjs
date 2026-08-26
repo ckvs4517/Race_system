@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  MAX_TOURNAMENT_PLAYERS,
   addDraftPlayer,
   confirmTournamentSchedule,
   createTournament,
@@ -16,7 +17,7 @@ import { scheduleView } from '../src/views/schedule.js';
 let tournament = createTournament('報到流程測試', ['甲', '乙', '丙', '丁'], 'swiss');
 assert.equal(tournament.rounds.length, 0);
 assert.ok(tournament.players.every((player) => tournament.participantStates[player].checkedIn === false));
-assert.throws(() => startTournament(tournament), /2 至 32/);
+assert.throws(() => startTournament(tournament), new RegExp(`2 至 ${MAX_TOURNAMENT_PLAYERS}`));
 
 let view = scheduleView([tournament], tournament.id, true);
 assert.match(view, /參賽選手名單/);
@@ -28,6 +29,7 @@ assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯�
 assert.match(view, /data-roster-search/);
 assert.match(view, /data-roster-filter="unchecked"/);
 assert.match(view, /建立私密填寫連結/);
+assert.match(view, new RegExp(`max=\"${MAX_TOURNAMENT_PLAYERS}\"`), '賽事頁快速報名設定沿用共用人數上限');
 assert.match(view, /飲品統計/);
 assert.match(view, /data-edit-player="甲"/);
 assert.match(view, /data-action="prepare-tournament-schedule" disabled/);

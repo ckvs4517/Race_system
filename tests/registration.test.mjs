@@ -1,7 +1,7 @@
 /** 私密參賽資料 API：直入正式名單、重複防護、個資邊界與網址撤銷。 */
 import assert from 'node:assert/strict';
 import worker from '../worker/index.js';
-import { createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';
+import { MAX_TOURNAMENT_PLAYERS, createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';
 import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { registrationAdminView } from '../src/views/registration-admin.js';
 
@@ -87,6 +87,9 @@ const login = await request('/api/admin/login', { method: 'POST', headers: jsonH
 const token = (await login.json()).token;
 const adminHeaders = jsonHeaders(token);
 
+const maxCapacityDraft = updateRegistrationSettings(createTournament('48 人報名設定', [], 'swiss'), { capacity: MAX_TOURNAMENT_PLAYERS });
+assert.equal(maxCapacityDraft.registrationSettings.capacity, MAX_TOURNAMENT_PLAYERS, '私密報名名額可設定到大型賽事上限');
+
 const tournament = {
   id: 901,
   name: '公開報名測試',
@@ -150,6 +153,7 @@ assert.equal(latest.participantDetails['選手甲'].drink.displayName, '椰子�
 
 const scheduleEntryView = registrationAdminView([latest], latest.id, [], true);
 assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');
+assert.match(scheduleEntryView, new RegExp(`max=\"${MAX_TOURNAMENT_PLAYERS}\"`), '報名管理畫面沿用共用人數上限');
 const navigationEntryView = registrationAdminView([latest], latest.id, [], false);
 assert.match(navigationEntryView, /← 選擇其他賽事/, '從上方報名管理進入時提供選擇其他賽事按鈕');
 

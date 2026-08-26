@@ -1,7 +1,7 @@
 /** 建立／編輯準備中賽事的表單；送出前驗證名單與戰鬥台數。 */
 import { pageHeader } from '../ui/shell.js';
 import { icons } from '../ui/icons.js';
-import { createTournament, updateDraftTournament } from '../domain/tournament.js';
+import { MAX_TOURNAMENT_PLAYERS, createTournament, updateDraftTournament } from '../domain/tournament.js';
 import { createDefaultDrinkSettings, normalizeDrinkSettings } from '../domain/drinks.js';
 import { listTournamentFormats } from '../formats/registry.js';
 
@@ -50,7 +50,7 @@ export function manageView(tournament = null) {
           <label class="field"><span>原始貼文連結</span><input name="postUrl" type="url" maxlength="500" value="${escapeAttribute(eventInfo.postUrl || '')}" placeholder="https://www.instagram.com/..."></label>
         </div>
         <label class="field"><span>活動備註</span><textarea class="event-notes" name="notes" maxlength="2000" placeholder="可貼上禁用清單、報名費、參賽規則、獎品及其他注意事項。">${escapeText(eventInfo.notes || '')}</textarea><small>保留換行，最多 2,000 字。</small></label>
-        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>可先留空再建立私密填寫連結，或一行手動輸入一位，最多 32 位</small></div></div>
+        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>可先留空再建立私密填寫連結，或一行手動輸入一位，最多 ${MAX_TOURNAMENT_PLAYERS} 位</small></div></div>
         <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼">${escapeText(playerText)}</textarea></label>
         <div class="step-heading"><span>04</span><div><b>飲品菜單</b><small>每場賽事可獨立啟用、改名、停用與排序。</small></div></div>
         ${drinkSettingsEditor(drinkSettings)}
@@ -98,7 +98,7 @@ export function bindManage(root, options) {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const playerList = getPlayers();
-    if (playerList.length > 32) return alert('參賽者人數不可超過 32 位。');
+    if (playerList.length > MAX_TOURNAMENT_PLAYERS) return alert(`參賽者人數不可超過 ${MAX_TOURNAMENT_PLAYERS} 位。`);
     try {
       const eventInfo = {
         date: form.elements.eventDate.value,

@@ -3,6 +3,7 @@
  * `/api/*` 由此處理，其餘要求交給靜態資源服務；D1 revision 提供樂觀鎖保護。
  */
 import {
+  MAX_TOURNAMENT_PLAYERS,
   addConfirmedParticipant,
   addDraftPlayer,
   confirmTournamentSchedule,
@@ -106,7 +107,7 @@ export default {
           await env.DB.prepare("UPDATE registrations SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(registrationId).run();
           return json({ registration: { ...mapRegistrationRow(row), status: 'approved' }, tournament });
         }
-        if (tournament.players.length >= 32) return json({ error: '正式名單已達 32 人上限。', tournament }, 409);
+        if (tournament.players.length >= MAX_TOURNAMENT_PLAYERS) return json({ error: `正式名單已達 ${MAX_TOURNAMENT_PLAYERS} 人上限。`, tournament }, 409);
         const nextTournament = withRevision(validateTournament({
           ...withoutRevision(tournament),
           players: [...tournament.players, row.display_name],
@@ -255,7 +256,7 @@ function validateTournament(value) {
   if (!value || typeof value !== 'object') throw new Error('Invalid tournament');
   if (!Number.isFinite(Number(value.id))) throw new Error('Invalid tournament id');
   if (typeof value.name !== 'string' || value.name.length < 1 || value.name.length > 80) throw new Error('Invalid tournament name');
-  if (!Array.isArray(value.players) || value.players.length > 32 || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');
+  if (!Array.isArray(value.players) || value.players.length > MAX_TOURNAMENT_PLAYERS || (value.status !== '準備中' && value.players.length < 2)) throw new Error('Invalid players');
   if (value.eventInfo != null) {
     if (typeof value.eventInfo !== 'object' || Array.isArray(value.eventInfo)) throw new Error('Invalid event info');
     const limits = { date: 10, checkInStart: 5, checkInEnd: 5, startTime: 5, venueName: 80, address: 160, mapUrl: 500, postUrl: 500, notes: 2000 };
@@ -267,7 +268,7 @@ function validateTournament(value) {
     const settings = value.registrationSettings;
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid registration settings');
     if (typeof settings.token !== 'string' || settings.token.length < 16 || settings.token.length > 100) throw new Error('Invalid registration token');
-    if (!Number.isInteger(Number(settings.capacity)) || Number(settings.capacity) < 2 || Number(settings.capacity) > 32) throw new Error('Invalid registration capacity');
+    if (!Number.isInteger(Number(settings.capacity)) || Number(settings.capacity) < 2 || Number(settings.capacity) > MAX_TOURNAMENT_PLAYERS) throw new Error('Invalid registration capacity');
     if (typeof settings.deadline !== 'string' || settings.deadline.length > 30) throw new Error('Invalid registration deadline');
     if (!Array.isArray(settings.fields) || settings.fields.length > 20) throw new Error('Invalid registration fields');
   }
@@ -391,7 +392,7 @@ function applyTournamentAction(tournament, type, payload) {
       return removeDraftPlayer(tournament, String(payload.player || ''));
     case 'remove_players': {
       const players = Array.isArray(payload.players) ? [...new Set(payload.players.map(String))] : [];
-      if (!players.length || players.length > 32) throw new Error('請選擇要移除的選手。');
+      if (!players.length || players.length > MAX_TOURNAMENT_PLAYERS) throw new Error('請選擇要移除的選手。');
       return players.reduce((current, player) => removeDraftPlayer(current, player), tournament);
     }
     case 'draw_seeds':
