@@ -16,6 +16,9 @@
 | `src/core/roster-filter.js` | `tests/roster-filter.test.mjs`, `tests/check-in.test.mjs` |
 | `src/styles/app.css` | `tests/responsive-ui.test.mjs`, browser flows, manual mobile viewport |
 | `scripts/lib/source-version.mjs` or deployment version marker | `tests/source-version.test.mjs`, `node scripts/build-site.mjs` |
-| Build/deployment scripts | `tests/source-version.test.mjs`, `node scripts/build-site.mjs`, `node scripts/test-full.mjs --browser=skip` |
+| `scripts/verify-staging-e2e.mjs`, staging target guard, or Staging E2E workflow | `tests/staging-target.test.mjs`; then manually dispatch `Staging E2E` against `spin-league-test` after deployment |
+| Build/deployment scripts | `tests/source-version.test.mjs`, `tests/staging-target.test.mjs`, `node scripts/build-site.mjs`, `node scripts/test-full.mjs --browser=skip` |
 
-`test-fast.mjs` covers common domain, API, sync, backup, registration, responsive, V2 architecture boundary, and deployed source-version regressions. `test-full.mjs` discovers all Node `.mjs` tests, optionally executes both browser test pages, and builds the Sites artifact.
+`test-fast.mjs` covers common domain, API, sync, backup, registration, responsive, V2 architecture boundary, deployed source-version, and staging-target safety regressions. `test-full.mjs` discovers all Node `.mjs` tests, optionally executes both browser test pages, and builds the Sites artifact.
+
+The live `Staging E2E` workflow is intentionally separate from ordinary CI because it performs real writes against the TEST D1. It is hard-locked to `spin-league-test.ckvs4517.chatgpt.site`, creates only uniquely named `[E2E]` tournaments, removes its own records in cleanup, and verifies pre-existing Test D1 tournament IDs remain present. It requires the repository Actions secret `STAGING_ADMIN_PIN`; never place the PIN in source, workflow inputs, logs, or test artifacts.
