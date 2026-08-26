@@ -1,0 +1,39 @@
+name: Cleanup early finish formatting
+
+on:
+  push:
+    branches: [fix/early-finish-lock-scoring]
+    paths:
+      - .github/workflows/cleanup-early-finish-formatting.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/early-finish-lock-scoring
+      - name: Fix formatting
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('src/main.js')
+          text = path.read_text()
+          old1 = "const matchSelection = state.selectedMatch;    const match = tournament && matchSelection"
+          new1 = "const matchSelection = state.selectedMatch;\n    const match = tournament && matchSelection"
+          old2 = "if (state.selectedMatch) {    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);"
+          new2 = "if (state.selectedMatch) {\n    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);"
+          assert text.count(old1) == 1
+          assert text.count(old2) == 1
+          path.write_text(text.replace(old1, new1).replace(old2, new2))
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main.js
+          git commit -m "style: clean early finish guards"
+          git push
