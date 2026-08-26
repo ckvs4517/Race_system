@@ -121,7 +121,7 @@ assert.match(qualificationView, /瑞士輪結算方式/);
 
 const preliminary = getTournamentStandings(tournament);
 assert.ok(preliminary.every((row) => Number.isInteger(row.totalPoints)), '排行榜列出總得分');
-assertRecordAndPointsOrder(preliminary);
+assertBuchholzOrder(preliminary);
 const initialFinalForm = qualificationView.match(/<form data-swiss-final-form>[\s\S]*?<\/form>/)?.[0] || '';
 assert.equal((initialFinalForm.match(/name="finalist"/g) || []).length, 4, '直接確認四強只列排行榜前四名');
 assert.ok(preliminary.slice(0, 4).every((row) => initialFinalForm.includes(row.player)), '直接四強包含排行榜前四名');
@@ -288,12 +288,13 @@ function assertNoRepeatedPairings(rounds) {
   }));
 }
 
-function assertRecordAndPointsOrder(rows) {
+function assertBuchholzOrder(rows) {
   rows.slice(1).forEach((row, index) => {
     const previous = rows[index];
-    if (previous.wins === row.wins && previous.losses === row.losses) {
-      assert.ok(previous.totalPoints >= row.totalPoints, '勝敗相同時總得分較高者排前面');
-      if (previous.totalPoints > row.totalPoints) assert.ok(previous.rank < row.rank, '總得分不同時不可並列名次');
+    if (previous.wins !== row.wins) return;
+    assert.ok(previous.opponentWins >= row.opponentWins, '勝場相同時對手勝場總和較高者排前面');
+    if (previous.opponentWins === row.opponentWins) {
+      assert.ok(previous.totalPoints >= row.totalPoints, '勝場與對手勝場相同時總得分較高者排前面');
     }
   });
 }

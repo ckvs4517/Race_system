@@ -1,4 +1,9 @@
 /** 四輪瑞士制策略：四輪預賽後可依賽前設定進入第二階段，並保留舊賽事流程相容性。 */
+import {
+  SWISS_RANKING_RULE_LEGACY,
+  normalizeSwissRankingRule,
+  rankSwissStandings,
+} from '../domain/ranking/swiss-ranking.js';
 const BYE = '輪空';
 const PRELIMINARY_ROUNDS = 4;
 
@@ -50,14 +55,10 @@ export const swiss = {
     const preliminaryRounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary');
     const preliminaryStats = deriveStats(tournament.players, preliminaryRounds);
   
-    const preliminary = rankByRecordAndPoints(
-      tournament.players,
-      preliminaryStats,
-      tournament,
-    );
+    const preliminary = rankSwissPhase(tournament, tournament.players, preliminaryStats, preliminaryRounds, PRELIMINARY_ROUNDS);
 
     if (!tournament.finalists?.length) {
-      return addRanks(preliminary, tournament, rankingKey);
+      return preliminary;
     }
 
     const finalRounds = tournament.rounds.filter((round) => round.phase === 'final');
@@ -101,7 +102,13 @@ export const swiss = {
       }));
     }
     if (phase === 'final' && tournament.swissFinalMode === 'swiss') {
-      return addRanks(rankByRecordAndPoints(players, stats, tournament), tournament, rankingKey);
+      return rankSwissPhase(
+        tournament,
+        players,
+        stats,
+        rounds,
+        normalizeSwissStage2Config(tournament.swissStage2Config).rounds,
+      );
     }
     if (phase === 'final' && tournament.swissFinalMode !== 'single_elimination') {
       return rankRoundRobinFinalists(tournament, stats, rounds).map((row) => ({
@@ -110,11 +117,7 @@ export const swiss = {
         participantStatus: tournament.participantStates?.[row.player]?.status || 'active',
       }));
     }
-    return addRanks(
-      rankByRecordAndPoints(players, stats, tournament),
-      tournament,
-      rankingKey,
-    );
+    return rankSwissPhase(tournament, players, stats, rounds, PRELIMINARY_ROUNDS);
   },
 
   rebuildStats(players, rounds) {
@@ -174,7 +177,13 @@ export const swiss = {
           const stage2Stats = deriveStats(tournament.finalists, stage2Rounds);
           const activeFinalists = tournament.finalists.filter((player) => isPlayerActive(tournament, player));
           const history = pairingHistory(stage2Rounds);
-          const orderedPlayers = rankByRecordAndPoints(activeFinalists, stage2Stats, tournament).map((row) => row.player);
+          const orderedPlayers = rankSwissPhase(
+            tournament,
+            activeFinalists,
+            stage2Stats,
+            stage2Rounds,
+            targetRounds,
+          ).map((row) => row.player);
           const nextRound = createSwissRound(orderedPlayers, stage2Rounds.length + 1, history, stage2Stats, {
             phase: 'final',
             seriesId: 'stage2-swiss',
@@ -227,7 +236,13 @@ export const swiss = {
     }
 
     const history = pairingHistory(preliminaryRounds);
-    const orderedPlayers = rankByRecordAndPoints(activePlayers, preliminaryStats).map((row) => row.player);
+    const orderedPlayers = rankSwissPhase(
+      tournament,
+      activePlayers,
+      preliminaryStats,
+      preliminaryRounds,
+      PRELIMINARY_ROUNDS,
+    ).map((row) => row.player);
     const nextRound = createSwissRound(orderedPlayers, preliminaryRounds.length + 1, history, preliminaryStats);
     applyBye(nextRound, preliminaryStats);
     rounds.push(nextRound);
@@ -479,6 +494,21 @@ function deriveStats(players = [], rounds = []) {
   return stats;
 }
 
+function rankSwissPhase(tournament, players, stats, rounds, totalRounds) {
+  return rankSwissStandings({
+    players,
+    stats,
+    rounds,
+    participantStates: tournament?.participantStates || {},
+    rule: normalizeSwissRankingRule(tournament?.swissRankingRule, SWISS_RANKING_RULE_LEGACY),
+    totalRounds,
+  }).map((row) => ({
+    ...row,
+    isChampion: tournament?.champion === row.player,
+    participantStatus: tournament?.participantStates?.[row.player]?.status || 'active',
+  }));
+}
+
 function rankByRecordAndPoints(
   players,
   stats,
@@ -586,7 +616,7 @@ function normalizeSwissStage2Config(value = {}) {
 function preliminaryRanking(tournament) {
   const preliminaryRounds = tournament.rounds.filter((round) => (round.phase || 'preliminary') === 'preliminary');
   const stats = deriveStats(tournament.players, preliminaryRounds);
-  return addRanks(rankByRecordAndPoints(tournament.players, stats, tournament), tournament, rankingKey);
+  return rankSwissPhase(tournament, tournament.players, stats, preliminaryRounds, PRELIMINARY_ROUNDS);
 }
 
 function advancementCut(rows, slots) {
@@ -639,7 +669,13 @@ function stageTwoSwissRounds(tournament, rounds = tournament.rounds) {
 function rankSwissStageTwoBase(tournament) {
   const rounds = stageTwoSwissRounds(tournament);
   const stats = deriveStats(tournament.finalists || [], rounds);
-  return addRanks(rankByRecordAndPoints(tournament.finalists || [], stats, tournament), tournament, rankingKey);
+  return rankSwissPhase(
+    tournament,
+    tournament.finalists || [],
+    stats,
+    rounds,
+    normalizeSwissStage2Config(tournament.swissStage2Config).rounds,
+  );
 }
 
 function rankSwissStageTwoFinalists(tournament) {

@@ -5,6 +5,11 @@
 import { getTournamentFormat } from '../formats/registry.js';
 import { startRoundRobinTieBreak as createRoundRobinTieBreak } from '../formats/round-robin.js';
 import {
+  DEFAULT_SWISS_RANKING_RULE,
+  SWISS_RANKING_RULE_LEGACY,
+  normalizeSwissRankingRule,
+} from './ranking/swiss-ranking.js';
+import {
   createDefaultDrinkSettings,
   createEmptyDrinkSettings,
   normalizeDrinkSettings,
@@ -55,6 +60,7 @@ export function createTournament(name, players, formatId = 'single_elimination',
     registrationSettings: createRegistrationSettings(),
     drinkSettings: normalizeDrinkSettings(drinkSettings, createDefaultDrinkSettings()),
     ...(format.initialState?.() || {}),
+    ...(format.id === 'swiss' ? { swissRankingRule: DEFAULT_SWISS_RANKING_RULE } : {}),
   };
 }
 
@@ -66,6 +72,9 @@ export function duplicateTournament(tournament) {
   };
   if (normalized.format === 'swiss' && normalized.swissStage2Config) {
     duplicated.swissStage2Config = structuredClone(normalized.swissStage2Config);
+  }
+  if (normalized.format === 'swiss') {
+    duplicated.swissRankingRule = normalizeSwissRankingRule(normalized.swissRankingRule, SWISS_RANKING_RULE_LEGACY);
   }
   return duplicated;
 }
@@ -80,6 +89,11 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
   const participantStates = normalizeParticipantStates(cleanPlayers, normalized.participantStates, false);
   const participantDetails = normalizeParticipantDetails(cleanPlayers, normalized.participantDetails);
   const normalizedDrinkSettings = normalizeDrinkSettings(drinkSettings, normalized.drinkSettings);
+  const swissRankingRule = format.id === 'swiss'
+    ? normalized.format === 'swiss'
+      ? normalizeSwissRankingRule(normalized.swissRankingRule, SWISS_RANKING_RULE_LEGACY)
+      : DEFAULT_SWISS_RANKING_RULE
+    : null;
   assertSelectedDrinkOptionsRemain(participantDetails, normalizedDrinkSettings);
   return {
     ...normalized,
@@ -99,6 +113,7 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
     seedDrawnAt: null,
     updatedAt: new Date().toISOString(),
     ...(format.initialState?.() || {}),
+    ...(format.id === 'swiss' ? { swissRankingRule } : {}),
   };
 }
 
@@ -369,6 +384,9 @@ export function normalizeTournament(tournament) {
       checkInVersion: 1,
       registrationSettings: normalizeRegistrationSettings(tournament.registrationSettings),
       drinkSettings: normalizeDrinkSettings(tournament.drinkSettings, createEmptyDrinkSettings()),
+      ...(format.id === 'swiss' ? {
+        swissRankingRule: normalizeSwissRankingRule(tournament.swissRankingRule, SWISS_RANKING_RULE_LEGACY),
+      } : {}),
       ...(format.id === 'swiss' && tournament.status === '準備中' && tournament.swissVersion !== 2 ? format.initialState() : {}),
     };
   }
