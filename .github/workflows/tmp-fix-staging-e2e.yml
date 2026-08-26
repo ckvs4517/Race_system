@@ -1,0 +1,130 @@
+name: Patch staging E2E browser transport
+
+on:
+  push:
+    branches: [v2/codebase-refactor]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Run staging checks through browser only'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+          fetch-depth: 0
+      - name: Patch runner
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/verify-staging-e2e.mjs')
+          s = p.read_text()
+          old = """await mkdir(artifactsDir, { recursive: true });\nconst before = await listTournaments();\nconst beforeIds = new Set(before.map((item) => String(item.id)));\nlet adminToken = '';\n"""
+          new = """await mkdir(artifactsDir, { recursive: true });\nlet beforeIds = new Set();\nlet adminToken = '';\n"""
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = """try {\n  await checkLiveRevision();\n  mark('live source revision');\n\n  adminToken = await loginForCleanup();\n  mark('staging admin API authentication');\n\n  const chrome = await findChrome();\n"""
+          new = """try {\n  const chrome = await findChrome();\n"""
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = """  await cdp.send('Runtime.enable');\n  await cdp.send('Page.enable');\n\n  const flowResult = await evaluateInPage(browserFlowSource(adminPin, tournamentName, tempPlayer));\n"""
+          new = """  await cdp.send('Runtime.enable');\n  await cdp.send('Page.enable');\n\n  const before = await browserListTournaments();\n  beforeIds = new Set(before.map((item) => String(item.id)));\n  mark('staging tournament API readable in browser');\n  await browserCheckLiveRevision();\n  mark('live source revision');\n  adminToken = await browserLoginForCleanup();\n  mark('staging admin API authentication in browser');\n\n  const flowResult = await evaluateInPage(browserFlowSource(adminPin, tournamentName, tempPlayer));\n"""
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          s = s.replace("if (!adminToken) adminToken = await loginForCleanup();\n    await cleanupExactE2ETournament(adminToken, tournamentName);", "if (!adminToken) adminToken = await browserLoginForCleanup();\n    await browserCleanupExactE2ETournament(adminToken, tournamentName);", 1)
+          s = s.replace("const after = await listTournaments();", "const after = await browserListTournaments();", 1)
+
+          start = s.index('async function checkLiveRevision()')
+          end = s.index('async function captureFailureScreenshot()')
+          helpers = r'''async function browserCheckLiveRevision() {
+  const result = await evaluateInPage(`(async () => {
+    const response = await fetch('/src/core/build-info.js?e2e=' + Date.now(), { cache: 'no-store' });
+    return { ok: response.ok, status: response.status, text: await response.text() };
+  })()`);
+  if (!result?.ok) throw new Error(`build-info.js 回傳 HTTP ${result?.status ?? 'unknown'}`);
+  const source = String(result.text || '');
+  if (!source.includes("const BUILD_VERSION = 'git:")) {
+    throw new Error('測試站目前沒有可追溯的 GIT source marker；拒絕 destructive E2E。');
+  }
+  if (expectedGitSha && !source.toLowerCase().includes(`git:${expectedGitSha}`)) {
+    throw new Error(`測試站部署版本不是預期 Git SHA ${expectedGitSha}。`);
+  }
+}
+
+async function browserListTournaments() {
+  const result = await evaluateInPage(`(async () => {
+    const response = await fetch('/api/tournaments?e2e=' + Date.now(), {
+      headers: { accept: 'application/json', 'cache-control': 'no-cache' },
+      cache: 'no-store',
+    });
+    const payload = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, payload };
+  })()`);
+  if (!result?.ok) throw new Error(`/api/tournaments 回傳 HTTP ${result?.status ?? 'unknown'}`);
+  if (!Array.isArray(result.payload?.tournaments)) throw new Error('賽事 API 沒有回傳 tournaments 陣列。');
+  return result.payload.tournaments;
+}
+
+async function browserLoginForCleanup() {
+  const result = await evaluateInPage(`(async (pin) => {
+    const response = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, payload };
+  })(${JSON.stringify(adminPin)})`);
+  if (!result?.ok || !result.payload?.token) throw new Error(result?.payload?.error || `管理登入失敗 HTTP ${result?.status ?? 'unknown'}`);
+  return result.payload.token;
+}
+
+async function browserCleanupExactE2ETournament(token, exactName) {
+  assertE2ETournamentName(exactName);
+  const result = await evaluateInPage(`(async (token, exactName) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const listResponse = await fetch('/api/tournaments?cleanup=' + Date.now(), { cache: 'no-store' });
+      const listPayload = await listResponse.json().catch(() => ({}));
+      if (!listResponse.ok) return { ok: false, error: 'list HTTP ' + listResponse.status };
+      const targets = (listPayload.tournaments || []).filter((item) => item.name === exactName);
+      if (!targets.length) return { ok: true };
+      let conflict = false;
+      for (const tournament of targets) {
+        const response = await fetch('/api/tournaments/' + encodeURIComponent(tournament.id) + '?revision=' + (Number(tournament.revision) || 0), {
+          method: 'DELETE',
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        if (response.status === 409 && attempt === 0) { conflict = true; continue; }
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          return { ok: false, error: payload.error || ('delete HTTP ' + response.status) };
+        }
+      }
+      if (!conflict) return { ok: true };
+    }
+    return { ok: false, error: '兩次清理後 E2E 賽事仍存在。' };
+  })(${JSON.stringify(token)}, ${JSON.stringify(exactName)})`);
+  if (!result?.ok) throw new Error(result?.error || '清理 E2E 賽事失敗。');
+}
+
+'''
+          s = s[:start] + helpers + s[end:]
+          p.write_text(s)
+          PY
+          node --check scripts/verify-staging-e2e.mjs
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-fix-staging-e2e.yml
+          git add scripts/verify-staging-e2e.mjs
+          git commit -m "Route staging E2E through browser origin"
+          git push origin HEAD:v2/codebase-refactor
