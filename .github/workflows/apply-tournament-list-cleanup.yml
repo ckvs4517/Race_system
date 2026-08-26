@@ -1,0 +1,320 @@
+name: Apply tournament list cleanup
+
+on:
+  push:
+    branches: [feature/tournament-list-cleanup]
+    paths:
+      - .github/workflows/apply-tournament-list-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/tournament-list-cleanup
+          fetch-depth: 0
+
+      - name: Refactor tournament list UI
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Replace the all-in-one tournament grid with recent + history views.
+          schedule = Path('src/views/schedule.js')
+          text = schedule.read_text(encoding='utf-8')
+          start = text.index('export function scheduleView(')
+          end = text.index('\nfunction bracketView', start)
+          new_list_view = r'''export function scheduleView(tournaments, selectedId, canManage = false) {
+            const selected = tournaments.find((item) => item.id === selectedId);
+            if (selected) return bracketView(selected, canManage);
+            const orderedTournaments = [...tournaments].sort(compareEventDates);
+            const activeTournaments = orderedTournaments.filter((item) => item.status !== '已完成');
+            const completedTournaments = orderedTournaments
+              .filter((item) => item.status === '已完成')
+              .sort(compareCompletedEventDates);
+            const recentCompleted = completedTournaments.slice(0, 6);
+            const recentCards = activeTournaments.map((item) => eventCardView(item, canManage)).join('');
+            const completedCards = recentCompleted.map((item) => eventCardView(item, canManage)).join('');
+            const historyRows = completedTournaments.map((item) => historyEventRow(item, canManage)).join('');
+            const years = [...new Set(completedTournaments.map(eventListYear))].sort((a, b) => b.localeCompare(a));
+            const formats = [...new Set(completedTournaments.map((item) => item.format))]
+              .sort((a, b) => getTournamentFormat(a).name.localeCompare(getTournamentFormat(b).name, 'zh-TW'));
+            const createButton = canManage ? '<button class="button button-primary" data-route="manage">＋ 建立新賽事</button>' : '<button class="button button-secondary" data-route="control">主辦方登入</button>';
+            if (!tournaments.length) return `<section class="section-wrap page-section">${pageHeader('TOURNAMENTS', '賽程表', '公開查看已建立的賽事、每輪對戰與即時排名。', createButton)}<div class="empty-state"><div>${icons.bracket}</div><h2>還沒有任何賽事</h2><p>主辦方建立賽事後，公開賽程會顯示在這裡。</p>${createButton}</div></section>`;
+            return `<section class="section-wrap page-section tournament-list-page" data-tournament-list>
+              ${pageHeader('TOURNAMENTS', '賽程表', '近期賽事優先顯示；已完成的舊賽事可到歷史賽事搜尋。', createButton)}
+              <div class="tournament-list-tabs" role="tablist" aria-label="賽事列表分類">
+                <button type="button" class="is-active" role="tab" aria-selected="true" data-tournament-list-tab="recent">近期賽事 <span>${activeTournaments.length + recentCompleted.length}</span></button>
+                <button type="button" role="tab" aria-selected="false" data-tournament-list-tab="history">歷史賽事 <span>${completedTournaments.length}</span></button>
+              </div>
+              <div data-tournament-list-panel="recent">
+                <section class="tournament-list-group">
+                  <div class="tournament-list-heading"><div><p class="kicker">CURRENT EVENTS</p><h2>目前賽事</h2></div><span>${activeTournaments.length ? `${activeTournaments.length} 場待處理` : '目前沒有待處理賽事'}</span></div>
+                  ${recentCards ? `<div class="event-grid">${recentCards}</div>` : '<div class="tournament-list-empty">目前沒有準備中、排程中或進行中的賽事。</div>'}
+                </section>
+                ${completedTournaments.length ? `<section class="tournament-list-group recent-completed-group"><div class="tournament-list-heading"><div><p class="kicker">RECENTLY COMPLETED</p><h2>最近完成</h2></div><button type="button" class="history-link" data-tournament-list-tab="history">查看全部 ${completedTournaments.length} 場歷史賽事 ${icons.arrow}</button></div><div class="event-grid event-grid-recent">${completedCards}</div></section>` : ''}
+              </div>
+              <div data-tournament-list-panel="history" hidden>
+                <section class="history-panel">
+                  <div class="tournament-list-heading"><div><p class="kicker">ARCHIVE</p><h2>歷史賽事</h2></div><span data-history-count>${completedTournaments.length} 場</span></div>
+                  ${completedTournaments.length ? `<div class="history-tools"><label class="history-search"><span class="sr-only">搜尋歷史賽事</span><input type="search" placeholder="搜尋賽事名稱或場地" data-history-search></label><label><span>年份</span><select data-history-year><option value="all">全部年份</option>${years.map((year) => `<option value="${escapeAttribute(year)}">${year === 'other' ? '未設定年份' : `${year} 年`}</option>`).join('')}</select></label><label><span>賽制</span><select data-history-format><option value="all">全部賽制</option>${formats.map((format) => `<option value="${escapeAttribute(format)}">${escapeText(getTournamentFormat(format).name)}</option>`).join('')}</select></label></div><div class="history-list">${historyRows}</div><div class="history-filter-empty" data-history-empty hidden>找不到符合條件的歷史賽事。</div>` : '<div class="tournament-list-empty">尚無已完成的歷史賽事。</div>'}
+                </section>
+              </div>
+            </section>`;
+          }
+
+          function eventCardView(item, canManage) {
+            const status = item.status || '準備中';
+            const statusClass = status === '進行中' ? 'is-live' : status === '排程中' ? 'is-scheduling' : status === '已完成' ? 'is-completed' : 'is-draft';
+            return `<article class="event-card"><button class="event-open" data-tournament-id="${item.id}"><span class="event-status ${statusClass}"><i></i>${escapeText(status)}</span><div class="event-icon">${icons.trophy}</div><h2>${escapeText(item.name)}</h2><p>${item.players.length} 位選手 · ${escapeText(getTournamentFormat(item.format).name)} · ${item.arenaCount || 1} 台 · ${escapeText(formatEventDate(item.eventInfo?.date) || item.created)}</p>${item.eventInfo?.venueName ? `<small class="event-card-venue">${escapeText(item.eventInfo.venueName)}</small>` : ''}<span class="event-action">查看完整賽程 ${icons.arrow}</span></button>${eventListAdminMenu(item, canManage, 'card')}</article>`;
+          }
+
+          function historyEventRow(item, canManage) {
+            const year = eventListYear(item);
+            const search = `${item.name || ''} ${item.eventInfo?.venueName || ''}`.trim().toLocaleLowerCase('zh-TW');
+            const date = formatEventDate(item.eventInfo?.date) || String(item.created || '').slice(0, 10) || '日期未設定';
+            return `<article class="history-row" data-history-row data-history-year="${escapeAttribute(year)}" data-history-format="${escapeAttribute(item.format)}" data-history-search-text="${escapeAttribute(search)}"><button type="button" class="history-event-open" data-tournament-id="${item.id}"><time>${escapeText(date)}</time><span class="history-event-copy"><b>${escapeText(item.name)}</b><small>${item.players.length} 位選手 · ${escapeText(getTournamentFormat(item.format).name)}${item.eventInfo?.venueName ? ` · ${escapeText(item.eventInfo.venueName)}` : ''}</small></span><span class="history-status"><i></i>已完成</span><span class="history-open-label">查看 ${icons.arrow}</span></button>${eventListAdminMenu(item, canManage, 'history')}</article>`;
+          }
+
+          function eventListAdminMenu(item, canManage, placement) {
+            if (!canManage) return '';
+            return `<details class="event-more ${placement === 'history' ? 'history-event-more' : 'event-card-more'}"><summary aria-label="更多賽事操作">⋯</summary><div class="event-more-menu"><button class="event-copy" type="button" data-copy-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}">複製賽事</button><button class="event-delete" type="button" data-delete-tournament="${item.id}" data-tournament-name="${escapeAttribute(item.name)}" aria-label="刪除 ${escapeAttribute(item.name)}">刪除賽事</button></div></details>`;
+          }
+
+          function eventListYear(item) {
+            const value = String(item.eventInfo?.date || item.created || '');
+            return /^\d{4}/.test(value) ? value.slice(0, 4) : 'other';
+          }
+
+          function compareCompletedEventDates(left, right) {
+            const leftDate = String(left.eventInfo?.date || left.created || '');
+            const rightDate = String(right.eventInfo?.date || right.created || '');
+            return rightDate.localeCompare(leftDate) || Number(right.id || 0) - Number(left.id || 0);
+          }
+          '''
+          # Remove indentation introduced by the Python block while preserving JS template indentation.
+          import textwrap
+          new_list_view = textwrap.dedent(new_list_view).strip('\n') + '\n'
+          schedule.write_text(text[:start] + new_list_view + text[end:], encoding='utf-8')
+
+          # Keep list UI state across polling/render cycles and bind filters without changing tournament data.
+          replace_once(
+              'src/main.js',
+              "let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };\n",
+              "let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };\nlet tournamentListUiState = { tab: 'recent', query: '', year: 'all', format: 'all' };\n",
+          )
+          main = Path('src/main.js')
+          main_text = main.read_text(encoding='utf-8')
+          insert_at = main_text.index('\nasync function shareRegistration')
+          list_binding = r'''
+          function bindTournamentListEvents() {
+            const root = app.querySelector('[data-tournament-list]');
+            if (!root) return;
+            root.querySelectorAll('[data-tournament-list-tab]').forEach((button) => button.addEventListener('click', () => {
+              tournamentListUiState.tab = button.dataset.tournamentListTab;
+              applyTournamentListUi(root);
+            }));
+            root.querySelector('[data-history-search]')?.addEventListener('input', (event) => {
+              tournamentListUiState.query = event.target.value;
+              applyTournamentListUi(root);
+            });
+            root.querySelector('[data-history-year]')?.addEventListener('change', (event) => {
+              tournamentListUiState.year = event.target.value;
+              applyTournamentListUi(root);
+            });
+            root.querySelector('[data-history-format]')?.addEventListener('change', (event) => {
+              tournamentListUiState.format = event.target.value;
+              applyTournamentListUi(root);
+            });
+            applyTournamentListUi(root);
+          }
+
+          function applyTournamentListUi(root) {
+            const tab = tournamentListUiState.tab === 'history' ? 'history' : 'recent';
+            root.querySelectorAll('[data-tournament-list-tab]').forEach((button) => {
+              const active = button.dataset.tournamentListTab === tab;
+              button.classList.toggle('is-active', active);
+              button.setAttribute('aria-selected', String(active));
+            });
+            root.querySelectorAll('[data-tournament-list-panel]').forEach((panel) => {
+              panel.hidden = panel.dataset.tournamentListPanel !== tab;
+            });
+            const search = root.querySelector('[data-history-search]');
+            const year = root.querySelector('[data-history-year]');
+            const format = root.querySelector('[data-history-format]');
+            if (search && search.value !== tournamentListUiState.query) search.value = tournamentListUiState.query;
+            if (year && [...year.options].some((option) => option.value === tournamentListUiState.year)) year.value = tournamentListUiState.year;
+            else tournamentListUiState.year = 'all';
+            if (format && [...format.options].some((option) => option.value === tournamentListUiState.format)) format.value = tournamentListUiState.format;
+            else tournamentListUiState.format = 'all';
+            const query = tournamentListUiState.query.trim().toLocaleLowerCase('zh-TW');
+            const rows = [...root.querySelectorAll('[data-history-row]')];
+            let visible = 0;
+            rows.forEach((row) => {
+              const matchesQuery = !query || row.dataset.historySearchText.includes(query);
+              const matchesYear = tournamentListUiState.year === 'all' || row.dataset.historyYear === tournamentListUiState.year;
+              const matchesFormat = tournamentListUiState.format === 'all' || row.dataset.historyFormat === tournamentListUiState.format;
+              row.hidden = !(matchesQuery && matchesYear && matchesFormat);
+              if (!row.hidden) visible += 1;
+            });
+            const count = root.querySelector('[data-history-count]');
+            if (count) count.textContent = rows.length ? `顯示 ${visible} / ${rows.length} 場` : '0 場';
+            const empty = root.querySelector('[data-history-empty]');
+            if (empty) empty.hidden = visible > 0 || rows.length === 0;
+          }
+          '''
+          main_text = main_text[:insert_at] + '\n' + textwrap.dedent(list_binding).strip('\n') + '\n' + main_text[insert_at:]
+          main.write_text(main_text, encoding='utf-8')
+          replace_once(
+              'src/main.js',
+              "  prepareRosterUi(state.selectedTournamentId);\n  app.querySelectorAll('[data-tournament-id]').forEach((card) => card.addEventListener('click', () => {",
+              "  bindTournamentListEvents();\n  prepareRosterUi(state.selectedTournamentId);\n  app.querySelectorAll('[data-tournament-id]').forEach((card) => card.addEventListener('click', () => {",
+          )
+
+          # Add compact list, tabs, filters and overflow menus while retaining existing cards.
+          css = Path('src/styles/app.css')
+          css_text = css.read_text(encoding='utf-8')
+          anchor = ".event-delete:hover { background: #ff493d13; color: #ff7168; border-color: #ff493d45; }\n"
+          if css_text.count(anchor) != 1:
+              raise SystemExit('app.css: event delete anchor mismatch')
+          list_css = r'''
+          .tournament-list-tabs { display: inline-flex; gap: 5px; margin: -8px 0 30px; padding: 4px; background: #0d1117; border: 1px solid var(--line); border-radius: 9px; }
+          .tournament-list-tabs button { min-height: 42px; display: inline-flex; align-items: center; gap: 9px; padding: 0 16px; background: transparent; color: var(--muted); border: 0; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; }
+          .tournament-list-tabs button span { min-width: 24px; padding: 3px 6px; background: #1a212c; color: #8f99a9; border-radius: 999px; font-size: 9px; text-align: center; }
+          .tournament-list-tabs button.is-active { background: #202835; color: #fff; }
+          .tournament-list-tabs button.is-active span { background: #ff493d20; color: #ff8c85; }
+          [data-tournament-list-panel][hidden] { display: none !important; }
+          .tournament-list-group + .tournament-list-group { margin-top: 52px; }
+          .tournament-list-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 17px; }
+          .tournament-list-heading h2 { margin: 5px 0 0; font-size: 25px; }
+          .tournament-list-heading > span { color: var(--muted); font-size: 11px; }
+          .tournament-list-empty { min-height: 94px; display: flex; align-items: center; padding: 0 22px; color: var(--muted); background: #0c1016; border: 1px dashed #303949; border-radius: 10px; font-size: 13px; }
+          .history-link { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 4px; background: transparent; color: #a9b3c2; border: 0; font-size: 11px; font-weight: 800; cursor: pointer; }
+          .history-link:hover { color: #fff; }.history-link svg { color: var(--red); }
+          .event-card-more { position: absolute; right: 17px; bottom: 15px; z-index: 4; }
+          .event-more > summary { width: 42px; height: 42px; display: grid; place-items: center; background: #111720; color: #8c96a6; border: 1px solid #303a48; border-radius: 7px; list-style: none; font-size: 20px; font-weight: 900; cursor: pointer; }
+          .event-more > summary::-webkit-details-marker { display: none; }
+          .event-more[open] > summary, .event-more > summary:hover { background: #1a2230; color: #fff; border-color: #556174; }
+          .event-more-menu { position: absolute; right: 0; bottom: calc(100% + 7px); z-index: 8; width: 150px; display: grid; gap: 5px; padding: 7px; background: #111720; border: 1px solid #394556; border-radius: 8px; box-shadow: 0 16px 38px #000b; }
+          .event-more-menu .event-copy, .event-more-menu .event-delete { width: 100%; min-height: 40px; padding-inline: 10px; text-align: left; }
+          .event-status.is-live i { background: #35dc82; box-shadow: 0 0 8px #35dc82; }
+          .event-status.is-scheduling i { background: var(--blue); box-shadow: 0 0 8px #367df4; }
+          .event-status.is-completed i { background: #667181; box-shadow: none; }
+          .history-panel { padding: 24px; background: #0c1016; border: 1px solid var(--line); border-radius: 12px; }
+          .history-tools { display: grid; grid-template-columns: minmax(240px, 1fr) 160px 190px; gap: 10px; margin-bottom: 16px; }
+          .history-tools label { display: grid; gap: 6px; color: #727d8d; font-size: 9px; font-weight: 800; letter-spacing: .7px; }
+          .history-tools input, .history-tools select { width: 100%; min-height: 44px; padding: 0 12px; background: #090d13; color: #fff; border: 1px solid #354153; border-radius: 7px; }
+          .history-list { overflow: visible; border: 1px solid var(--line); border-radius: 9px; }
+          .history-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; background: #0a0e14; border-top: 1px solid var(--line); }
+          .history-row:first-child { border-top: 0; border-radius: 9px 9px 0 0; }.history-row:last-child { border-radius: 0 0 9px 9px; }
+          .history-row[hidden] { display: none !important; }
+          .history-event-open { min-width: 0; min-height: 68px; display: grid; grid-template-columns: 105px minmax(180px, 1fr) 100px 70px; align-items: center; gap: 16px; padding: 10px 18px; background: transparent; color: var(--text); border: 0; text-align: left; cursor: pointer; }
+          .history-event-open:hover { background: #131a23; }
+          .history-event-open time { color: #9ba5b4; font-size: 11px; font-weight: 800; }
+          .history-event-copy { min-width: 0; display: grid; gap: 4px; }
+          .history-event-copy b, .history-event-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .history-event-copy b { font-size: 14px; }.history-event-copy small { color: var(--muted); font-size: 10px; font-weight: 500; }
+          .history-status { color: #7f8998; font-size: 10px; font-weight: 800; text-align: center; }.history-status i { display: inline-block; width: 6px; height: 6px; margin-right: 6px; background: #667181; border-radius: 50%; }
+          .history-open-label { display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: #bcc5d1; font-size: 10px; font-weight: 800; }.history-open-label svg { color: var(--red); }
+          .history-event-more { align-self: center; margin-right: 12px; }
+          .history-event-more .event-more-menu { top: calc(100% + 7px); bottom: auto; }
+          .history-filter-empty { padding: 34px 18px; color: var(--muted); text-align: center; font-size: 12px; }
+          '''
+          css_text = css_text.replace(anchor, anchor + textwrap.dedent(list_css), 1)
+          # Add responsive rules before the existing <=620 block so its later touch overrides still win.
+          mobile_anchor = "@media (max-width: 620px) {\n  .topbar { padding: 10px 14px 0; }"
+          if css_text.count(mobile_anchor) != 1:
+              raise SystemExit('app.css: mobile anchor mismatch')
+          mobile_css = r'''@media (max-width: 760px) {
+            .tournament-list-tabs { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+            .tournament-list-tabs button { justify-content: center; }
+            .tournament-list-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+            .history-link { padding: 0; }
+            .history-panel { padding: 16px 12px; }
+            .history-tools { grid-template-columns: 1fr 1fr; }
+            .history-search { grid-column: 1 / -1; }
+            .history-event-open { grid-template-columns: 82px minmax(0, 1fr) 34px; gap: 10px; padding: 12px; }
+            .history-status { display: none; }
+            .history-open-label { font-size: 0; }.history-open-label svg { font-size: 15px; }
+            .history-event-more { margin-right: 8px; }
+          }
+
+          @media (max-width: 480px) {
+            .history-tools { grid-template-columns: 1fr; }
+            .history-search { grid-column: auto; }
+            .history-event-open { grid-template-columns: 1fr 28px; min-height: 82px; }
+            .history-event-open time { grid-column: 1; font-size: 10px; }
+            .history-event-copy { grid-column: 1; }.history-open-label { grid-column: 2; grid-row: 1 / span 2; }
+          }
+
+          '''
+          css_text = css_text.replace(mobile_anchor, textwrap.dedent(mobile_css) + mobile_anchor, 1)
+          css.write_text(css_text, encoding='utf-8')
+
+          # Regression test for list split, archive controls and six-card recent cap.
+          Path('tests/tournament-list.test.mjs').write_text(r'''/** 賽程列表：目前賽事優先，歷史賽事可搜尋篩選，近期完賽最多六場。 */
+          import assert from 'node:assert/strict';
+          import { createTournament } from '../src/domain/tournament.js';
+          import { scheduleView } from '../src/views/schedule.js';
+
+          const active = event('目前進行中', '2026-08-30', '進行中', 'swiss', 100);
+          const completed = Array.from({ length: 8 }, (_, index) => event(
+            `歷史賽事 ${index + 1}`,
+            `2026-08-${String(29 - index).padStart(2, '0')}`,
+            '已完成',
+            index % 2 ? 'single_elimination' : 'swiss',
+            200 + index,
+          ));
+          const view = scheduleView([active, ...completed], null, true);
+
+          assert.match(view, /data-tournament-list-tab="recent"/, '有近期賽事分頁');
+          assert.match(view, /data-tournament-list-tab="history"/, '有歷史賽事分頁');
+          assert.match(view, /搜尋賽事名稱或場地/, '歷史賽事提供搜尋');
+          assert.match(view, /data-history-year/, '歷史賽事提供年份篩選');
+          assert.match(view, /data-history-format/, '歷史賽事提供賽制篩選');
+          assert.equal((view.match(/class="event-card"/g) || []).length, 7, '近期頁只顯示目前賽事加最近六場完賽');
+          assert.equal((view.match(/data-history-row/g) || []).length, 8, '全部已完成賽事都保留在歷史列表');
+          assert.match(view, /event-card-more/, '管理操作收進卡片更多選單');
+          assert.match(view, /history-event-more/, '歷史列表也保留管理選單');
+          assert.match(view, /data-history-search-text="歷史賽事 1/, '歷史列提供可搜尋索引');
+
+          console.log('PASS tournament list organization');
+
+          function event(name, date, status, format, id) {
+            return {
+              ...createTournament(name, ['A', 'B', 'C', 'D'], format, 1, { date, venueName: '測試場地' }),
+              id,
+              status,
+              created: `${date}T10:00:00.000Z`,
+            };
+          }
+          '''.replace('          ', ''), encoding='utf-8')
+          replace_once(
+              'scripts/test-fast.mjs',
+              "  'tests/tournament-capacity.test.mjs',\n",
+              "  'tests/tournament-capacity.test.mjs',\n  'tests/tournament-list.test.mjs',\n",
+          )
+
+      - name: Commit refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests scripts
+          git diff --cached --check
+          git commit -m "feat: organize current and historical tournaments"
+          git push origin HEAD:feature/tournament-list-cleanup
