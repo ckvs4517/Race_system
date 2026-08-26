@@ -4,6 +4,7 @@ import { runCommand } from './lib/test-runner.mjs';
 const tests = [
   'tests/roster-filter.test.mjs',
   'tests/check-in.test.mjs',
+  'tests/quick-score.test.mjs',
   'tests/swiss.test.mjs',
   'tests/swiss-ranking.test.mjs',
   'tests/stage2-rounds-visibility.test.mjs',
