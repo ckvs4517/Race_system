@@ -573,6 +573,36 @@ footer { font-size: 12px; }
   footer { padding: 18px 14px; font-size: 11px; text-align: center; }
 }
 
+
+/* 主控快速登分：模式只影響目前裝置的賽程互動，不改賽事資料。 */
+.quick-score-toggle.is-active { background: #f2c94c18; color: #ffe785; border-color: #f2c94c88; box-shadow: 0 0 0 1px #f2c94c22 inset; }
+.quick-score-notice { display: flex; align-items: center; gap: 12px; margin: -18px 0 24px; padding: 13px 16px; background: #f2c94c0d; border: 1px solid #f2c94c45; border-radius: 9px; }
+.quick-score-notice b { color: #ffe785; font-size: 13px; white-space: nowrap; }
+.quick-score-notice span { color: #aaa484; font-size: 12px; line-height: 1.55; }
+.quick-score-active .match-card.is-ready { border-color: #f2c94c80; box-shadow: 0 0 0 1px #f2c94c14 inset, 0 9px 20px #0004; }
+.quick-score-active .match-card.is-ready:hover { border-color: #f2c94c; box-shadow: 0 12px 25px #0006, 0 0 18px #f2c94c18; }
+.quick-score-card { gap: 16px; }
+.quick-score-context { display: flex; justify-content: space-between; gap: 12px; padding: 11px 13px; background: #090d13; border: 1px solid var(--line); border-radius: 8px; }
+.quick-score-context span { min-width: 0; overflow: hidden; color: #aeb7c5; font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.quick-score-context b { flex: 0 0 auto; color: #ffe785; font-size: 12px; }
+.quick-score-grid { display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr); align-items: end; gap: 10px; }
+.quick-score-grid label { min-width: 0; display: grid; gap: 8px; }
+.quick-score-grid label > span { min-height: 42px; display: flex; align-items: flex-end; color: #e7ebf2; font-size: 14px; font-weight: 900; line-height: 1.35; }
+.quick-score-grid input { width: 100%; min-width: 0; height: 82px; padding: 0 8px; background: #080b10; color: #fff; border: 1px solid #465266; border-radius: 10px; font: 900 42px/1 var(--font-display); text-align: center; font-variant-numeric: tabular-nums; }
+.quick-score-grid input:focus { border-color: #f2c94c; box-shadow: 0 0 0 3px #f2c94c18; outline: 0; }
+.quick-score-grid > i { padding-bottom: 20px; color: #758092; font: 900 32px/1 var(--font-display); font-style: normal; text-align: center; }
+.quick-score-help { margin: -2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.quick-score-error { margin: 0; padding: 11px 13px; background: #ff493d13; color: #ffaaa4; border: 1px solid #ff493d48; border-radius: 8px; font-size: 12px; font-weight: 800; line-height: 1.55; }
+.quick-score-error[hidden] { display: none !important; }
+@media (max-width: 620px) {
+  .quick-score-notice { align-items: flex-start; flex-direction: column; gap: 4px; margin-top: -20px; }
+  .quick-score-notice b { white-space: normal; }
+  .quick-score-grid { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); gap: 6px; }
+  .quick-score-grid label > span { min-height: 48px; font-size: 13px; }
+  .quick-score-grid input { height: 76px; font-size: 38px; }
+  .quick-score-grid > i { padding-bottom: 19px; font-size: 26px; }
+}
+
 /* 第一次使用者說明頁 */
 .guide-steps { display: grid; gap: 14px; }
 .guide-step { min-height: 132px; display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 22px; padding: 24px 28px; background: linear-gradient(145deg, #111720, #0b0f15); border: 1px solid var(--line); border-radius: 12px; }
