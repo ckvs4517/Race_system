@@ -60,6 +60,8 @@ const requiredFiles = [
   [join(clientDir, 'src', 'main.js'), 4_000],
   [join(clientDir, 'src', 'features', 'schedule', 'controller.js'), 8_000],
   [join(clientDir, 'src', 'features', 'registration', 'controller.js'), 2_000],
+  [join(clientDir, 'src', 'views', 'schedule', 'tournament-detail.js'), 3_000],
+  [join(clientDir, 'src', 'views', 'schedule', 'rounds.js'), 4_000],
   [buildInfoPath, 100],
   [join(dist, '.openai', 'hosting.json'), 20],
 ];

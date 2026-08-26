@@ -3,6 +3,7 @@ import { runCommand } from './lib/test-runner.mjs';
 
 const tests = [
   'tests/v2-main-boundary.test.mjs',
+  'tests/v2-schedule-boundary.test.mjs',
   'tests/source-version.test.mjs',
   'tests/roster-filter.test.mjs',
   'tests/check-in.test.mjs',
