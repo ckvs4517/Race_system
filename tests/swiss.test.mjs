@@ -319,7 +319,7 @@ function finishCurrentRound(source) {
   const matchIds = result.rounds[roundIndex].matches.filter((match) => match.status === '可開始').map((match) => match.id);
   matchIds.forEach((id, index) => {
     const matchIndex = result.rounds[roundIndex].matches.findIndex((match) => match.id === id);
-    result = recordMatchResult(result, roundIndex, matchIndex, 7, index);
+    result = recordMatchResult(result, roundIndex, matchIndex, 7, index % 4);
   });
   return result;
 }

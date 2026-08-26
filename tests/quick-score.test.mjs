@@ -1,5 +1,5 @@
 /** 主控快速登分：本機模式、比分驗證與賽程畫面入口回歸。 */
-import { createTournament, setDraftPlayerCheckedIn, startTournament } from '../src/domain/tournament.js';
+import { createTournament, recordMatchResult, setDraftPlayerCheckedIn, startTournament } from '../src/domain/tournament.js';
 import { QUICK_SCORE_MODE_KEY, readQuickScoreMode, validateQuickScoreInput, writeQuickScoreMode } from '../src/core/quick-score.js';
 import { scheduleView } from '../src/views/schedule.js';
 
@@ -17,8 +17,8 @@ writeQuickScoreMode(false, storage);
 expect(!storage.getItem(QUICK_SCORE_MODE_KEY) && !readQuickScoreMode(storage), '快速登分可關閉且不修改賽事資料');
 
 expect(JSON.stringify(validateQuickScoreInput('4', '0')) === JSON.stringify({ scoreA: 4, scoreB: 0 }), '4:0 可快速登分');
-expect(JSON.stringify(validateQuickScoreInput('6', '4')) === JSON.stringify({ scoreA: 6, scoreB: 4 }), '6:4 overshoot 可快速登分');
-for (const [a, b, label] of [['2', '1', '勝方未達 4 分'], ['4', '4', '平手'], ['-1', '4', '負數'], ['4.5', '2', '非整數'], ['', '4', '空白']]) {
+expect(JSON.stringify(validateQuickScoreInput('6', '3')) === JSON.stringify({ scoreA: 6, scoreB: 3 }), '勝方超過 4 分但敗方未達 4 分可快速登分');
+for (const [a, b, label] of [['2', '1', '勝方未達 4 分'], ['4', '4', '平手'], ['6', '4', '敗方已達 4 分'], ['-1', '4', '負數'], ['4.5', '2', '非整數'], ['', '4', '空白']]) {
   let rejected = false;
   try { validateQuickScoreInput(a, b); } catch { rejected = true; }
   expect(rejected, `${label}會被快速登分前端拒絕`);
@@ -27,6 +27,9 @@ for (const [a, b, label] of [['2', '1', '勝方未達 4 分'], ['4', '4', '平�
 let tournament = createTournament('快速登分測試賽', ['A', 'B', 'C', 'D']);
 for (const player of tournament.players) tournament = setDraftPlayerCheckedIn(tournament, player, true);
 tournament = startTournament(tournament);
+let invalidDomainScoreRejected = false;
+try { recordMatchResult(tournament, 0, 0, 6, 4); } catch { invalidDomainScoreRejected = true; }
+expect(invalidDomainScoreRejected, '正式賽果領域層拒絕敗方已達 4 分的 6:4');
 const normal = scheduleView([tournament], tournament.id, true, false);
 const quick = scheduleView([tournament], tournament.id, true, true);
 const publicView = scheduleView([tournament], tournament.id, false, true);

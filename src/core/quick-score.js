@@ -23,6 +23,7 @@ export function validateQuickScoreInput(scoreA, scoreB) {
   const [a, b] = [scoreA, scoreB].map(parseNonNegativeInteger);
   if (a === b) throw new Error('目前比分相同，請確認裁判回報後再送出。');
   if (Math.max(a, b) < 4) throw new Error('勝方最終比分必須至少為 4 分。');
+  if (Math.min(a, b) >= 4) throw new Error('敗方最終比分必須低於 4 分；任一方達到或超過 4 分即結束比賽。');
   return { scoreA: a, scoreB: b };
 }
 
