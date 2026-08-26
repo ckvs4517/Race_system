@@ -118,7 +118,7 @@ try {
   await writeFile(join(artifactsDir, 'staging-e2e-report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   cdp?.close();
   browser?.kill('SIGTERM');
-  if (profile) await rm(profile, { recursive: true, force: true });
+  if (profile) await cleanupBrowserProfile(profile);
 }
 
 if (report.status !== 'passed') {
@@ -140,7 +140,11 @@ async function waitForSiteBootstrap() {
       body: document.body?.innerText?.slice(0, 500) || '',
       hasApp: Boolean(document.querySelector('#app')),
     }))()`);
-    if (state?.hasApp && /Spin League/i.test(state.title + ' ' + state.body)) return;
+    const accessText = `${state?.title || ''} ${state?.body || ''}`;
+    if (/Sign in required|Continue with ChatGPT|You're almost in|You’re almost in/i.test(accessText)) {
+      throw new Error('ChatGPT Sites 存取保護擋住 CI。請將 spin-league-test 的 Site access 設為 Public 後再執行 Staging E2E。');
+    }
+    if (state?.hasApp && /Spin League/i.test(accessText)) return;
     await delay(250);
   }
   const state = await evaluate(`(() => ({ title: document.title, body: document.body?.innerText?.slice(0, 1000) || '' }))()`);
@@ -423,6 +427,21 @@ async function connectCdp(webSocketUrl) {
     },
     close() { socket.close(); },
   };
+}
+
+async function cleanupBrowserProfile(path) {
+  await delay(300);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!['ENOTEMPTY', 'EBUSY', 'EPERM'].includes(error?.code)) throw error;
+      await delay(250 * (attempt + 1));
+    }
+  }
+  // Chrome shutdown can leave transient lock files; profile cleanup must not mask the E2E result.
+  await rm(path, { recursive: true, force: true }).catch(() => {});
 }
 
 function delay(ms) {
