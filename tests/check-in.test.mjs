@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  MAX_TOURNAMENT_PLAYERS,
   addDraftPlayer,
   confirmTournamentSchedule,
   createTournament,
@@ -16,7 +17,7 @@ import { scheduleView } from '../src/views/schedule.js';
 let tournament = createTournament('報到流程測試', ['甲', '乙', '丙', '丁'], 'swiss');
 assert.equal(tournament.rounds.length, 0);
 assert.ok(tournament.players.every((player) => tournament.participantStates[player].checkedIn === false));
-assert.throws(() => startTournament(tournament), /2 至 32/);
+assert.throws(() => startTournament(tournament), new RegExp(`2 至 ${MAX_TOURNAMENT_PLAYERS}`));
 
 let view = scheduleView([tournament], tournament.id, true);
 assert.match(view, /參賽選手名單/);
