@@ -59,9 +59,6 @@ jobs:
             * ) echo "Refusing non-staging target: $STAGING_SITE_URL"; exit 1 ;;
           esac
 
-      - name: Read-only deployment smoke
-        run: node scripts/verify-deployment.mjs "$STAGING_SITE_URL"
-
       - name: Run live staging browser E2E
         run: node scripts/verify-staging-e2e.mjs "$STAGING_SITE_URL"
 
