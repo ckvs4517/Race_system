@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'Add temporary stage2 patch runner'
+    if: github.event.head_commit.message == 'Retry temporary stage2 patch runner'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout feature branch
@@ -17,6 +17,14 @@ jobs:
         with:
           ref: feat/two-stage-swiss
           fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Apply patch
         run: python3 scripts/apply-two-stage-swiss.py
