@@ -1,0 +1,318 @@
+name: Apply check-in performance patch
+
+on:
+  push:
+    branches: [fix/check-in-performance]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.event.head_commit.message == 'Add temporary check-in performance patch runner'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v5
+        with:
+          ref: fix/check-in-performance
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'pattern not found in {path}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src/domain/tournament.js',
+              """export function setDraftPlayerCheckedIn(tournament, player, checkedIn) {
+            const normalized = normalizeTournament(tournament);
+            assertDraftRosterChange(normalized);
+            if (!normalized.players.includes(player)) throw new Error('找不到這位參賽者。');
+            const participantStates = {
+              ...normalized.participantStates,
+              [player]: { ...normalized.participantStates[player], status: 'active', checkedIn: Boolean(checkedIn) },
+            };
+            return rebuildDraftRoster(normalized, normalized.players, participantStates);
+          }
+          """,
+              """export function setDraftPlayerCheckedIn(tournament, player, checkedIn) {
+            const normalized = normalizeTournament(tournament);
+            assertDraftRosterChange(normalized);
+            if (!normalized.players.includes(player)) throw new Error('找不到這位參賽者。');
+            const participantStates = {
+              ...normalized.participantStates,
+              [player]: { ...normalized.participantStates[player], status: 'active', checkedIn: Boolean(checkedIn) },
+            };
+            return rebuildDraftRoster(normalized, normalized.players, participantStates);
+          }
+
+          export function setAllDraftPlayersCheckedIn(tournament) {
+            const normalized = normalizeTournament(tournament);
+            assertDraftRosterChange(normalized);
+            const participantStates = Object.fromEntries(normalized.players.map((player) => [
+              player,
+              { ...normalized.participantStates[player], status: 'active', checkedIn: true },
+            ]));
+            return rebuildDraftRoster(normalized, normalized.players, participantStates);
+          }
+          """
+          )
+
+          replace_once(
+              'worker/index.js',
+              """  setDraftPlayerCheckedIn,
+            startSwissFinal,""",
+              """  setDraftPlayerCheckedIn,
+            setAllDraftPlayersCheckedIn,
+            startSwissFinal,"""
+          )
+          replace_once(
+              'worker/index.js',
+              """    case 'set_check_in':
+                return setDraftPlayerCheckedIn(tournament, String(payload.player || ''), Boolean(payload.checkedIn));
+              case 'add_player':""",
+              """    case 'set_check_in':
+                return setDraftPlayerCheckedIn(tournament, String(payload.player || ''), Boolean(payload.checkedIn));
+              case 'set_all_check_in':
+                return setAllDraftPlayersCheckedIn(tournament);
+              case 'add_player':"""
+          )
+
+          replace_once(
+              'src/data/store.js',
+              "const EXPLICIT_RENDER_ACTIONS = new Set(['record_match', 'forfeit_match', 'replay_match']);",
+              "const EXPLICIT_RENDER_ACTIONS = new Set(['record_match', 'forfeit_match', 'replay_match', 'set_check_in']);"
+          )
+
+          replace_once(
+              'src/views/schedule.js',
+              """    <div class=\"roster-tools-actions\"><button type=\"button\" class=\"button button-secondary\" data-open-add-player>＋ 新增選手</button><button type=\"button\" class=\"button button-secondary button-danger-quiet\" data-enter-remove-mode>管理名單</button></div>""",
+              """    <div class=\"roster-tools-actions\"><button type=\"button\" class=\"button button-secondary\" data-check-in-all ${checkedInCount >= tournament.players.length && tournament.players.length ? 'disabled' : ''}>全部報到</button><button type=\"button\" class=\"button button-secondary\" data-open-add-player>＋ 新增選手</button><button type=\"button\" class=\"button button-secondary button-danger-quiet\" data-enter-remove-mode>管理名單</button></div>"""
+          )
+          replace_once(
+              'src/views/schedule.js',
+              """  return `<section class=\"check-in-panel\">
+            <div class=\"check-in-heading\"><div><p class=\"kicker\">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
+            <p class=\"check-in-guidance\">${guidance}</p>""",
+              """  return `<section class=\"check-in-panel\" data-check-in-minimum=\"${minimumPlayers}\" data-check-in-total=\"${tournament.players.length}\">
+            <div class=\"check-in-heading\"><div><p class=\"kicker\">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong data-check-in-summary>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
+            <p class=\"check-in-guidance\" data-check-in-guidance>${guidance}</p>"""
+          )
+
+          replace_once(
+              'src/main.js',
+              """let scheduleScrollRestore = null;
+
+          function showToast""",
+              """let scheduleScrollRestore = null;
+          let checkInSaveQueue = Promise.resolve();
+
+          function enqueueCheckInSave(task) {
+            const pending = checkInSaveQueue.then(task, task);
+            checkInSaveQueue = pending.catch(() => undefined);
+            return pending;
+          }
+
+          function checkInInputFor(player) {
+            return [...app.querySelectorAll('[data-check-in-player]')]
+              .find((input) => input.dataset.checkInPlayer === player) || null;
+          }
+
+          function updateCheckInUi(player, checkedIn) {
+            const panel = app.querySelector('.check-in-panel');
+            if (!panel) return;
+            const input = checkInInputFor(player);
+            if (input) input.checked = checkedIn;
+            const row = input?.closest('[data-roster-player]');
+            if (row) {
+              row.dataset.checkedIn = String(checkedIn);
+              row.classList.toggle('is-checked-in', checkedIn);
+              const status = row.querySelector('i');
+              if (status) status.textContent = checkedIn ? '已報到' : '尚未報到';
+            }
+            const inputs = [...panel.querySelectorAll('[data-check-in-player]')];
+            const checkedInCount = inputs.filter((candidate) => candidate.checked).length;
+            const total = Number(panel.dataset.checkInTotal) || inputs.length;
+            const minimumPlayers = Number(panel.dataset.checkInMinimum) || 2;
+            const summary = panel.querySelector('[data-check-in-summary]');
+            if (summary) summary.textContent = `已報到 ${checkedInCount}／報名 ${total} 人`;
+            const guidance = panel.querySelector('[data-check-in-guidance]');
+            if (guidance) guidance.textContent = checkedInCount >= minimumPlayers
+              ? '已達開賽人數；未勾選者在開賽時會保留為未出席並排除賽程。'
+              : `至少需要 ${minimumPlayers} 位選手完成報到才能開始賽事。`;
+            const prepareButton = app.querySelector('[data-action=\"prepare-tournament-schedule\"]');
+            if (prepareButton) prepareButton.disabled = checkedInCount < minimumPlayers;
+            const allButton = panel.querySelector('[data-check-in-all]');
+            if (allButton) allButton.disabled = total > 0 && checkedInCount >= total;
+            applyRosterUi();
+          }
+
+          function showToast"""
+          )
+
+          replace_once(
+              'src/main.js',
+              """  app.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', async () => {
+            const player = input.dataset.checkInPlayer;
+            const checkedIn = input.checked;
+            input.disabled = true;
+            try {
+              await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player, checkedIn });
+              showToast(`${player}${checkedIn ? ' 已報到' : ' 已取消報到'}。`);
+            } catch (error) {
+              showToast(error.message, 'error');
+              render();
+            }
+          }));""",
+              """  app.querySelector('[data-check-in-all]')?.addEventListener('click', (event) => {
+            const button = event.currentTarget;
+            const inputs = [...app.querySelectorAll('[data-check-in-player]')];
+            if (!inputs.length) return;
+            inputs.forEach((input) => updateCheckInUi(input.dataset.checkInPlayer, true));
+            button.disabled = true;
+            button.textContent = '報到處理中…';
+            enqueueCheckInSave(async () => {
+              try {
+                await executeTournamentAction(state.selectedTournamentId, 'set_all_check_in');
+                showToast(`已完成 ${inputs.length} 位選手報到。`);
+              } catch (error) {
+                showToast(error.message, 'error');
+                render();
+              }
+            });
+          });
+          app.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', () => {
+            const player = input.dataset.checkInPlayer;
+            const checkedIn = input.checked;
+            updateCheckInUi(player, checkedIn);
+            input.disabled = true;
+            enqueueCheckInSave(async () => {
+              try {
+                await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player, checkedIn });
+                updateCheckInUi(player, checkedIn);
+                const currentInput = checkInInputFor(player);
+                if (currentInput) currentInput.disabled = false;
+                showToast(`${player}${checkedIn ? ' 已報到' : ' 已取消報到'}。`);
+              } catch (error) {
+                updateCheckInUi(player, !checkedIn);
+                const currentInput = checkInInputFor(player);
+                if (currentInput) currentInput.disabled = false;
+                showToast(error.message, 'error');
+              }
+            });
+          }));"""
+          )
+
+          replace_once(
+              'tests/check-in.test.mjs',
+              """import assert from 'node:assert/strict';
+          import {
+          """,
+              """import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import {
+          """
+          )
+          replace_once(
+              'tests/check-in.test.mjs',
+              """  setDraftPlayerCheckedIn,
+            startTournament,""",
+              """  setDraftPlayerCheckedIn,
+            setAllDraftPlayersCheckedIn,
+            startTournament,"""
+          )
+          replace_once(
+              'tests/check-in.test.mjs',
+              """assert.match(view, /data-enter-remove-mode/);
+          assert.match(view, /data-remove-player-select=\"甲\"/);""",
+              """assert.match(view, /data-enter-remove-mode/);
+          assert.match(view, /data-check-in-all/, '報到工具提供一鍵全部報到');
+          assert.match(view, /data-check-in-summary/, '報到摘要可局部更新而不必重畫整頁');
+          assert.match(view, /data-remove-player-select=\"甲\"/);"""
+          )
+          replace_once(
+              'tests/check-in.test.mjs',
+              """for (const player of ['甲', '乙', '丙', '丁']) tournament = setDraftPlayerCheckedIn(tournament, player, true);
+          tournament = addDraftPlayer(tournament, '未到選手');""",
+              """tournament = setAllDraftPlayersCheckedIn(tournament);
+          assert.ok(tournament.players.every((player) => tournament.participantStates[player].checkedIn), '一鍵報到會將草稿名單全部標為已報到');
+          tournament = addDraftPlayer(tournament, '未到選手');"""
+          )
+          replace_once(
+              'tests/check-in.test.mjs',
+              """assert.throws(() => setDraftPlayerCheckedIn(started, '甲', false), /開始後/);
+
+          console.log('PASS check-in flow');""",
+              """assert.throws(() => setDraftPlayerCheckedIn(started, '甲', false), /開始後/);
+          assert.throws(() => setAllDraftPlayersCheckedIn(started), /開始後/);
+
+          const storeSource = readFileSync(new URL('../src/data/store.js', import.meta.url), 'utf8');
+          const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+          assert.match(storeSource, /EXPLICIT_RENDER_ACTIONS[^;]*set_check_in/s, '單人報到成功不觸發整個 schedule 頁重畫');
+          assert.match(mainSource, /checkInSaveQueue/, '快速連續報到會序列化送出，避免 revision 衝突');
+
+          console.log('PASS check-in flow');"""
+          )
+
+          replace_once(
+              'tests/api.test.mjs',
+              """assert(largeCreatedResponse.status === 201 && largeCreated.tournament.players.length === MAX_TOURNAMENT_PLAYERS, '後端允許建立 48 人大型賽事');
+
+          const listed = await request('/api/tournaments');""",
+              """assert(largeCreatedResponse.status === 201 && largeCreated.tournament.players.length === MAX_TOURNAMENT_PLAYERS, '後端允許建立 48 人大型賽事');
+          const largeCheckInResponse = await request('/api/tournaments/48/actions', {
+            method: 'POST',
+            headers: authorizedHeaders,
+            body: JSON.stringify({ type: 'set_all_check_in', payload: {}, expectedRevision: 1 }),
+          });
+          const largeCheckedIn = (await largeCheckInResponse.json()).tournament;
+          assert(largeCheckInResponse.status === 200
+            && largeCheckedIn.revision === 2
+            && largeCheckedIn.players.every((player) => largeCheckedIn.participantStates[player].checkedIn), '48 人一鍵報到只寫入一個新版本');
+
+          const listed = await request('/api/tournaments');"""
+          )
+
+          print('Applied check-in performance and bulk check-in patch')
+          PY
+
+      - name: Focused check-in tests
+        run: |
+          node tests/check-in.test.mjs
+          node tests/api.test.mjs
+
+      - name: Fast regression suite
+        run: node scripts/test-fast.mjs
+
+      - name: Full browser regression suite
+        run: node scripts/test-full.mjs --browser=required
+
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/tmp-check-in-performance.yml
+
+      - name: Commit tested changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Optimize 48-player check-in flow"
+          git push origin HEAD:fix/check-in-performance
