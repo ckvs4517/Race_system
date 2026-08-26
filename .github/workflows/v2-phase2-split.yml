@@ -1,0 +1,210 @@
+name: Apply V2 phase 2 schedule split
+
+on:
+  push:
+    branches: [v2/codebase-refactor]
+    paths: ['.github/workflows/v2-phase2-split.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  split-schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+          fetch-depth: 0
+      - name: Split schedule view into coherent modules
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/views/schedule.js')
+          source = path.read_text()
+          pattern = re.compile(r'(?m)^(?:export )?function\s+([A-Za-z0-9_]+)\(')
+          matches = list(pattern.finditer(source))
+          blocks = {}
+          for index, match in enumerate(matches):
+              end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+              blocks[match.group(1)] = source[match.start():end].rstrip() + '\n'
+
+          required = {
+              'scheduleView', 'eventCardView', 'historyEventRow', 'eventListAdminMenu', 'eventListYear',
+              'compareCompletedEventDates', 'bracketView', 'currentRoundEntries', 'tournamentWorkflowView',
+              'registrationQuickView', 'pairingEditorView', 'eventInfoView', 'formatEventDate', 'safeHref',
+              'compareEventDates', 'localDateKey', 'participantManagementView', 'draftCheckInView',
+              'drinkSummaryView', 'swissDecisionPanel', 'roundRobinTieBreakPanel', 'hasTopFourTie',
+              'swissPlayerChoices', 'getDirectFinalRows', 'swissMiniStandings', 'swissStageGuide',
+              'swissChampionLabel', 'roundPhaseLabel', 'roundColumnView', 'swissLiveLeaderboardRows',
+              'leaderboardView', 'leaderboardDescription', 'leaderboardPlayerRowLegacy', 'leaderboardPlayerRow',
+              'swissDirectMatchReason', 'stageSummaryView', 'playerCompletedMatches', 'roundMatchesView',
+              'scoreGroupedMatchesView', 'swissGroupLabel', 'matchCard', 'escapeAttribute', 'escapeText',
+          }
+          missing = sorted(required - blocks.keys())
+          if missing:
+              raise SystemExit(f'Missing expected schedule functions: {missing}')
+
+          def exported(name):
+              text = blocks[name]
+              if text.startswith('export function '):
+                  return text
+              return text.replace(f'function {name}(', f'export function {name}(', 1)
+
+          out = Path('src/views/schedule')
+          out.mkdir(parents=True, exist_ok=True)
+
+          # Stable public façade: callers continue importing scheduleView from views/schedule.js.
+          path.write_text("""/** V2 賽程畫面 façade；各畫面責任位於 ./schedule/ 子模組。 */
+          import { tournamentDetailView } from './schedule/tournament-detail.js';
+          import { tournamentListView } from './schedule/tournament-list.js';
+
+          export function scheduleView(tournaments, selectedId, canManage = false) {
+            const selected = tournaments.find((item) => item.id === selectedId);
+            return selected ? tournamentDetailView(selected, canManage) : tournamentListView(tournaments, canManage);
+          }
+          """.replace('          ', ''))
+
+          schedule_list = blocks['scheduleView']
+          schedule_list = schedule_list.replace('export function scheduleView(tournaments, selectedId, canManage = false) {', 'export function tournamentListView(tournaments, canManage = false) {', 1)
+          legacy_selection = "  const selected = tournaments.find((item) => item.id === selectedId);\n  if (selected) return bracketView(selected, canManage);\n"
+          if legacy_selection not in schedule_list:
+              raise SystemExit('Could not remove legacy selected tournament branch from scheduleView.')
+          schedule_list = schedule_list.replace(legacy_selection, '', 1)
+          list_names = ['eventCardView', 'historyEventRow', 'eventListAdminMenu', 'eventListYear', 'compareCompletedEventDates', 'compareEventDates']
+          (out / 'tournament-list.js').write_text(
+              "/** 賽事近期/歷史列表的純 HTML 畫面。 */\n"
+              "import { getTournamentFormat } from '../../formats/registry.js';\n"
+              "import { icons } from '../../ui/icons.js';\n"
+              "import { pageHeader } from '../../ui/shell.js';\n"
+              "import { formatEventDate, localDateKey } from './event-date.js';\n"
+              "import { escapeAttribute, escapeText } from './html-escape.js';\n\n"
+              + schedule_list + '\n' + '\n'.join(blocks[name] for name in list_names)
+          )
+
+          detail = blocks['bracketView'].replace('function bracketView(', 'export function tournamentDetailView(', 1)
+          (out / 'tournament-detail.js').write_text(
+              "/** 單一賽事詳情頁的組裝器；只負責組合各 schedule 子畫面。 */\n"
+              "import { buildRounds, getTournamentStandings } from '../../domain/tournament.js';\n"
+              "import { getTournamentFormat } from '../../formats/registry.js';\n"
+              "import { icons } from '../../ui/icons.js';\n"
+              "import { pageHeader } from '../../ui/shell.js';\n"
+              "import { roundRobinTieBreakPanel, swissChampionLabel, swissDecisionPanel, swissStageGuide } from './decision-panels.js';\n"
+              "import { escapeText } from './html-escape.js';\n"
+              "import { leaderboardView, swissLiveLeaderboardRows } from './leaderboard.js';\n"
+              "import { eventInfoView, pairingEditorView, participantManagementView, registrationQuickView, tournamentWorkflowView } from './participant-panels.js';\n"
+              "import { currentRoundEntries, roundColumnView } from './rounds.js';\n\n"
+              + detail
+          )
+
+          participant_exports = ['tournamentWorkflowView', 'registrationQuickView', 'pairingEditorView', 'eventInfoView', 'participantManagementView']
+          participant_internal = ['safeHref', 'draftCheckInView', 'drinkSummaryView']
+          participant_body = '\n'.join(exported(name) for name in participant_exports) + '\n' + '\n'.join(blocks[name] for name in participant_internal)
+          (out / 'participant-panels.js').write_text(
+              "/** 報到、參賽名單、報名捷徑、賽事資訊與首輪調整面板。 */\n"
+              "import { MAX_TOURNAMENT_PLAYERS } from '../../domain/tournament.js';\n"
+              "import { createDrinkSummary } from '../../domain/drinks.js';\n"
+              "import { getTournamentFormat } from '../../formats/registry.js';\n"
+              "import { drinkSelectionFields } from '../drink-fields.js';\n"
+              "import { formatEventDate } from './event-date.js';\n"
+              "import { escapeAttribute, escapeText } from './html-escape.js';\n\n"
+              + participant_body
+          )
+
+          decision_exports = ['swissDecisionPanel', 'roundRobinTieBreakPanel', 'swissStageGuide', 'swissChampionLabel']
+          decision_internal = ['hasTopFourTie', 'swissPlayerChoices', 'getDirectFinalRows', 'swissMiniStandings']
+          decision_body = '\n'.join(exported(name) for name in decision_exports) + '\n' + '\n'.join(blocks[name] for name in decision_internal)
+          (out / 'decision-panels.js').write_text(
+              "/** 瑞士制結算、四強決賽與循環賽同分決策面板。 */\n"
+              "import { getSwissPhaseStandings, getTournamentStandings } from '../../domain/tournament.js';\n"
+              "import { escapeAttribute, escapeText } from './html-escape.js';\n\n"
+              + decision_body
+          )
+
+          rounds_exports = ['currentRoundEntries', 'roundPhaseLabel', 'roundColumnView']
+          rounds_internal = ['roundMatchesView', 'scoreGroupedMatchesView', 'swissGroupLabel', 'matchCard']
+          rounds_body = '\n'.join(exported(name) for name in rounds_exports) + '\n' + '\n'.join(blocks[name] for name in rounds_internal)
+          (out / 'rounds.js').write_text(
+              "/** 輪次、戰鬥台分組與對戰卡片畫面。 */\n"
+              "import { escapeText } from './html-escape.js';\n\n"
+              + rounds_body
+          )
+
+          leaderboard_exports = ['swissLiveLeaderboardRows', 'leaderboardView']
+          leaderboard_internal = ['leaderboardDescription', 'leaderboardPlayerRowLegacy', 'leaderboardPlayerRow', 'swissDirectMatchReason', 'stageSummaryView', 'playerCompletedMatches']
+          leaderboard_body = '\n'.join(exported(name) for name in leaderboard_exports) + '\n' + '\n'.join(blocks[name] for name in leaderboard_internal)
+          (out / 'leaderboard.js').write_text(
+              "/** 即時排行榜、選手階段成績與已完成對戰紀錄。 */\n"
+              "import { getSwissPhaseStandings, getTournamentStandings } from '../../domain/tournament.js';\n"
+              "import { icons } from '../../ui/icons.js';\n"
+              "import { escapeAttribute, escapeText } from './html-escape.js';\n"
+              "import { roundPhaseLabel } from './rounds.js';\n\n"
+              + leaderboard_body
+          )
+
+          (out / 'event-date.js').write_text(
+              "/** Schedule 畫面使用的賽事日期格式與本地日期鍵。 */\n"
+              + exported('formatEventDate') + '\n' + exported('localDateKey')
+          )
+          (out / 'html-escape.js').write_text(
+              "/** Schedule HTML 字串模板的文字與 attribute escaping。 */\n"
+              + exported('escapeAttribute') + '\n' + exported('escapeText')
+          )
+
+          # Update build integrity checks so packaged Sites artifacts must contain the decomposed views.
+          build_path = Path('scripts/build-site.mjs')
+          build = build_path.read_text()
+          needle = "  [join(clientDir, 'src', 'features', 'registration', 'controller.js'), 2_000],\n"
+          addition = needle + "  [join(clientDir, 'src', 'views', 'schedule', 'tournament-detail.js'), 3_000],\n  [join(clientDir, 'src', 'views', 'schedule', 'rounds.js'), 4_000],\n"
+          if needle not in build:
+              raise SystemExit('Could not find build integrity insertion point.')
+          build_path.write_text(build.replace(needle, addition, 1))
+
+          # Add a static architecture regression for the migrated schedule façade.
+          Path('tests/v2-schedule-boundary.test.mjs').write_text("""/** V2 Phase 2：schedule.js 必須維持薄 façade，畫面責任留在 schedule 子模組。 */
+          import assert from 'node:assert/strict';
+          import { readFile, stat } from 'node:fs/promises';
+
+          const facadePath = new URL('../src/views/schedule.js', import.meta.url);
+          const facade = await readFile(facadePath, 'utf8');
+          const facadeInfo = await stat(facadePath);
+          assert.ok(facadeInfo.size < 2_000, `schedule.js 應維持薄 façade，目前 ${facadeInfo.size} bytes`);
+          assert.match(facade, /schedule\/tournament-list\.js/, '列表畫面由獨立模組負責');
+          assert.match(facade, /schedule\/tournament-detail\.js/, '賽事詳情由獨立模組負責');
+          for (const forbidden of ['bracketView', 'matchCard', 'leaderboardView', 'draftCheckInView', 'swissDecisionPanel']) {
+            assert.ok(!facade.includes(`function ${forbidden}`), `${forbidden} 不應回流 schedule.js façade`);
+          }
+
+          const modules = [
+            'tournament-list.js', 'tournament-detail.js', 'participant-panels.js',
+            'decision-panels.js', 'leaderboard.js', 'rounds.js', 'event-date.js', 'html-escape.js',
+          ];
+          for (const name of modules) {
+            const info = await stat(new URL(`../src/views/schedule/${name}`, import.meta.url));
+            assert.ok(info.size < 20_000, `${name} 不應成為新的 schedule monolith (${info.size} bytes)`);
+          }
+
+          console.log('PASS V2 schedule view boundary');
+          """.replace('          ', ''))
+
+          # Keep fast checks aware of the architecture boundary.
+          fast_path = Path('scripts/test-fast.mjs')
+          fast = fast_path.read_text()
+          fast_needle = "  'tests/v2-main-boundary.test.mjs',\n"
+          if "tests/v2-schedule-boundary.test.mjs" not in fast:
+              fast = fast.replace(fast_needle, fast_needle + "  'tests/v2-schedule-boundary.test.mjs',\n", 1)
+          fast_path.write_text(fast)
+          PY
+
+      - name: Commit phase 2 split and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/v2-phase2-split.yml
+          git config user.name "ckvs4517"
+          git config user.email "72429334+ckvs4517@users.noreply.github.com"
+          git add -A
+          git commit -m "Split schedule view into V2 modules"
+          git push origin HEAD:v2/codebase-refactor
