@@ -60,7 +60,7 @@ jobs:
           esac
 
       - name: Run live staging browser E2E
-        run: node scripts/verify-staging-e2e.mjs "$STAGING_SITE_URL"
+        run: node scripts/verify-staging-browser-e2e.mjs "$STAGING_SITE_URL"
 
       - name: Save E2E report and failure screenshot
         if: always()
