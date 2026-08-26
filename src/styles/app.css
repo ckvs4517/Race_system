@@ -990,3 +990,14 @@ footer { font-size: 12px; }
 @media (max-width: 620px) {
   .leaderboard-row.has-buchholz { min-width: 0; grid-template-columns: 38px minmax(82px, 1fr) 34px 34px 58px 48px; }
 }
+
+
+/* Stage 2 archived standings */
+.leaderboard-archive { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(255,255,255,.015); }
+.leaderboard-archive > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; font-weight: 700; }
+.leaderboard-archive > summary::-webkit-details-marker { display: none; }
+.leaderboard-archive > summary span::before { content: '▶'; display: inline-block; margin-right: 10px; font-size: .78em; transition: transform .16s ease; }
+.leaderboard-archive[open] > summary span::before { transform: rotate(90deg); }
+.leaderboard-archive > summary small { color: var(--muted); font-weight: 500; }
+.leaderboard-archive .leaderboard-table { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+@media (max-width: 720px) { .leaderboard-archive > summary { align-items: flex-start; flex-direction: column; gap: 4px; padding: 14px 16px; } }

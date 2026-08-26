@@ -705,17 +705,25 @@ function bindScheduleEvents(state) {
     if (!confirm(`確定為選取的 ${candidates.length} 位選手建立資格積分決定賽嗎？`)) return;
     beginSwissQualifier(state.selectedTournamentId, candidates);
   });
-  app.querySelector('[data-swiss-final-form]')?.addEventListener('submit', (event) => {
+  const swissFinalForm = app.querySelector('[data-swiss-final-form]');
+  const syncStage2RoundsField = () => {
+    const roundsField = swissFinalForm?.querySelector('[data-stage2-rounds]');
+    if (!roundsField) return;
+    roundsField.hidden = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value !== 'swiss';
+  };
+  swissFinalForm?.querySelectorAll('input[name="swissFinalMode"]').forEach((input) => input.addEventListener('change', syncStage2RoundsField));
+  syncStage2RoundsField();
+  swissFinalForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     const finalists = [...event.currentTarget.querySelectorAll('input[name="finalist"]:checked')].map((input) => input.value);
     const mode = event.currentTarget.querySelector('input[name="swissFinalMode"]:checked')?.value;
+    const rounds = mode === 'swiss' ? Number(event.currentTarget.elements.swissStage2Rounds?.value) || 4 : 4;
     const selectedTournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
     const configuredStage2 = selectedTournament?.swissStage2Config;
-    const label = configuredStage2
-      ? `第二階段${mode === 'single_elimination' ? '單淘汰賽' : '瑞士輪'}`
-      : mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
+    const modeLabel = mode === 'swiss' ? `瑞士輪 ${rounds} 輪` : mode === 'round_robin' ? '循環賽' : '單淘汰';
+    const label = configuredStage2 ? `第二階段${modeLabel}` : mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
     if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;
-    beginSwissFinal(state.selectedTournamentId, finalists, mode);
+    beginSwissFinal(state.selectedTournamentId, finalists, mode, rounds);
   });
   app.querySelector('[data-complete-swiss-standings]')?.addEventListener('click', () => {
     if (!confirm('確定以目前瑞士輪積分榜作為最終成績並結束賽事嗎？此操作不會再建立四強賽程。')) return;
@@ -819,9 +827,9 @@ async function beginSwissQualifier(tournamentId, candidates) {
   }
 }
 
-async function beginSwissFinal(tournamentId, finalists, mode) {
+async function beginSwissFinal(tournamentId, finalists, mode, rounds = 4) {
   try {
-    await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode });
+    await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode, rounds });
   } catch (error) {
     alert(error.message);
   }

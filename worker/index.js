@@ -423,7 +423,12 @@ function applyTournamentAction(tournament, type, payload) {
     case 'start_swiss_qualifier':
       return startSwissQualifier(tournament, Array.isArray(payload.players) ? payload.players.map(String) : []);
     case 'start_swiss_final':
-      return startSwissFinal(tournament, Array.isArray(payload.players) ? payload.players.map(String) : [], String(payload.mode || 'round_robin'));
+      return startSwissFinal(
+        tournament,
+        Array.isArray(payload.players) ? payload.players.map(String) : [],
+        String(payload.mode || 'round_robin'),
+        Number(payload.rounds) || 4,
+      );
     case 'complete_swiss_by_standings':
       return completeSwissByStandings(tournament);
     case 'complete_tournament_early':

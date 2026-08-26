@@ -268,17 +268,23 @@ export const swiss = {
     };
   },
 
-  startFinal(tournament, finalists, mode = 'round_robin') {
+  startFinal(tournament, finalists, mode = 'round_robin', rounds = 4) {
     if (tournament.swissStage !== 'qualification') throw new Error('目前不能確認第二階段名單。');
     const configured = Boolean(tournament.swissStage2Config);
     const config = normalizeSwissStage2Config(tournament.swissStage2Config);
     const advanceCount = configured ? config.advanceCount : 4;
     const unique = validateSelection(finalists, tournament.players, advanceCount, advanceCount, configured ? `Top ${advanceCount}` : '四強');
-    const selectedMode = configured ? config.format : mode;
-    const allowedModes = configured ? ['single_elimination', 'swiss'] : ['round_robin', 'single_elimination'];
+    const selectedMode = String(mode || 'round_robin');
+    const allowedModes = configured && advanceCount === 8
+      ? ['round_robin', 'single_elimination', 'swiss']
+      : ['round_robin', 'single_elimination'];
     if (!allowedModes.includes(selectedMode)) throw new Error('請選擇有效的第二階段賽制。');
+    const selectedRounds = selectedMode === 'swiss'
+      ? Math.min(8, Math.max(1, Number(rounds) || 4))
+      : 4;
+    const roundRobinLabel = configured ? `Top ${advanceCount} 第二階段循環賽` : '四強循環決賽';
     const finalRounds = selectedMode === 'round_robin'
-      ? createRoundRobinRounds(unique, 'final', 'final', '四強循環決賽')
+      ? createRoundRobinRounds(unique, 'final', 'final', roundRobinLabel)
       : selectedMode === 'single_elimination'
         ? [createSingleEliminationOpening(unique)]
         : [createSwissRound(unique, 1, new Set(), null, {
@@ -289,6 +295,7 @@ export const swiss = {
         })];
     return {
       ...tournament,
+      ...(configured ? { swissStage2Config: { advanceCount, format: selectedMode, rounds: selectedRounds } } : {}),
       rounds: [...tournament.rounds, ...finalRounds],
       finalists: unique,
       swissStage: 'final',
@@ -608,7 +615,7 @@ function rankSingleEliminationFinalists(tournament, stats) {
 function normalizeSwissStage2Config(value = {}) {
   return {
     advanceCount: Number(value?.advanceCount) === 8 ? 8 : 4,
-    format: value?.format === 'swiss' ? 'swiss' : 'single_elimination',
+    format: value?.format === 'swiss' ? 'swiss' : value?.format === 'round_robin' ? 'round_robin' : 'single_elimination',
     rounds: Math.min(8, Math.max(1, Number(value?.rounds) || 4)),
   };
 }

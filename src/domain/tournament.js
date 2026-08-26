@@ -452,11 +452,11 @@ export function startSwissQualifier(tournament, candidates) {
   return format.startQualifier(normalized, candidates);
 }
 
-export function startSwissFinal(tournament, finalists, mode = 'round_robin') {
+export function startSwissFinal(tournament, finalists, mode = 'round_robin', rounds = 4) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
-  if (format.id !== 'swiss' || !format.startFinal) throw new Error('這場賽事不支援四強循環決賽。');
-  return format.startFinal(normalized, finalists, mode);
+  if (format.id !== 'swiss' || !format.startFinal) throw new Error('這場賽事不支援第二階段。');
+  return format.startFinal(normalized, finalists, mode, rounds);
 }
 
 /** 以四輪瑞士輪積分榜直接結算，不建立額外四強賽程。 */

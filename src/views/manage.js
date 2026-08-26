@@ -46,11 +46,7 @@ export function manageView(tournament = null) {
         <label class="field"><span>比賽賽制</span><select name="format">${formatOptions}</select></label>
         <div data-swiss-stage2-settings ${selectedFormat === 'swiss' ? '' : 'hidden'}>
           <label class="field"><span>瑞士輪排名方式</span><select name="swissRankingRule"><option value="${SWISS_RANKING_RULE_BUCHHOLZ}" ${swissRankingRule === SWISS_RANKING_RULE_BUCHHOLZ ? 'selected' : ''}>對手強度排名（推薦）</option><option value="${SWISS_RANKING_RULE_LEGACY}" ${swissRankingRule === SWISS_RANKING_RULE_LEGACY ? 'selected' : ''}>傳統排名（舊版相容）</option></select><small>推薦：勝場 → 對手勝場總和 → 總得分 → 直接對戰；賽事開始後鎖定。</small></label>
-          <div class="field-grid">
-            <label class="field"><span>第二階段晉級人數</span><select name="swissAdvanceCount"><option value="4" ${swissStage2.advanceCount === 4 ? 'selected' : ''}>Top 4</option><option value="8" ${swissStage2.advanceCount === 8 ? 'selected' : ''}>Top 8</option></select><small>第一階段固定打 4 輪瑞士輪，再依排名進入第二階段。</small></label>
-            <label class="field"><span>第二階段賽制</span><select name="swissStage2Format"><option value="single_elimination" ${swissStage2.format === 'single_elimination' ? 'selected' : ''}>單淘汰</option><option value="swiss" ${swissStage2.format === 'swiss' ? 'selected' : ''}>瑞士輪</option></select><small>規則在開賽前鎖定，第一階段完成後只執行既定設定。</small></label>
-          </div>
-          <label class="field" data-swiss-stage2-rounds ${swissStage2.format === 'swiss' ? '' : 'hidden'}><span>第二階段瑞士輪輪數</span><input name="swissStage2Rounds" type="number" inputmode="numeric" min="1" max="8" step="1" value="${swissStage2.rounds}" required><small>8/30 賽事使用 4 輪；第二階段積分與配對歷史會重新計算。</small></label>
+          <label class="field"><span>第二階段晉級人數</span><select name="swissAdvanceCount"><option value="4" ${swissStage2.advanceCount === 4 ? 'selected' : ''}>Top 4</option><option value="8" ${swissStage2.advanceCount === 8 ? 'selected' : ''}>Top 8</option></select><small>第一階段固定打 4 輪瑞士輪；第二階段實際賽制會在第一階段完成後再選擇。</small></label>
         </div>
         <label class="field"><span>戰鬥台數</span><input name="arenaCount" type="number" inputmode="numeric" min="1" max="8" step="1" value="${tournament?.arenaCount || 1}" required><small>可設定 1 至 8 台；賽程會平均分配到各戰鬥台。</small></label>
         <div class="step-heading"><span>02</span><div><b>活動資訊</b><small>選填；填寫後會顯示在公開賽事頁</small></div></div>
@@ -75,7 +71,7 @@ export function manageView(tournament = null) {
         ${drinkSettingsEditor(drinkSettings)}
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立賽事與報到名單'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；可直接以積分榜結束，或先確認四強後選擇循環決賽／單淘汰決賽。資格線同分時也可先建立資格積分決定賽。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽並先設定 Top 4／Top 8 晉級人數；第一階段完成後再選擇第二階段賽制。Top 4 可用循環／單淘汰，Top 8 另可使用瑞士輪。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
 }
@@ -101,13 +97,10 @@ export function bindManage(root, options) {
   const getPlayers = () => players.value.split('\n').map((value) => value.trim()).filter(Boolean);
   const syncSwissStage2Fields = () => {
     const panel = root.querySelector('[data-swiss-stage2-settings]');
-    const roundsField = root.querySelector('[data-swiss-stage2-rounds]');
     if (panel) panel.hidden = form.elements.format.value !== 'swiss';
-    if (roundsField) roundsField.hidden = form.elements.swissStage2Format?.value !== 'swiss';
   };
   players.addEventListener('input', () => { count.textContent = `目前 ${getPlayers().length} 位參賽者`; });
   form.elements.format.addEventListener('change', syncSwissStage2Fields);
-  form.elements.swissStage2Format?.addEventListener('change', syncSwissStage2Fields);
   syncSwissStage2Fields();
   root.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => options.onCancel?.());
   root.querySelector('[data-drink-enabled]')?.addEventListener('change', (event) => {
@@ -188,10 +181,7 @@ function readDrinkSettings(form) {
 }
 
 function normalizeSwissStage2Config(value = {}) {
-  const advanceCount = Number(value?.advanceCount) === 8 ? 8 : 4;
-  const format = value?.format === 'swiss' ? 'swiss' : 'single_elimination';
-  const rounds = Math.min(8, Math.max(1, Number(value?.rounds) || 4));
-  return { advanceCount, format, rounds };
+  return { advanceCount: Number(value?.advanceCount) === 8 ? 8 : 4 };
 }
 
 function applySwissStage2Config(tournament, form) {
@@ -200,8 +190,6 @@ function applySwissStage2Config(tournament, form) {
   if (next.format !== 'swiss') return next;
   next.swissStage2Config = normalizeSwissStage2Config({
     advanceCount: form.elements.swissAdvanceCount?.value,
-    format: form.elements.swissStage2Format?.value,
-    rounds: form.elements.swissStage2Rounds?.value,
   });
   return next;
 }
