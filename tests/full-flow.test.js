@@ -95,15 +95,15 @@ try {
   await waitFor('[data-quick-score-dialog][open]');
   expect(!document.querySelector('[data-scoreboard].match-mode'), '快速登分點對局不會跳到完整記分板');
   fill('[data-quick-score-form] [name="scoreA"]', '6');
-  fill('[data-quick-score-form] [name="scoreB"]', '4');
+  fill('[data-quick-score-form] [name="scoreB"]', '3');
   failNextRecordMatch = true;
   submit('[data-quick-score-form]');
   await waitFor('[data-quick-score-dialog][open] [data-quick-score-error]:not([hidden])');
-  expect(document.querySelector('[data-quick-score-form] [name="scoreA"]').value === '6' && document.querySelector('[data-quick-score-form] [name="scoreB"]').value === '4', '快速登分同步失敗會保留尚未送出的比分');
+  expect(document.querySelector('[data-quick-score-form] [name="scoreA"]').value === '6' && document.querySelector('[data-quick-score-form] [name="scoreB"]').value === '3', '快速登分同步失敗會保留尚未送出的比分');
   submit('[data-quick-score-form]');
   await waitFor('.match-card.is-ready');
   expect(document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'true', '成功登分後仍維持快速登分模式');
-  expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 4))), '快速登分可送出 6:4 等 overshoot 比分');
+  expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 3))), '快速登分可送出勝方超過 4 分且敗方低於 4 分的結果');
   click('[data-action="toggle-quick-score"]');
   await waitUntil(() => document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'false');
   await forfeitReadyMatch();

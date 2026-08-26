@@ -137,7 +137,7 @@ function quickScoreDialogView() {
         <i>:</i>
         <label><span data-quick-score-player-b>選手 B</span><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" name="scoreB" aria-label="選手 B 最終分數" required></label>
       </div>
-      <p class="quick-score-help">直接輸入裁判回報的最終比分；允許 5：3、6：4 等超過 4 分的合法結果。</p>
+      <p class="quick-score-help">直接輸入裁判回報的最終比分；任一方達到或超過 4 分即獲勝，因此敗方最終比分必須低於 4 分。</p>
       <p class="quick-score-error" data-quick-score-error role="alert" hidden></p>
       <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-quick-score-close>取消</button><button type="submit" class="button button-primary" data-quick-score-submit>確認登分</button></div>
     </form>
