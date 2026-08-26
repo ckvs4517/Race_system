@@ -1,0 +1,49 @@
+name: Run check-in patch with browser coverage
+
+on:
+  push:
+    branches: [fix/check-in-performance]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.event.head_commit.message == 'Run check-in patch with browser coverage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/check-in-performance
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: python3 scripts/tmp-check-in-patch.py
+      - run: python3 scripts/tmp-check-in-browser-patch.py
+      - name: Focused tests
+        run: |
+          node tests/check-in.test.mjs
+          node tests/api.test.mjs
+      - name: Fast regression
+        run: node scripts/test-fast.mjs
+      - name: Full browser regression
+        run: node scripts/test-full.mjs --browser=required
+      - name: Remove temporary files
+        run: |
+          rm -f scripts/tmp-check-in-patch.py scripts/tmp-check-in-browser-patch.py
+          rm -f .github/workflows/tmp-check-in-performance.yml
+          rm -f .github/workflows/tmp-check-in-performance-retry.yml
+          rm -f .github/workflows/tmp-check-in-performance-final.yml
+          rm -f .github/workflows/tmp-check-in-run.yml
+          rm -f .github/workflows/tmp-check-in-run2.yml
+      - name: Commit tested changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Optimize 48-player check-in flow"
+          git push origin HEAD:fix/check-in-performance
