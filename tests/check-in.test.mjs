@@ -29,6 +29,7 @@ assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯�
 assert.match(view, /data-roster-search/);
 assert.match(view, /data-roster-filter="unchecked"/);
 assert.match(view, /建立私密填寫連結/);
+assert.match(view, new RegExp(`max=\"${MAX_TOURNAMENT_PLAYERS}\"`), '賽事頁快速報名設定沿用共用人數上限');
 assert.match(view, /飲品統計/);
 assert.match(view, /data-edit-player="甲"/);
 assert.match(view, /data-action="prepare-tournament-schedule" disabled/);

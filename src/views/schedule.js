@@ -1,7 +1,7 @@
 /** 賽事列表、分支圖、戰鬥台、選手狀態與排行榜的純 HTML 畫面產生器。 */
 import { icons } from '../ui/icons.js';
 import { pageHeader } from '../ui/shell.js';
-import { buildRounds, getSwissPhaseStandings, getTournamentStandings } from '../domain/tournament.js';
+import { MAX_TOURNAMENT_PLAYERS, buildRounds, getSwissPhaseStandings, getTournamentStandings } from '../domain/tournament.js';
 import { createDrinkSummary } from '../domain/drinks.js';
 import { getTournamentFormat } from '../formats/registry.js';
 import { drinkSelectionFields } from './drink-fields.js';
@@ -105,7 +105,7 @@ function registrationQuickView(tournament, canManage) {
       <div class="registration-quick-actions"><button class="button button-primary" data-share-registration data-registration-token="${escapeAttribute(settings.token || '')}">分享私密連結</button><button class="button button-secondary" data-manage-registration>管理填寫資料</button></div>
     </section>`;
   }
-  const capacity = Math.max(tournament.players.length, Number(settings.capacity) || 32);
+  const capacity = Math.max(tournament.players.length, Number(settings.capacity) || MAX_TOURNAMENT_PLAYERS);
   const deadline = String(settings.deadline || '').slice(0, 16);
   return `<section class="registration-quick">
     <div><p class="kicker">PARTICIPANT INFORMATION</p><h2>建立私密參賽資料連結</h2><p>主辦方確認參賽資格與付款後，再把連結交給選手填寫聯絡與飲品資料。</p></div>
@@ -114,7 +114,7 @@ function registrationQuickView(tournament, canManage) {
       <form method="dialog" class="mobile-sheet-card" data-quick-registration-form>
         <div class="mobile-sheet-heading"><div><p class="kicker">PARTICIPANT INFORMATION</p><h2>啟用私密填寫連結</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
         <p>填寫完成會直接加入正式名單，不需要核准。請只分享給已確認資格的人。</p>
-        <label><span>參賽人數上限</span><input type="number" name="capacity" min="${Math.max(2, tournament.players.length)}" max="32" value="${capacity}" required></label>
+        <label><span>參賽人數上限</span><input type="number" name="capacity" min="${Math.max(2, tournament.players.length)}" max="${MAX_TOURNAMENT_PLAYERS}" value="${capacity}" required></label>
         <label><span>截止時間（可不填）</span><input type="datetime-local" name="deadline" value="${escapeAttribute(deadline)}"></label>
         <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button type="submit" class="button button-primary">啟用並複製連結</button></div>
       </form>
