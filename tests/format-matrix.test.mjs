@@ -1,6 +1,7 @@
-/** 2～32 人 × 單淘汰／瑞士制的完整賽程矩陣，確保每種人數都能產生冠軍。 */
+/** 2～系統上限 × 單淘汰／瑞士制的完整賽程矩陣，確保每種人數都能產生冠軍。 */
 import assert from 'node:assert/strict';
 import {
+  MAX_TOURNAMENT_PLAYERS,
   buildRounds,
   createTournament,
   drawRandomSeeds,
@@ -16,7 +17,7 @@ let completedTournaments = 0;
 let completedMatches = 0;
 
 for (const format of ['single_elimination', 'swiss']) {
-  for (let playerCount = 2; playerCount <= 32; playerCount += 1) {
+  for (let playerCount = 2; playerCount <= MAX_TOURNAMENT_PLAYERS; playerCount += 1) {
     if (format === 'swiss' && playerCount < 4) continue;
     const players = Array.from({ length: playerCount }, (_, index) => `${format}-${playerCount}-${index + 1}`);
     let tournament = checkInAll(createTournament(`${playerCount} 人矩陣測試`, players, format, Math.min(8, Math.max(1, Math.ceil(playerCount / 4)))));
@@ -67,8 +68,8 @@ for (const format of ['single_elimination', 'swiss']) {
   }
 }
 
-assert.throws(() => startTournament(checkInAll(createTournament('人數不足', ['A']))), /2 至 32/);
-assert.throws(() => createTournament('人數超過', Array.from({ length: 33 }, (_, index) => `P${index}`)), /不可超過 32/);
+assert.throws(() => startTournament(checkInAll(createTournament('人數不足', ['A']))), new RegExp(`2 至 ${MAX_TOURNAMENT_PLAYERS}`));
+assert.throws(() => createTournament('人數超過', Array.from({ length: MAX_TOURNAMENT_PLAYERS + 1 }, (_, index) => `P${index}`)), new RegExp(`不可超過 ${MAX_TOURNAMENT_PLAYERS}`));
 assert.throws(() => createTournament('重複名稱', ['A', 'A']), /不可重複/);
 assert.throws(() => createTournament('台數不足', ['A', 'B'], 'single_elimination', 0), /1 至 8/);
 assert.throws(() => createTournament('台數超過', ['A', 'B'], 'single_elimination', 9), /1 至 8/);
