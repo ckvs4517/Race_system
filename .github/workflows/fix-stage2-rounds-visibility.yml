@@ -1,0 +1,90 @@
+name: Fix Stage 2 rounds visibility
+
+on:
+  push:
+    branches: [fix/stage2-rounds-visibility]
+    paths:
+      - .github/workflows/fix-stage2-rounds-visibility.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/stage2-rounds-visibility
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Apply visibility fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main_path = Path('src/main.js')
+          main = main_path.read_text(encoding='utf-8')
+          old = '''  const syncStage2RoundsField = () => {
+    const roundsField = swissFinalForm?.querySelector('[data-stage2-rounds]');
+    if (!roundsField) return;
+    roundsField.hidden = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value !== 'swiss';
+  };'''
+          new = '''  const syncStage2RoundsField = () => {
+    const roundsField = swissFinalForm?.querySelector('[data-stage2-rounds]');
+    if (!roundsField) return;
+    const roundsInput = roundsField.querySelector('input[name="swissStage2Rounds"]');
+    const showRounds = swissFinalForm.querySelector('input[name="swissFinalMode"]:checked')?.value === 'swiss';
+    roundsField.hidden = !showRounds;
+    roundsField.style.display = showRounds ? '' : 'none';
+    if (roundsInput) roundsInput.disabled = !showRounds;
+  };'''
+          if old not in main:
+              raise SystemExit('expected main.js block not found')
+          main_path.write_text(main.replace(old, new, 1), encoding='utf-8')
+
+          css_path = Path('src/styles/app.css')
+          css = css_path.read_text(encoding='utf-8')
+          marker = '.swiss-final-mode-options small { color: var(--muted); line-height: 1.45; }\n'
+          rule = '[data-stage2-rounds][hidden] { display: none !important; }\n'
+          if rule not in css:
+              if marker not in css:
+                  raise SystemExit('expected app.css marker not found')
+              css = css.replace(marker, marker + rule, 1)
+          css_path.write_text(css, encoding='utf-8')
+          PY
+      - name: Project health
+        run: node scripts/project-health.mjs
+      - name: Focused visibility regression
+        run: node tests/stage2-rounds-visibility.test.mjs
+      - name: Fast regression
+        run: node scripts/test-fast.mjs
+      - name: Full Node regression and build
+        run: node scripts/test-full.mjs
+      - name: Browser tournament flows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/spin-league-test-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          sleep 1
+          for test_page in tournament.test.html full-flow.test.html; do
+            output="$(google-chrome --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "http://127.0.0.1:8765/tests/${test_page}")"
+            echo "$output"
+            echo "$output" | grep -q 'PASS '
+          done
+      - name: Commit tested fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main.js src/styles/app.css
+          git diff --cached --check
+          git commit -m "Fix Stage 2 rounds field visibility"
+          git push origin HEAD:fix/stage2-rounds-visibility
