@@ -31,6 +31,7 @@ jobs:
         run: |
           python3 scripts/apply-stage2-ux.py
           python3 scripts/apply-stage2-round-label.py
+          python3 scripts/apply-stage2-test-fix.py
 
       - name: Validate project health
         run: node scripts/project-health.mjs
