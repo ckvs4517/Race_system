@@ -113,6 +113,16 @@ export function setDraftPlayerCheckedIn(tournament, player, checkedIn) {
   return rebuildDraftRoster(normalized, normalized.players, participantStates);
 }
 
+export function setAllDraftPlayersCheckedIn(tournament) {
+  const normalized = normalizeTournament(tournament);
+  assertDraftRosterChange(normalized);
+  const participantStates = Object.fromEntries(normalized.players.map((player) => [
+    player,
+    { ...normalized.participantStates[player], status: 'active', checkedIn: true },
+  ]));
+  return rebuildDraftRoster(normalized, normalized.players, participantStates);
+}
+
 export function addDraftPlayer(tournament, player, details = {}) {
   const normalized = normalizeTournament(tournament);
   assertDraftRosterChange(normalized);

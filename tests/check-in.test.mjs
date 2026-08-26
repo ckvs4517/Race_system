@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   MAX_TOURNAMENT_PLAYERS,
   addDraftPlayer,
@@ -8,6 +9,7 @@ import {
   randomizeTournamentSchedule,
   removeDraftPlayer,
   setDraftPlayerCheckedIn,
+  setAllDraftPlayersCheckedIn,
   startTournament,
   updateRegistrationSettings,
   updateDraftParticipant,
@@ -24,6 +26,8 @@ assert.match(view, /參賽選手名單/);
 assert.match(view, /已報到 0／報名 4 人/);
 assert.match(view, /data-add-draft-player-form/);
 assert.match(view, /data-enter-remove-mode/);
+assert.match(view, /data-check-in-all/, '報到工具提供一鍵全部報到');
+assert.match(view, /data-check-in-summary/, '報到摘要可局部更新而不必重畫整頁');
 assert.match(view, /data-remove-player-select="甲"/);
 assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯示單列移除按鈕');
 assert.match(view, /data-roster-search/);
@@ -56,7 +60,8 @@ tournament = removeDraftPlayer(tournament, '現場選手（已確認）');
 assert.equal(tournament.players.length, 4);
 assert.equal(tournament.participantStates['現場選手'], undefined);
 
-for (const player of ['甲', '乙', '丙', '丁']) tournament = setDraftPlayerCheckedIn(tournament, player, true);
+tournament = setAllDraftPlayersCheckedIn(tournament);
+assert.ok(tournament.players.every((player) => tournament.participantStates[player].checkedIn), '一鍵報到會將草稿名單全部標為已報到');
 tournament = addDraftPlayer(tournament, '未到選手');
 view = scheduleView([tournament], tournament.id, true);
 assert.match(view, /已報到 4／報名 5 人/);
@@ -81,5 +86,11 @@ assert.ok(started.rounds.every((round) => round.matches.every((match) => ![match
 assert.equal(started.rounds[0].matches.length, 2, '只有四位已報到選手進入首輪');
 assert.throws(() => addDraftPlayer(started, '太晚加入'), /開始後/);
 assert.throws(() => setDraftPlayerCheckedIn(started, '甲', false), /開始後/);
+assert.throws(() => setAllDraftPlayersCheckedIn(started), /開始後/);
+
+const storeSource = readFileSync(new URL('../src/data/store.js', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+assert.match(storeSource, /EXPLICIT_RENDER_ACTIONS[^;]*set_check_in/s, '單人報到成功不觸發整個 schedule 頁重畫');
+assert.match(mainSource, /checkInSaveQueue/, '快速連續報到會序列化送出，避免 revision 衝突');
 
 console.log('PASS check-in flow');
