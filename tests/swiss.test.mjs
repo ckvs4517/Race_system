@@ -284,6 +284,21 @@ top8RoundRobin = startSwissFinal(top8RoundRobin, top8Players.slice(0, 8), 'round
 assert.equal(top8RoundRobin.swissFinalMode, 'round_robin');
 assert.equal(top8RoundRobin.rounds.filter((round) => round.phase === 'final').length, 7, 'Top8 循環應建立 7 輪');
 assert.equal(top8RoundRobin.rounds.filter((round) => round.phase === 'final').flatMap((round) => round.matches).length, 28, 'Top8 循環應建立 28 場');
+const top8TieBreakPreview = {
+  ...top8RoundRobin,
+  finalTie: true,
+  rounds: [...top8RoundRobin.rounds, {
+    name: 'Top 8 第二階段同分加賽 1－第 1 輪',
+    phase: 'final',
+    phaseRound: 1,
+    seriesId: 'final-tiebreak-1',
+    seriesPlayers: top8Players.slice(0, 2),
+    matches: [{ id: 'preview-tie', playerA: top8Players[0], playerB: top8Players[1], scoreA: null, scoreB: null, winner: null, status: '可開始' }],
+  }],
+};
+const top8TieBreakPreviewView = scheduleView([top8TieBreakPreview], top8TieBreakPreview.id, true);
+assert.match(top8TieBreakPreviewView, /Top 8 第二階段同分加賽進行中/);
+assert.match(top8TieBreakPreviewView, /AUTOMATIC TIE BREAK/);
 
 const multiArena = startTournament(checkInAll(createTournament('雙台瑞士賽', players, 'swiss', 2)));
 assert.equal(multiArena.arenaCount, 2);

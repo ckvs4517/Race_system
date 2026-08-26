@@ -206,11 +206,14 @@ export const swiss = {
       if (tiedLeaders.length > 1) {
         const seriesNumber = Number(tournament.finalTieBreakCount || 0) + 1;
         const tiedPlayers = tiedLeaders.map((row) => row.player);
+        const tieBreakLabel = tournament.swissStage2Config
+          ? `Top ${normalizeSwissStage2Config(tournament.swissStage2Config).advanceCount} 第二階段同分加賽 ${seriesNumber}`
+          : `四強同分加賽 ${seriesNumber}`;
         rounds.push(...createRoundRobinRounds(
           tiedPlayers,
           'final',
           `final-tiebreak-${seriesNumber}`,
-          `四強同分加賽 ${seriesNumber}`,
+          tieBreakLabel,
         ));
         return {
           rounds,
