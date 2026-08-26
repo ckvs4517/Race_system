@@ -15,6 +15,7 @@
 | `src/core/router.js` or navigation | `tests/navigation.test.mjs`, browser full flow |
 | `src/core/roster-filter.js` | `tests/roster-filter.test.mjs`, `tests/check-in.test.mjs` |
 | `src/styles/app.css` | `tests/responsive-ui.test.mjs`, browser flows, manual mobile viewport |
-| Build/deployment scripts | `node scripts/build-site.mjs`, `node scripts/test-full.mjs --browser=skip` |
+| `scripts/lib/source-version.mjs` or deployment version marker | `tests/source-version.test.mjs`, `node scripts/build-site.mjs` |
+| Build/deployment scripts | `tests/source-version.test.mjs`, `node scripts/build-site.mjs`, `node scripts/test-full.mjs --browser=skip` |
 
-`test-fast.mjs` covers common domain, API, sync, backup, registration, and responsive regressions. `test-full.mjs` discovers all Node `.mjs` tests, optionally executes both browser test pages, and builds the Sites artifact.
+`test-fast.mjs` covers common domain, API, sync, backup, registration, responsive, V2 boundary, and deployed source-version regressions. `test-full.mjs` discovers all Node `.mjs` tests, optionally executes both browser test pages, and builds the Sites artifact.
