@@ -1,0 +1,113 @@
+name: Apply early finish scoring lock
+
+on:
+  push:
+    branches: [fix/early-finish-lock-scoring]
+    paths:
+      - .github/workflows/apply-early-finish-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/early-finish-lock-scoring
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Apply focused fix
+        shell: python
+        run: |
+          from pathlib import Path
+
+          schedule_path = Path('src/views/schedule.js')
+          schedule = schedule_path.read_text()
+
+          call = "matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, round.seedReason, isSwiss)"
+          assert schedule.count(call) == 2, schedule.count(call)
+          schedule = schedule.replace(call, call[:-1] + ", tournament.status)")
+
+          old_signature = "function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, seedReason, isSwiss) {"
+          new_signature = "function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled, seedNames, seedReason, isSwiss, tournamentStatus) {"
+          assert schedule.count(old_signature) == 1
+          schedule = schedule.replace(old_signature, new_signature)
+
+          old_interactive = "  const interactive = scoringEnabled && match.status === '可開始';"
+          new_interactive = "  const interactive = scoringEnabled && tournamentStatus === '進行中' && match.status === '可開始';"
+          assert schedule.count(old_interactive) == 1
+          schedule = schedule.replace(old_interactive, new_interactive)
+
+          old_status = "    : !scoringEnabled && match.status === '可開始' ? '等待賽事開始' : match.status;"
+          new_status = "    : match.status === '可開始' && tournamentStatus === '已完成' ? '未進行（賽事已結束）'\n    : !scoringEnabled && match.status === '可開始' ? '等待賽事開始' : match.status;"
+          assert schedule.count(old_status) == 1
+          schedule = schedule.replace(old_status, new_status)
+          schedule_path.write_text(schedule)
+
+          main_path = Path('src/main.js')
+          main = main_path.read_text()
+          old_render = """    if (tournament && matchSelection) {
+              const match = tournament.rounds[matchSelection.roundIndex].matches[matchSelection.matchIndex];
+              view = scoreboardView({
+                mode: 'match',
+                tournamentName: tournament.name,
+                roundName: tournament.rounds[matchSelection.roundIndex].name,
+                playerA: match.playerA,
+                playerB: match.playerB,
+              });
+            } else {
+              view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);
+            }"""
+          new_render = """    const match = tournament && matchSelection
+              ? tournament.rounds?.[matchSelection.roundIndex]?.matches?.[matchSelection.matchIndex]
+              : null;
+            if (tournament && matchSelection && tournament.status === '進行中' && match?.status === '可開始') {
+              view = scoreboardView({
+                mode: 'match',
+                tournamentName: tournament.name,
+                roundName: tournament.rounds[matchSelection.roundIndex].name,
+                playerA: match.playerA,
+                playerB: match.playerB,
+              });
+            } else {
+              view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);
+            }"""
+          assert main.count(old_render) == 1
+          main = main.replace(old_render, new_render)
+
+          old_bind = """    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+              const { roundIndex, matchIndex } = state.selectedMatch;
+              const match = tournament.rounds[roundIndex].matches[matchIndex];
+              bindScoreboard(app, {"""
+          new_bind = """    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+              const { roundIndex, matchIndex } = state.selectedMatch;
+              const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];
+              if (!tournament || !match || tournament.status !== '進行中' || match.status !== '可開始') {
+                selectMatch(null, null);
+                render();
+                return;
+              }
+              bindScoreboard(app, {"""
+          assert main.count(old_bind) == 1
+          main = main.replace(old_bind, new_bind)
+          main_path.write_text(main)
+
+      - name: Run focused and fast regression tests
+        run: |
+          node tests/early-finish-lock.test.mjs
+          node scripts/test-fast.mjs
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/views/schedule.js src/main.js
+          git commit -m "fix: lock scoring after early tournament finish"
+          git push
