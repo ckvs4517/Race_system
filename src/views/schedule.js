@@ -80,7 +80,7 @@ function bracketView(tournament, canManage) {
   const isSwiss = format.id === 'swiss';
   const visibleRoundEntries = currentRoundEntries(tournament, rounds, isSwiss);
   const arenaCount = tournament.arenaCount || 1;
-  const activeArenaCount = isSwiss && ['final', 'completed'].includes(tournament.swissStage) ? 1 : arenaCount;
+  const activeArenaCount = isSwiss && !tournament.swissStage2Config && ['final', 'completed'].includes(tournament.swissStage) ? 1 : arenaCount;
   const isDraft = tournament.status === '準備中';
   const isScheduling = tournament.status === '排程中';
   const checkedInCount = tournament.players.filter((player) => tournament.participantStates?.[player]?.checkedIn).length;
@@ -110,7 +110,7 @@ function bracketView(tournament, canManage) {
     : isScheduling
       ? `<span><i class="draft-dot"></i>排程階段尚未開放記分</span><span>${rounds.length ? '可以重新隨機分組或自由調整首輪對戰' : '請按「隨機分組」產生第一版賽程'}</span>`
     : `<span><i class="ready-dot"></i>只顯示目前輪次；已完成對戰可在排行榜點選選手查看</span><span>${isSwiss ? swissStageGuide(tournament) : '輪空選手已自動晉級'}</span>`;
-  const bracket = visibleRoundEntries.length && !isDraft ? `<div class="bracket-shell"><div class="bracket-flow">${visibleRoundEntries.map(({ round, roundIndex }) => roundColumnView(tournament, round, roundIndex, canManage, isDraft || isScheduling, allSeedNames, isSwiss, round.phase === 'final' ? 1 : arenaCount)).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${isDraft ? '完成報到後再產生賽程' : isScheduling ? '等待隨機分組' : '等待賽程產生'}</h2><p>${isDraft ? '這個階段不會顯示預排對戰，避免現場名單尚未確認就產生錯誤賽程。' : isScheduling ? '按下「隨機分組」後，仍可自由調整首輪誰對誰。' : '正式賽程會顯示在這裡。'}</p></div>`;
+  const bracket = visibleRoundEntries.length && !isDraft ? `<div class="bracket-shell"><div class="bracket-flow">${visibleRoundEntries.map(({ round, roundIndex }) => roundColumnView(tournament, round, roundIndex, canManage, isDraft || isScheduling, allSeedNames, isSwiss, swissRoundArenaCount(tournament, round, arenaCount))).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${isDraft ? '完成報到後再產生賽程' : isScheduling ? '等待隨機分組' : '等待賽程產生'}</h2><p>${isDraft ? '這個階段不會顯示預排對戰，避免現場名單尚未確認就產生錯誤賽程。' : isScheduling ? '按下「隨機分組」後，仍可自由調整首輪誰對誰。' : '正式賽程會顯示在這裡。'}</p></div>`;
   const swissDecision = isSwiss && !isDraft && !isScheduling ? swissDecisionPanel(tournament, canManage) : '';
   const roundRobinDecision = format.id === 'round_robin' && !isDraft && !isScheduling ? roundRobinTieBreakPanel(tournament, canManage) : '';
   const leaderboardRows = isSwiss ? swissLiveLeaderboardRows(tournament) : getTournamentStandings(tournament);
@@ -328,6 +328,8 @@ function drinkSummaryView(tournament) {
 }
 
 function swissDecisionPanel(tournament, canManage) {
+  const configuredStage2 = readSwissStage2Config(tournament);
+  if (configuredStage2) return configuredSwissDecisionPanel(tournament, canManage, configuredStage2);
   const stage = tournament.swissStage || 'preliminary';
   if (stage === 'preliminary') return '';
   if (stage === 'qualifier') {
@@ -374,6 +376,87 @@ function swissDecisionPanel(tournament, canManage) {
   </section>`;
 }
 
+function readSwissStage2Config(tournament) {
+  if (!tournament?.swissStage2Config) return null;
+  return {
+    advanceCount: Number(tournament.swissStage2Config.advanceCount) === 8 ? 8 : 4,
+    format: tournament.swissStage2Config.format === 'swiss' ? 'swiss' : 'single_elimination',
+    rounds: Math.min(8, Math.max(1, Number(tournament.swissStage2Config.rounds) || 4)),
+  };
+}
+
+function advancementCutState(rows, slots) {
+  if (slots <= 0 || rows.length <= slots) return { needsQualifier: false, automatic: rows.slice(0, slots), candidates: [], openSlots: 0 };
+  const cutoff = rows[slots - 1];
+  const automatic = rows.filter((row) => row.rank < cutoff.rank);
+  const candidates = rows.filter((row) => row.rank === cutoff.rank);
+  const openSlots = Math.max(0, slots - automatic.length);
+  return { needsQualifier: candidates.length > openSlots, automatic, candidates, openSlots };
+}
+
+function configuredAdvanceResolution(tournament, preliminaryRows, latestQualifierRows, advanceCount) {
+  if (!tournament.qualifierSeriesCount || !latestQualifierRows.length) {
+    const cut = advancementCutState(preliminaryRows, advanceCount);
+    return cut.needsQualifier
+      ? { needsQualifier: true, qualifierCandidates: cut.candidates, advancers: [] }
+      : { needsQualifier: false, qualifierCandidates: [], advancers: preliminaryRows.slice(0, advanceCount) };
+  }
+  const automaticNames = tournament.swissQualifierAutomaticPlayers || [];
+  const lockedNames = tournament.swissQualifierLockedPlayers || [];
+  const totalSlots = Number(tournament.swissQualifierSlots || 0);
+  const remainingSlots = Math.max(0, totalSlots - lockedNames.length);
+  const cut = advancementCutState(latestQualifierRows, remainingSlots);
+  if (cut.needsQualifier) return { needsQualifier: true, qualifierCandidates: cut.candidates, advancers: [] };
+  const winnerNames = latestQualifierRows.slice(0, remainingSlots).map((row) => row.player);
+  const names = [...automaticNames, ...lockedNames, ...winnerNames].slice(0, advanceCount);
+  const rowByPlayer = new Map([...preliminaryRows, ...latestQualifierRows].map((row) => [row.player, row]));
+  return { needsQualifier: false, qualifierCandidates: [], advancers: names.map((player) => rowByPlayer.get(player)).filter(Boolean) };
+}
+
+function configuredSwissDecisionPanel(tournament, canManage, config) {
+  const stage = tournament.swissStage || 'preliminary';
+  if (stage === 'preliminary') return '';
+  if (stage === 'qualifier') {
+    const qualifierRows = getSwissPhaseStandings(tournament, 'qualifier');
+    return `<section class="swiss-decision-panel"><p class="kicker">QUALIFIER</p><h2>第二階段資格加賽進行中</h2><p>只處理跨越 Top ${config.advanceCount} 晉級切線的同分選手；完成後系統會重新檢查剩餘名額。</p>${swissMiniStandings(qualifierRows)}</section>`;
+  }
+  if (stage === 'final') {
+    const activePlacement = [...(tournament.rounds || [])].reverse().find((round) => round.phase === 'placement'
+      && round.matches.some((match) => ['可開始', '等待前輪'].includes(match.status)));
+    const displayPlayers = activePlacement?.seriesPlayers || tournament.finalists || [];
+    const isSwiss = tournament.swissFinalMode === 'swiss';
+    const title = activePlacement
+      ? '冠亞名次加賽進行中'
+      : isSwiss ? `Top ${config.advanceCount} 第二階段瑞士輪` : `Top ${config.advanceCount} 第二階段單淘汰`;
+    const description = activePlacement
+      ? '第二階段完成後冠亞關鍵名次仍完全同分；加賽只決定冠亞位置，不回寫第二階段原始積分。'
+      : isSwiss
+        ? `${config.advanceCount} 位晉級者積分歸零重新開始，共打 ${config.rounds} 輪；第一階段配對歷史不帶入第二階段。`
+        : `依第一階段排名種子進行 Top ${config.advanceCount} 單淘汰，直到產生冠軍。`;
+    return `<section class="swiss-decision-panel"><p class="kicker">STAGE 2</p><h2>${title}</h2><p>${description}</p><div class="swiss-finalists">${displayPlayers.map((player) => `<span>${escapeText(player)}</span>`).join('')}</div></section>`;
+  }
+  if (stage === 'completed') return '';
+
+  const rows = getTournamentStandings(tournament);
+  const latestQualifier = tournament.qualifierSeriesCount ? getSwissPhaseStandings(tournament, 'qualifier') : [];
+  const resolution = configuredAdvanceResolution(tournament, rows, latestQualifier, config.advanceCount);
+  if (!canManage) {
+    return `<section class="swiss-decision-panel"><p class="kicker">STAGE 1 COMPLETE</p><h2>第一階段已完成</h2><p>${resolution.needsQualifier ? `Top ${config.advanceCount} 晉級切線仍有同分，等待資格加賽。` : `Top ${config.advanceCount} 名單已確認，等待主辦方建立第二階段。`}</p></section>`;
+  }
+  if (resolution.needsQualifier) {
+    const choices = swissPlayerChoices(resolution.qualifierCandidates, 'candidate', true);
+    return `<section class="swiss-decision-panel"><p class="kicker">STAGE 1 COMPLETE</p><h2>Top ${config.advanceCount} 資格線需要加賽</h2><p>系統只挑出跨越晉級切線且目前完全同分的選手；其他已確定晉級或淘汰者不需要加賽。</p>${latestQualifier.length ? `<div class="swiss-latest-qualifier"><h3>最近一組資格加賽結果</h3>${swissMiniStandings(latestQualifier)}</div>` : ''}<form data-swiss-qualifier-form><h3>資格加賽選手</h3><div class="swiss-player-choices">${choices}</div><button class="button button-primary" type="submit">建立資格加賽</button></form></section>`;
+  }
+  const finalChoices = swissPlayerChoices(resolution.advancers, 'finalist', true);
+  const formatLabel = config.format === 'swiss' ? `瑞士輪 ${config.rounds} 輪` : '單淘汰';
+  return `<section class="swiss-decision-panel"><p class="kicker">STAGE 1 COMPLETE</p><h2>確認 Top ${config.advanceCount} 並建立第二階段</h2><p>賽前設定：Top ${config.advanceCount} → ${formatLabel}。第一階段結果保留為歷史紀錄，第二階段重新計算成績。</p>${latestQualifier.length ? `<div class="swiss-latest-qualifier"><h3>資格加賽結果</h3>${swissMiniStandings(latestQualifier)}</div>` : ''}<form data-swiss-final-form><div class="swiss-player-choices">${finalChoices}</div><input type="radio" name="swissFinalMode" value="${config.format}" checked hidden><button class="button button-primary" type="submit">建立第二階段</button></form></section>`;
+}
+
+function swissRoundArenaCount(tournament, round, arenaCount) {
+  if (tournament.swissStage2Config && ['final', 'placement'].includes(round.phase)) return arenaCount;
+  return round.phase === 'final' ? 1 : arenaCount;
+}
+
 function roundRobinTieBreakPanel(tournament, canManage) {
   if (tournament.roundRobinStage !== 'tied') return '';
   const rows = getTournamentStandings(tournament);
@@ -406,6 +489,16 @@ function swissMiniStandings(rows) {
 }
 
 function swissStageGuide(tournament) {
+  const config = readSwissStage2Config(tournament);
+  if (config) {
+    return {
+      preliminary: `完成第四輪後確認 Top ${config.advanceCount} 晉級資格`,
+      qualification: `第一階段完成，等待確認 Top ${config.advanceCount} 或處理資格加賽`,
+      qualifier: `Top ${config.advanceCount} 資格加賽進行中`,
+      final: tournament.activePlacementSeriesId ? '冠亞名次加賽進行中' : tournament.swissFinalMode === 'swiss' ? `Top ${config.advanceCount} 第二階段瑞士輪進行中` : `Top ${config.advanceCount} 第二階段單淘汰進行中`,
+      completed: tournament.swissFinalMode === 'swiss' ? '第二階段瑞士輪已完成' : '第二階段單淘汰已完成',
+    }[tournament.swissStage || 'preliminary'];
+  }
   return {
     preliminary: '完成第四輪後會暫停，由主辦方確認四強資格',
     qualification: '四輪預賽完成，等待主辦方確認四強或建立資格加賽',
@@ -416,6 +509,10 @@ function swissStageGuide(tournament) {
 }
 
 function swissChampionLabel(tournament) {
+  if (tournament.swissStage2Config) {
+    if (tournament.swissFinalMode === 'swiss') return '第二階段瑞士輪第一名';
+    if (tournament.swissFinalMode === 'single_elimination') return '第二階段單淘汰冠軍';
+  }
   if (tournament.swissFinalMode === 'single_elimination') return '四強單淘汰賽冠軍';
   if (tournament.swissFinalMode === 'standings') return '瑞士輪積分榜第一名';
   return '四強循環賽第一名';
@@ -424,6 +521,8 @@ function swissChampionLabel(tournament) {
 function roundPhaseLabel(round, roundIndex) {
   const phase = round.phase || 'preliminary';
   if (phase === 'qualifier') return 'QUALIFIER';
+  if (phase === 'placement') return 'TIE BREAK';
+  if (round.seriesId === 'stage2-swiss' || String(round.name || '').startsWith('第二階段')) return 'STAGE 2';
   if (phase === 'final') return 'TOP 4 FINAL';
   return `ROUND ${String(roundIndex + 1).padStart(2, '0')}`;
 }

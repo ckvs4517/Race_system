@@ -6,6 +6,7 @@ import {
   createTournament,
   forfeitMatch,
   getTournamentStandings,
+  getSwissPhaseStandings,
   randomizeDraftTournament,
   recordMatchResult,
   requiredSeedCount,
@@ -192,6 +193,66 @@ assert.equal(changed.totalRounds, 4);
 assert.match(manageView(changed), /option value="swiss" selected/);
 assert.match(manageView(), /瑞士制/);
 assert.match(manageView(), /name="arenaCount"/);
+assert.match(manageView(), /name="swissAdvanceCount"/);
+assert.match(manageView(), /name="swissStage2Format"/);
+assert.match(manageView(), /name="swissStage2Rounds"/);
+
+const top8Players = Array.from({ length: 12 }, (_, index) => `Top8-${index + 1}`);
+let top8Stage = {
+  ...createTournament('48人流程縮小驗證', top8Players, 'swiss', 2),
+  swissStage2Config: { advanceCount: 8, format: 'swiss', rounds: 4 },
+};
+top8Stage = startTournament(checkInAll(top8Stage));
+while (top8Stage.swissStage === 'preliminary') top8Stage = finishCurrentRound(top8Stage);
+assert.equal(top8Stage.swissStage, 'qualification');
+const top8Rows = getTournamentStandings(top8Stage);
+const top8Finalists = top8Rows.slice(0, 8).map((row) => row.player);
+const top8QualificationView = scheduleView([top8Stage], top8Stage.id, true);
+assert.match(top8QualificationView, /確認 Top 8 並建立第二階段/);
+assert.match(top8QualificationView, /value="swiss" checked hidden/);
+top8Stage = startSwissFinal(top8Stage, top8Finalists, 'single_elimination');
+assert.equal(top8Stage.swissFinalMode, 'swiss', '賽前設定應鎖定第二階段為瑞士輪');
+assert.equal(top8Stage.finalists.length, 8);
+assert.equal(top8Stage.rounds.at(-1).matches.length, 4);
+assert.ok(getSwissPhaseStandings(top8Stage, 'final').every((row) => row.wins === 0 && row.totalPoints === 0), '第二階段統計應從零開始');
+while (top8Stage.swissStage === 'final') top8Stage = finishCurrentRound(top8Stage);
+assert.equal(top8Stage.status, '已完成');
+assert.equal(top8Stage.swissStage, 'completed');
+assert.equal(top8Stage.rounds.filter((round) => round.seriesId === 'stage2-swiss').length, 4);
+assert.equal(top8Stage.swissFinalTopTwo.length, 2);
+assert.equal(top8Stage.champion, top8Stage.swissFinalTopTwo[0]);
+assertNoRepeatedPairings(top8Stage.rounds.filter((round) => round.seriesId === 'stage2-swiss'));
+const top8CompletedView = scheduleView([top8Stage], top8Stage.id, true);
+assert.match(top8CompletedView, /STAGE 2/);
+assert.match(top8CompletedView, /第二階段瑞士輪第一名/);
+
+const tenWayTiePlayers = Array.from({ length: 10 }, (_, index) => `同分-${index + 1}`);
+const top8TieProbe = {
+  ...createTournament('Top8切線同分', tenWayTiePlayers, 'swiss'),
+  status: '進行中',
+  swissStage: 'qualification',
+  swissStage2Config: { advanceCount: 8, format: 'swiss', rounds: 4 },
+};
+const top8TieView = scheduleView([top8TieProbe], top8TieProbe.id, true);
+const top8QualifierForm = top8TieView.match(/<form data-swiss-qualifier-form>[\s\S]*?<\/form>/)?.[0] || '';
+assert.equal((top8QualifierForm.match(/name="candidate"/g) || []).length, 10, 'Top8 切線同分時應只建立切線同分群組且不可受舊 6 人上限限制');
+const top8Qualifier = startSwissQualifier(top8TieProbe, tenWayTiePlayers);
+assert.equal(top8Qualifier.swissStage, 'qualifier');
+assert.equal(top8Qualifier.swissQualifierSlots, 8);
+assert.equal(top8Qualifier.rounds.filter((round) => round.phase === 'qualifier').length, 9);
+
+let top8Knockout = {
+  ...createTournament('Top8單淘汰第二階段', top8Players, 'swiss'),
+  status: '進行中',
+  swissStage: 'qualification',
+  swissStage2Config: { advanceCount: 8, format: 'single_elimination', rounds: 4 },
+};
+top8Knockout = startSwissFinal(top8Knockout, top8Players.slice(0, 8), 'swiss');
+assert.equal(top8Knockout.swissFinalMode, 'single_elimination');
+assert.equal(top8Knockout.rounds.at(-1).matches.length, 4);
+while (top8Knockout.swissStage === 'final') top8Knockout = finishCurrentRound(top8Knockout);
+assert.equal(top8Knockout.status, '已完成');
+assert.equal(getTournamentStandings(top8Knockout).filter((row) => top8Knockout.finalists.includes(row.player)).length, 8, 'Top8 單淘汰完成後八位晉級者都要保留在排行榜');
 
 const multiArena = startTournament(checkInAll(createTournament('雙台瑞士賽', players, 'swiss', 2)));
 assert.equal(multiArena.arenaCount, 2);

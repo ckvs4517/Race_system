@@ -60,10 +60,14 @@ export function createTournament(name, players, formatId = 'single_elimination',
 
 export function duplicateTournament(tournament) {
   const normalized = normalizeTournament(tournament);
-  return {
+  const duplicated = {
     ...createTournament(`${normalized.name}（副本）`, normalized.players, normalized.format, normalized.arenaCount, normalized.eventInfo, normalized.drinkSettings),
     participantDetails: normalizeParticipantDetails(normalized.players, normalized.participantDetails),
   };
+  if (normalized.format === 'swiss' && normalized.swissStage2Config) {
+    duplicated.swissStage2Config = structuredClone(normalized.swissStage2Config);
+  }
+  return duplicated;
 }
 
 export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}, drinkSettings = tournament.drinkSettings) {

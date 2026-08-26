@@ -23,6 +23,7 @@ export function manageView(tournament = null) {
   const eventInfo = tournament?.eventInfo || { ...DEFAULT_EVENT_INFO_for_88cafe, ...defaultEventSchedule() };
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
+  const swissStage2 = normalizeSwissStage2Config(tournament?.swissStage2Config);
   const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
 
   return `<section class="section-wrap page-section">
@@ -33,6 +34,13 @@ export function manageView(tournament = null) {
         <div class="step-heading"><span>01</span><div><b>基本資料</b><small>替這場賽事設定名稱</small></div></div>
         <label class="field"><span>賽事名稱</span><input name="name" maxlength="40" value="${escapeAttribute(tournament?.name || '')}" placeholder="例如：夏季陀螺公開賽" required></label>
         <label class="field"><span>比賽賽制</span><select name="format">${formatOptions}</select></label>
+        <div data-swiss-stage2-settings ${selectedFormat === 'swiss' ? '' : 'hidden'}>
+          <div class="field-grid">
+            <label class="field"><span>第二階段晉級人數</span><select name="swissAdvanceCount"><option value="4" ${swissStage2.advanceCount === 4 ? 'selected' : ''}>Top 4</option><option value="8" ${swissStage2.advanceCount === 8 ? 'selected' : ''}>Top 8</option></select><small>第一階段固定打 4 輪瑞士輪，再依排名進入第二階段。</small></label>
+            <label class="field"><span>第二階段賽制</span><select name="swissStage2Format"><option value="single_elimination" ${swissStage2.format === 'single_elimination' ? 'selected' : ''}>單淘汰</option><option value="swiss" ${swissStage2.format === 'swiss' ? 'selected' : ''}>瑞士輪</option></select><small>規則在開賽前鎖定，第一階段完成後只執行既定設定。</small></label>
+          </div>
+          <label class="field" data-swiss-stage2-rounds ${swissStage2.format === 'swiss' ? '' : 'hidden'}><span>第二階段瑞士輪輪數</span><input name="swissStage2Rounds" type="number" inputmode="numeric" min="1" max="8" step="1" value="${swissStage2.rounds}" required><small>8/30 賽事使用 4 輪；第二階段積分與配對歷史會重新計算。</small></label>
+        </div>
         <label class="field"><span>戰鬥台數</span><input name="arenaCount" type="number" inputmode="numeric" min="1" max="8" step="1" value="${tournament?.arenaCount || 1}" required><small>可設定 1 至 8 台；賽程會平均分配到各戰鬥台。</small></label>
         <div class="step-heading"><span>02</span><div><b>活動資訊</b><small>選填；填寫後會顯示在公開賽事頁</small></div></div>
         <div class="field-grid field-grid-time">
@@ -80,7 +88,16 @@ export function bindManage(root, options) {
   const players = form.elements.players;
   const count = root.querySelector('[data-player-count]');
   const getPlayers = () => players.value.split('\n').map((value) => value.trim()).filter(Boolean);
+  const syncSwissStage2Fields = () => {
+    const panel = root.querySelector('[data-swiss-stage2-settings]');
+    const roundsField = root.querySelector('[data-swiss-stage2-rounds]');
+    if (panel) panel.hidden = form.elements.format.value !== 'swiss';
+    if (roundsField) roundsField.hidden = form.elements.swissStage2Format?.value !== 'swiss';
+  };
   players.addEventListener('input', () => { count.textContent = `目前 ${getPlayers().length} 位參賽者`; });
+  form.elements.format.addEventListener('change', syncSwissStage2Fields);
+  form.elements.swissStage2Format?.addEventListener('change', syncSwissStage2Fields);
+  syncSwissStage2Fields();
   root.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => options.onCancel?.());
   root.querySelector('[data-drink-enabled]')?.addEventListener('change', (event) => {
     root.querySelector('[data-drink-menu]').hidden = !event.currentTarget.checked;
@@ -112,9 +129,10 @@ export function bindManage(root, options) {
         notes: form.elements.notes.value,
       };
       const drinkSettings = readDrinkSettings(form);
-      const result = options.tournament
+      let result = options.tournament
         ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings)
         : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings);
+      result = applySwissStage2Config(result, form);
       options.onSubmit(result);
     } catch (error) {
       alert(error.message);
@@ -155,6 +173,25 @@ function readDrinkSettings(form) {
       order: index + 1,
     })),
   };
+}
+
+function normalizeSwissStage2Config(value = {}) {
+  const advanceCount = Number(value?.advanceCount) === 8 ? 8 : 4;
+  const format = value?.format === 'swiss' ? 'swiss' : 'single_elimination';
+  const rounds = Math.min(8, Math.max(1, Number(value?.rounds) || 4));
+  return { advanceCount, format, rounds };
+}
+
+function applySwissStage2Config(tournament, form) {
+  const next = { ...tournament };
+  delete next.swissStage2Config;
+  if (next.format !== 'swiss') return next;
+  next.swissStage2Config = normalizeSwissStage2Config({
+    advanceCount: form.elements.swissAdvanceCount?.value,
+    format: form.elements.swissStage2Format?.value,
+    rounds: form.elements.swissStage2Rounds?.value,
+  });
+  return next;
 }
 
 function uniqueId(prefix) {
