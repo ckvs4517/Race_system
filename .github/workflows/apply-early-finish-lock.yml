@@ -53,34 +53,17 @@ jobs:
 
           main_path = Path('src/main.js')
           main = main_path.read_text()
-          old_render = """    if (tournament && matchSelection) {
+
+          old_render_head = """    if (tournament && matchSelection) {
               const match = tournament.rounds[matchSelection.roundIndex].matches[matchSelection.matchIndex];
-              view = scoreboardView({
-                mode: 'match',
-                tournamentName: tournament.name,
-                roundName: tournament.rounds[matchSelection.roundIndex].name,
-                playerA: match.playerA,
-                playerB: match.playerB,
-              });
-            } else {
-              view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);
-            }"""
-          new_render = """    const match = tournament && matchSelection
+              view = scoreboardView({"""
+          new_render_head = """    const match = tournament && matchSelection
               ? tournament.rounds?.[matchSelection.roundIndex]?.matches?.[matchSelection.matchIndex]
               : null;
             if (tournament && matchSelection && tournament.status === '進行中' && match?.status === '可開始') {
-              view = scoreboardView({
-                mode: 'match',
-                tournamentName: tournament.name,
-                roundName: tournament.rounds[matchSelection.roundIndex].name,
-                playerA: match.playerA,
-                playerB: match.playerB,
-              });
-            } else {
-              view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);
-            }"""
-          assert main.count(old_render) == 1
-          main = main.replace(old_render, new_render)
+              view = scoreboardView({"""
+          assert main.count(old_render_head) == 1, main.count(old_render_head)
+          main = main.replace(old_render_head, new_render_head)
 
           old_bind = """    const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
               const { roundIndex, matchIndex } = state.selectedMatch;
@@ -95,7 +78,7 @@ jobs:
                 return;
               }
               bindScoreboard(app, {"""
-          assert main.count(old_bind) == 1
+          assert main.count(old_bind) == 1, main.count(old_bind)
           main = main.replace(old_bind, new_bind)
           main_path.write_text(main)
 
