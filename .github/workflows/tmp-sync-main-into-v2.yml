@@ -1,0 +1,50 @@
+name: Sync main into V2 baseline
+
+on:
+  push:
+    branches: [v2/codebase-refactor]
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    if: github.event.head_commit.message == 'Prepare main sync into V2'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+          fetch-depth: 0
+      - name: Merge current tournament-ready main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          main_sha="$(git rev-parse origin/main)"
+          expected_main="ee92c0c407ed9df4db02944db6f651e01d158167"
+          if [ "$main_sha" != "$expected_main" ]; then
+            echo "main moved: expected $expected_main, got $main_sha"
+            exit 1
+          fi
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_rc=$?
+          set -e
+          conflicts="$(git diff --name-only --diff-filter=U | sort)"
+          expected_conflicts="$(printf '%s\n' '.github/workflows/staging-e2e.yml' 'scripts/test-fast.mjs' 'src/main.js' 'src/views/schedule.js' | sort)"
+          if [ "$conflicts" != "$expected_conflicts" ]; then
+            echo 'Unexpected merge conflict set:'
+            printf '%s\n' "$conflicts"
+            git merge --abort || true
+            exit 1
+          fi
+          for path in .github/workflows/staging-e2e.yml scripts/test-fast.mjs src/main.js src/views/schedule.js; do
+            git checkout --ours -- "$path"
+            git add "$path"
+          done
+          git rm .github/workflows/tmp-sync-main-into-v2.yml
+          git commit -m "Merge tournament-ready main into V2 baseline"
+          git push origin HEAD:v2/codebase-refactor
