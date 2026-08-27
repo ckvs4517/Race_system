@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   merge:
-    if: github.event.head_commit.message == 'Prepare main sync into V2'
+    if: github.event.head_commit.message == 'Retry main sync into V2'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -34,14 +34,14 @@ jobs:
           merge_rc=$?
           set -e
           conflicts="$(git diff --name-only --diff-filter=U | sort)"
-          expected_conflicts="$(printf '%s\n' '.github/workflows/staging-e2e.yml' 'scripts/test-fast.mjs' 'src/main.js' 'src/views/schedule.js' | sort)"
+          expected_conflicts="$(printf '%s\n' '.github/workflows/staging-e2e.yml' 'src/main.js' 'src/views/schedule.js' | sort)"
           if [ "$conflicts" != "$expected_conflicts" ]; then
             echo 'Unexpected merge conflict set:'
             printf '%s\n' "$conflicts"
             git merge --abort || true
             exit 1
           fi
-          for path in .github/workflows/staging-e2e.yml scripts/test-fast.mjs src/main.js src/views/schedule.js; do
+          for path in .github/workflows/staging-e2e.yml src/main.js src/views/schedule.js; do
             git checkout --ours -- "$path"
             git add "$path"
           done
