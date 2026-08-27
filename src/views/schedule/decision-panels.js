@@ -118,7 +118,7 @@ function swissMiniStandings(rows) {
   return `<div class="swiss-mini-standings">${rows.map((row) => `<div><b>${row.rank}</b><span>${escapeText(row.player)}</span><i>${row.wins} 勝 ${row.losses} 敗</i><strong>總得分 ${row.totalPoints}</strong></div>`).join('')}</div>`;
 }
 
-function readSwissStage2Config(tournament) {
+export function readSwissStage2Config(tournament) {
   if (!tournament?.swissStage2Config) return null;
   return {
     advanceCount: Number(tournament.swissStage2Config.advanceCount) === 8 ? 8 : 4,

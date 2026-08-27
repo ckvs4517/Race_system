@@ -2,6 +2,7 @@
 import { getSwissPhaseStandings, getTournamentStandings } from '../../domain/tournament.js';
 import { SWISS_RANKING_RULE_BUCHHOLZ, normalizeSwissRankingRule } from '../../domain/ranking/swiss-ranking.js';
 import { icons } from '../../ui/icons.js';
+import { readSwissStage2Config } from './decision-panels.js';
 import { escapeAttribute, escapeText } from './html-escape.js';
 import { roundPhaseLabel } from './rounds.js';
 
