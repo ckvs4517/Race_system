@@ -2,7 +2,7 @@
 import { getTournamentFormat } from '../../formats/registry.js';
 import { icons } from '../../ui/icons.js';
 import { pageHeader } from '../../ui/shell.js';
-import { formatEventDate, localDateKey } from './event-date.js';
+import { formatEventDate, localDateKey, normalizeEventDateKey } from './event-date.js';
 import { escapeAttribute, escapeText } from './html-escape.js';
 
 export function tournamentListView(tournaments, canManage = false) {
@@ -66,15 +66,15 @@ function eventListYear(item) {
 }
 
 function compareCompletedEventDates(left, right) {
-  const leftDate = String(left.eventInfo?.date || left.created || '');
-  const rightDate = String(right.eventInfo?.date || right.created || '');
+  const leftDate = normalizeEventDateKey(left.eventInfo?.date) || normalizeEventDateKey(left.created);
+  const rightDate = normalizeEventDateKey(right.eventInfo?.date) || normalizeEventDateKey(right.created);
   return rightDate.localeCompare(leftDate) || Number(right.id || 0) - Number(left.id || 0);
 }
 
 function compareEventDates(left, right) {
   const today = localDateKey(new Date());
-  const leftDate = left.eventInfo?.date || '';
-  const rightDate = right.eventInfo?.date || '';
+  const leftDate = normalizeEventDateKey(left.eventInfo?.date);
+  const rightDate = normalizeEventDateKey(right.eventInfo?.date);
   const group = (date) => !date ? 1 : date >= today ? 0 : 2;
   const groupDifference = group(leftDate) - group(rightDate);
   if (groupDifference) return groupDifference;

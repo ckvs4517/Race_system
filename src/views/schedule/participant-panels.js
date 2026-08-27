@@ -129,7 +129,7 @@ function draftCheckInView(tournament, canManage) {
   const tools = canManage ? `<div class="check-in-tools">
     <label class="roster-search"><span class="sr-only">搜尋選手</span><input type="search" data-roster-search autocomplete="off" placeholder="搜尋選手名稱"></label>
     <div class="roster-filters" aria-label="名單篩選"><button type="button" class="is-active" data-roster-filter="all">全部</button><button type="button" data-roster-filter="unchecked">未報到</button><button type="button" data-roster-filter="checked">已報到</button></div>
-    <div class="roster-tools-actions"><button type="button" class="button button-secondary" data-open-add-player>＋ 新增選手</button><button type="button" class="button button-secondary button-danger-quiet" data-enter-remove-mode>管理名單</button></div>
+    <div class="roster-tools-actions"><button type="button" class="button button-secondary" data-check-in-all ${checkedInCount >= tournament.players.length && tournament.players.length ? 'disabled' : ''}>全部報到</button><button type="button" class="button button-secondary" data-open-add-player>＋ 新增選手</button><button type="button" class="button button-secondary button-danger-quiet" data-enter-remove-mode>管理名單</button></div>
   </div>` : '';
   const dialogs = canManage ? `<dialog class="mobile-sheet" data-add-player-dialog>
       <form method="dialog" class="mobile-sheet-card" data-add-draft-player-form>
@@ -154,9 +154,9 @@ function draftCheckInView(tournament, canManage) {
   const guidance = checkedInCount >= minimumPlayers
     ? '已達開賽人數；未勾選者在開賽時會保留為未出席並排除賽程。'
     : `至少需要 ${minimumPlayers} 位選手完成報到才能開始賽事。`;
-  return `<section class="check-in-panel">
-    <div class="check-in-heading"><div><p class="kicker">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
-    <p class="check-in-guidance">${guidance}</p>
+  return `<section class="check-in-panel" data-check-in-minimum="${minimumPlayers}" data-check-in-total="${tournament.players.length}">
+    <div class="check-in-heading"><div><p class="kicker">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong data-check-in-summary>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
+    <p class="check-in-guidance" data-check-in-guidance>${guidance}</p>
     ${tools}
     ${canManage ? drinkSummaryView(tournament) : ''}
     <div class="check-in-list">${rows || '<div class="check-in-empty">目前沒有參賽選手，可分享私密填寫連結或新增現場選手。</div>'}</div>

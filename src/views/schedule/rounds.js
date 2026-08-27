@@ -27,6 +27,8 @@ export function currentRoundEntries(tournament, projectedRounds, isSwiss) {
 export function roundPhaseLabel(round, roundIndex) {
   const phase = round.phase || 'preliminary';
   if (phase === 'qualifier') return 'QUALIFIER';
+  if (phase === 'placement') return 'TIE BREAK';
+  if (round.seriesId === 'stage2-swiss' || String(round.name || '').includes('第二階段')) return 'STAGE 2';
   if (phase === 'final') return 'TOP 4 FINAL';
   return `ROUND ${String(roundIndex + 1).padStart(2, '0')}`;
 }
@@ -96,4 +98,9 @@ function matchCard(match, roundIndex, matchIndex, scoringEnabled, replayEnabled,
   if (interactive) return `<button class="match-card is-ready" data-round-index="${roundIndex}" data-match-index="${matchIndex}">${content}</button>`;
   if (scoringEnabled && match.status === '已完成') return `<article class="match-card is-complete">${content}${replayEnabled && match.outcome !== 'withdrawal' ? `<button class="match-replay" data-replay-round="${roundIndex}" data-replay-match="${matchIndex}">重新比賽</button>` : ''}</article>`;
   return `<article class="match-card">${content}</article>`;
+}
+
+export function swissRoundArenaCount(tournament, round, arenaCount) {
+  if (tournament.swissStage2Config && ['final', 'placement'].includes(round.phase)) return arenaCount;
+  return round.phase === 'final' ? 1 : arenaCount;
 }

@@ -2,7 +2,7 @@
 import { tournamentDetailView } from './schedule/tournament-detail.js';
 import { tournamentListView } from './schedule/tournament-list.js';
 
-export function scheduleView(tournaments, selectedId, canManage = false) {
+export function scheduleView(tournaments, selectedId, canManage = false, quickScoreMode = false) {
   const selected = tournaments.find((item) => item.id === selectedId);
-  return selected ? tournamentDetailView(selected, canManage) : tournamentListView(tournaments, canManage);
+  return selected ? tournamentDetailView(selected, canManage, quickScoreMode) : tournamentListView(tournaments, canManage);
 }
