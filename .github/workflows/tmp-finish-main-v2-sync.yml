@@ -1,0 +1,101 @@
+name: Finish main to V2 sync
+on:
+  push:
+    branches: [v2/codebase-refactor]
+permissions:
+  contents: write
+jobs:
+  port:
+    if: github.event.head_commit.message == 'Finish tournament-ready main sync in V2'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+          fetch-depth: 0
+      - name: Wire V2 schedule feature modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Controller: delegate new main behavior to feature-owned modules.
+          p=Path('src/features/schedule/controller.js'); s=p.read_text()
+          anchor="import { registrationUrl } from '../registration/url.js';\n"
+          additions="import { bindCheckInControls } from './check-in.js';\nimport { bindQuickScoreControls } from './quick-score.js';\nimport { bindStage2RoundsVisibility } from './stage2-controls.js';\n"
+          assert anchor in s and additions not in s
+          s=s.replace(anchor, anchor+additions, 1)
+
+          anchor="  bindTournamentListEvents(root);\n  prepareRosterUi(state.selectedTournamentId);\n\n"
+          replacement="  bindTournamentListEvents(root);\n  prepareRosterUi(state.selectedTournamentId);\n  bindQuickScoreControls(root, state, {\n    requestRender,\n    rememberScroll: (position) => { scheduleScrollRestore = position; },\n  });\n\n"
+          assert anchor in s
+          s=s.replace(anchor,replacement,1)
+
+          old="""  root.querySelectorAll('.match-card.is-ready').forEach((card) => card.addEventListener('click', () => {\n    scheduleScrollRestore = { top: window.scrollY, left: window.scrollX };\n    selectMatch(card.dataset.roundIndex, card.dataset.matchIndex);\n    requestRender(true);\n  }));\n"""
+          assert old in s
+          s=s.replace(old,'',1)
+
+          anchor="function bindRosterEvents(root, state, requestRender) {\n"
+          replacement="function bindRosterEvents(root, state, requestRender) {\n  bindCheckInControls(root, state, { applyRosterUi: () => applyRosterUi(root), requestRender });\n"
+          assert anchor in s
+          s=s.replace(anchor,replacement,1)
+
+          old="""  root.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', async () => {\n    const player = input.dataset.checkInPlayer;\n    const checkedIn = input.checked;\n    input.disabled = true;\n    try {\n      await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player, checkedIn });\n      showToast(`${player}${checkedIn ? ' 已報到' : ' 已取消報到'}。`);\n    } catch (error) {\n      showToast(error.message, 'error');\n      requestRender();\n    }\n  }));\n"""
+          assert old in s
+          s=s.replace(old,'',1)
+
+          old="""  root.querySelector('[data-swiss-final-form]')?.addEventListener('submit', (event) => {\n    event.preventDefault();\n    const finalists = [...event.currentTarget.querySelectorAll('input[name=\"finalist\"]:checked')].map((input) => input.value);\n    const mode = event.currentTarget.querySelector('input[name=\"swissFinalMode\"]:checked')?.value;\n    const label = mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';\n    if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;\n    beginSwissFinal(state.selectedTournamentId, finalists, mode);\n  });\n"""
+          new="""  const swissFinalForm = root.querySelector('[data-swiss-final-form]');\n  bindStage2RoundsVisibility(swissFinalForm);\n  swissFinalForm?.addEventListener('submit', (event) => {\n    event.preventDefault();\n    const finalists = [...event.currentTarget.querySelectorAll('input[name=\"finalist\"]:checked')].map((input) => input.value);\n    const mode = event.currentTarget.querySelector('input[name=\"swissFinalMode\"]:checked')?.value;\n    const rounds = mode === 'swiss' ? Number(event.currentTarget.elements.swissStage2Rounds?.value) || 4 : 4;\n    const selectedTournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);\n    const configuredStage2 = selectedTournament?.swissStage2Config;\n    const modeLabel = mode === 'swiss' ? `瑞士輪 ${rounds} 輪` : mode === 'round_robin' ? '循環賽' : '單淘汰';\n    const label = configuredStage2 ? `第二階段${modeLabel}` : mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';\n    if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;\n    beginSwissFinal(state.selectedTournamentId, finalists, mode, rounds);\n  });\n"""
+          assert old in s
+          s=s.replace(old,new,1)
+
+          old="""async function beginSwissFinal(tournamentId, finalists, mode) {\n  try { await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode }); }\n  catch (error) { alert(error.message); }\n}\n"""
+          new="""async function beginSwissFinal(tournamentId, finalists, mode, rounds = 4) {\n  try { await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode, rounds }); }\n  catch (error) { alert(error.message); }\n}\n"""
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Main stays coordinator-only; it only supplies the feature's render mode to the schedule view.
+          p=Path('src/main.js'); s=p.read_text()
+          anchor="import { bindScheduleController } from './features/schedule/controller.js';\n"
+          addition="import { isQuickScoreModeEnabled } from './features/schedule/quick-score.js';\n"
+          assert anchor in s and addition not in s
+          s=s.replace(anchor,anchor+addition,1)
+          old="view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);"
+          new="view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin, state.isAdmin && isQuickScoreModeEnabled());"
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Characterization tests now assert behavior in the owning V2 feature modules, not legacy main.js.
+          p=Path('tests/check-in.test.mjs'); s=p.read_text()
+          old="const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');"
+          new="const checkInSource = readFileSync(new URL('../src/features/schedule/check-in.js', import.meta.url), 'utf8');"
+          assert old in s
+          s=s.replace(old,new,1).replace("assert.match(mainSource, /checkInSaveQueue/, '快速連續報到會序列化送出，避免 revision 衝突');", "assert.match(checkInSource, /checkInSaveQueue/, '快速連續報到會在 schedule feature 序列化送出，避免 revision 衝突');", 1)
+          p.write_text(s)
+
+          p=Path('tests/stage2-rounds-visibility.test.mjs'); s=p.read_text()
+          s=s.replace("const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');", "const stage2Controls = await readFile(new URL('../src/features/schedule/stage2-controls.js', import.meta.url), 'utf8');", 1)
+          s=s.replace("assert.match(main, /roundsField\\.style\\.display = showRounds \\? '' : 'none'/", "assert.match(stage2Controls, /roundsField\\.style\\.display = showRounds \\? '' : 'none'/", 1)
+          s=s.replace("assert.match(main, /roundsInput\\.disabled = !showRounds/", "assert.match(stage2Controls, /roundsInput\\.disabled = !showRounds/", 1)
+          p.write_text(s)
+          PY
+          node --check src/main.js
+          node --check src/features/schedule/controller.js
+          node --check src/features/schedule/check-in.js
+          node --check src/features/schedule/quick-score.js
+          node --check src/features/schedule/stage2-controls.js
+          node tests/check-in.test.mjs
+          node tests/stage2-rounds-visibility.test.mjs
+          node tests/quick-score.test.mjs
+      - name: Commit and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-finish-main-v2-sync.yml
+          git add src/main.js src/features/schedule/controller.js tests/check-in.test.mjs tests/stage2-rounds-visibility.test.mjs
+          git commit -m "Wire tournament-ready main features into V2 schedule controllers"
+          git push origin HEAD:v2/codebase-refactor
