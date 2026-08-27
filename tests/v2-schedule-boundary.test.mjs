@@ -21,4 +21,9 @@ for (const name of modules) {
   assert.ok(info.size < 20_000, `${name} 不應成為新的 schedule monolith (${info.size} bytes)`);
 }
 
+const decisionPanels = await readFile(new URL('../src/views/schedule/decision-panels.js', import.meta.url), 'utf8');
+const leaderboard = await readFile(new URL('../src/views/schedule/leaderboard.js', import.meta.url), 'utf8');
+assert.match(decisionPanels, /export function readSwissStage2Config/, '跨 schedule 模組使用的第二階段設定 helper 必須維持明確 export');
+assert.match(leaderboard, /import \{ readSwissStage2Config \} from '\.\/decision-panels\.js'/, '排行榜必須透過模組依賴取得第二階段設定 helper');
+
 console.log('PASS V2 schedule view boundary');
