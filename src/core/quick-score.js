@@ -27,6 +27,16 @@ export function validateQuickScoreInput(scoreA, scoreB) {
   return { scoreA: a, scoreB: b };
 }
 
+export function parseQuickScoreText(value) {
+  const text = String(value ?? '').trim()
+    .replaceAll('：', ':')
+    .replace(/[－–—]/g, '-');
+  let match = text.match(/^(\d+)\s*[:\/-]\s*(\d+)$/) || text.match(/^(\d+)\s+(\d+)$/);
+  if (!match && /^\d{2}$/.test(text)) match = [text, text[0], text[1]];
+  if (!match) throw new Error('請輸入例如 42、4:2、4 2 或 4-2 的最終比分。');
+  return validateQuickScoreInput(match[1], match[2]);
+}
+
 function parseNonNegativeInteger(value) {
   const text = String(value ?? '').trim();
   if (!/^\d+$/.test(text)) throw new Error('比分必須是非負整數。');

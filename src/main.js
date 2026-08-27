@@ -4,7 +4,7 @@
  */
 import { currentRoute, navigate, onRouteChange } from './core/router.js';
 import { rosterPlayerMatches } from './core/roster-filter.js';
-import { readQuickScoreMode, validateQuickScoreInput, writeQuickScoreMode } from './core/quick-score.js';
+import { parseQuickScoreText, readQuickScoreMode, writeQuickScoreMode } from './core/quick-score.js';
 import { createTournamentRecord, deleteTournamentRecord, executeTournamentAction, getPublicRegistration, getState, initializeStore, loadTournamentRegistrations, loginAdmin, logoutAdmin, mutateTournament, refreshTournament, refreshTournaments, replaceTournamentRecords, submitPublicRegistration, subscribe, updateRegistrationRecord, updateState, selectTournament, selectMatch, selectEditingTournament } from './data/store.js';
 import { duplicateTournament, normalizeTournament, requiredSeedCount } from './domain/tournament.js';
 import { exportShareCardAsPng } from './export/share-card-png.js';
@@ -454,99 +454,76 @@ function quickScoreMatch(draft, state = getState()) {
   return { tournament, round, match };
 }
 
-function updateQuickScoreSubmitLabel(dialog) {
-  const submit = dialog.querySelector('[data-quick-score-submit]');
-  const scoreA = dialog.querySelector('[name="scoreA"]')?.value.trim() || '';
-  const scoreB = dialog.querySelector('[name="scoreB"]')?.value.trim() || '';
+function updateQuickScoreInlineSubmitLabel(form) {
+  const submit = form.querySelector('[data-quick-score-submit]');
+  const input = form.querySelector('[name="score"]');
   if (!submit) return;
   const prefix = quickScoreDraft?.error ? '重新送出' : '確認登分';
-  submit.textContent = scoreA !== '' && scoreB !== '' ? `${prefix} ${scoreA} : ${scoreB}` : prefix;
+  try {
+    const score = parseQuickScoreText(input?.value || '');
+    submit.textContent = `${prefix} ${score.scoreA} : ${score.scoreB}`;
+  } catch {
+    submit.textContent = prefix;
+  }
 }
 
-function hydrateQuickScoreDialog(dialog) {
+function quickScoreInlineMarkup() {
+  return `<form class="quick-score-inline-form" data-quick-score-form novalidate>
+    <div class="quick-score-inline-heading"><span data-quick-score-context>快速登分</span><button type="button" data-quick-score-close>取消</button></div>
+    <div class="quick-score-inline-entry"><label><span class="sr-only">最終比分</span><input type="text" inputmode="numeric" autocomplete="off" enterkeyhint="done" name="score" placeholder="例如 42" aria-label="最終比分" required></label><button type="submit" class="button button-primary" data-quick-score-submit>確認登分</button></div>
+    <p class="quick-score-help">可輸入 42、4:2、4 2 或 4-2；任一方達到或超過 4 分即結束，敗方必須低於 4 分。</p>
+    <p class="quick-score-error" data-quick-score-error role="alert" hidden></p>
+  </form>`;
+}
+
+function removeQuickScoreInline() {
+  app.querySelector('[data-quick-score-inline]')?.remove();
+  app.querySelectorAll('.match-card.is-quick-scoring').forEach((card) => card.classList.remove('is-quick-scoring'));
+}
+
+function hydrateQuickScoreInline(inline) {
   if (!quickScoreDraft) return false;
   const { tournament, round, match } = quickScoreMatch(quickScoreDraft);
   if (!tournament || !round || !match || tournament.status !== '進行中' || match.status !== '可開始') return false;
-  dialog.querySelector('[data-quick-score-round]').textContent = `${round.name} · MATCH ${String(quickScoreDraft.matchIndex + 1).padStart(2, '0')}`;
-  dialog.querySelector('[data-quick-score-arena]').textContent = quickScoreDraft.arenaLabel || '戰鬥台 1';
-  dialog.querySelector('[data-quick-score-player-a]').textContent = match.playerA;
-  dialog.querySelector('[data-quick-score-player-b]').textContent = match.playerB;
-  const scoreA = dialog.querySelector('[name="scoreA"]');
-  const scoreB = dialog.querySelector('[name="scoreB"]');
-  scoreA.value = quickScoreDraft.scoreA ?? '';
-  scoreB.value = quickScoreDraft.scoreB ?? '';
-  const errorNode = dialog.querySelector('[data-quick-score-error]');
+  const form = inline.querySelector('[data-quick-score-form]');
+  form.querySelector('[data-quick-score-context]').textContent = `${quickScoreDraft.arenaLabel || '戰鬥台 1'} · ${round.name} · ${match.playerA} vs ${match.playerB}`;
+  const input = form.querySelector('[name="score"]');
+  input.value = quickScoreDraft.scoreText ?? '';
+  const errorNode = form.querySelector('[data-quick-score-error]');
   errorNode.textContent = quickScoreDraft.error || '';
   errorNode.hidden = !quickScoreDraft.error;
-  const submit = dialog.querySelector('[data-quick-score-submit]');
+  const submit = form.querySelector('[data-quick-score-submit]');
   submit.disabled = Boolean(quickScoreDraft.submitting);
-  if (quickScoreDraft.submitting) submit.textContent = '正在同步賽果…';
-  else updateQuickScoreSubmitLabel(dialog);
+  if (quickScoreDraft.submitting) submit.textContent = '正在同步…';
+  else updateQuickScoreInlineSubmitLabel(form);
   return true;
 }
 
-function focusQuickScoreInput(dialog) {
+function focusQuickScoreInline(inline) {
   if (!quickScoreDraft || quickScoreDraft.submitting) return;
-  const scoreA = dialog.querySelector('[name="scoreA"]');
-  const scoreB = dialog.querySelector('[name="scoreB"]');
-  const target = scoreA.value === '' ? scoreA : scoreB;
-  target?.focus();
-  target?.select?.();
+  const input = inline.querySelector('[name="score"]');
+  input?.focus();
+  input?.select?.();
 }
 
-function openQuickScoreDialog(state, card) {
-  const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
-  const roundIndex = Number(card.dataset.roundIndex);
-  const matchIndex = Number(card.dataset.matchIndex);
-  const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];
-  if (!state.isAdmin || !tournament || tournament.status !== '進行中' || match?.status !== '可開始') return;
-  const arenaLabel = card.closest('.battle-station')?.querySelector('.battle-station-title span')?.textContent?.trim() || '戰鬥台 1';
-  quickScoreDraft = {
-    tournamentId: tournament.id,
-    roundIndex,
-    matchIndex,
-    arenaLabel,
-    scoreA: '',
-    scoreB: '',
-    error: '',
-    submitting: false,
-  };
-  const dialog = app.querySelector('[data-quick-score-dialog]');
-  if (!dialog || !hydrateQuickScoreDialog(dialog)) return;
-  if (!dialog.open) dialog.showModal();
-  queueMicrotask(() => focusQuickScoreInput(dialog));
-}
-
-function bindQuickScoreDialog(state) {
-  const dialog = app.querySelector('[data-quick-score-dialog]');
-  if (!dialog) return;
-  const form = dialog.querySelector('[data-quick-score-form]');
-  const scoreA = form.querySelector('[name="scoreA"]');
-  const scoreB = form.querySelector('[name="scoreB"]');
+function bindQuickScoreInlineForm(state, inline) {
+  const form = inline.querySelector('[data-quick-score-form]');
+  const input = form.querySelector('[name="score"]');
   const errorNode = form.querySelector('[data-quick-score-error]');
 
   const syncDraft = () => {
     if (!quickScoreDraft) return;
-    quickScoreDraft.scoreA = scoreA.value;
-    quickScoreDraft.scoreB = scoreB.value;
+    quickScoreDraft.scoreText = input.value;
     quickScoreDraft.error = '';
     errorNode.textContent = '';
     errorNode.hidden = true;
-    updateQuickScoreSubmitLabel(dialog);
+    updateQuickScoreInlineSubmitLabel(form);
   };
-  scoreA.addEventListener('input', syncDraft);
-  scoreB.addEventListener('input', syncDraft);
-  scoreA.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    scoreB.focus();
-    scoreB.select();
-  });
-  dialog.querySelectorAll('[data-quick-score-close]').forEach((button) => button.addEventListener('click', () => {
+  input.addEventListener('input', syncDraft);
+  form.querySelector('[data-quick-score-close]')?.addEventListener('click', () => {
     quickScoreDraft = null;
-    dialog.close();
-  }));
-  dialog.addEventListener('cancel', () => { quickScoreDraft = null; });
+    removeQuickScoreInline();
+  });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -554,12 +531,12 @@ function bindQuickScoreDialog(state) {
     syncDraft();
     let score;
     try {
-      score = validateQuickScoreInput(scoreA.value, scoreB.value);
+      score = parseQuickScoreText(input.value);
     } catch (error) {
       quickScoreDraft.error = error.message;
       errorNode.textContent = error.message;
       errorNode.hidden = false;
-      updateQuickScoreSubmitLabel(dialog);
+      updateQuickScoreInlineSubmitLabel(form);
       return;
     }
 
@@ -575,7 +552,7 @@ function bindQuickScoreDialog(state) {
     const scrollPosition = { top: window.scrollY, left: window.scrollX };
     quickScoreDraft.submitting = true;
     quickScoreDraft.error = '';
-    hydrateQuickScoreDialog(dialog);
+    hydrateQuickScoreInline(inline);
     try {
       await executeTournamentAction(tournament.id, 'record_match', {
         roundIndex: draft.roundIndex,
@@ -599,20 +576,65 @@ function bindQuickScoreDialog(state) {
         return;
       }
       quickScoreDraft = { ...draft, error: error.message || '同步失敗，請確認網路後重新送出。', submitting: false };
+      scheduleScrollRestore = scrollPosition;
       render();
     }
   });
+}
 
-  if (state.isAdmin && readQuickScoreMode() && quickScoreDraft?.tournamentId === state.selectedTournamentId) {
-    queueMicrotask(() => {
-      if (!hydrateQuickScoreDialog(dialog)) {
-        quickScoreDraft = null;
-        return;
-      }
-      if (!dialog.open) dialog.showModal();
-      focusQuickScoreInput(dialog);
-    });
+function mountQuickScoreInline(state, focus = true) {
+  removeQuickScoreInline();
+  if (!state.isAdmin || !readQuickScoreMode() || !quickScoreDraft || quickScoreDraft.tournamentId !== state.selectedTournamentId) return;
+  const { tournament, match } = quickScoreMatch(quickScoreDraft, state);
+  if (!tournament || tournament.status !== '進行中' || match?.status !== '可開始') {
+    quickScoreDraft = null;
+    return;
   }
+  const card = app.querySelector(`.match-card.is-ready[data-round-index="${quickScoreDraft.roundIndex}"][data-match-index="${quickScoreDraft.matchIndex}"]`);
+  if (!card) {
+    quickScoreDraft = null;
+    return;
+  }
+  card.classList.add('is-quick-scoring');
+  const inline = document.createElement('div');
+  inline.className = 'quick-score-inline';
+  inline.dataset.quickScoreInline = '';
+  inline.innerHTML = quickScoreInlineMarkup();
+  card.insertAdjacentElement('afterend', inline);
+  if (!hydrateQuickScoreInline(inline)) {
+    quickScoreDraft = null;
+    removeQuickScoreInline();
+    return;
+  }
+  bindQuickScoreInlineForm(state, inline);
+  if (focus) queueMicrotask(() => focusQuickScoreInline(inline));
+}
+
+function openQuickScoreInline(state, card) {
+  const tournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+  const roundIndex = Number(card.dataset.roundIndex);
+  const matchIndex = Number(card.dataset.matchIndex);
+  const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];
+  if (!state.isAdmin || !tournament || tournament.status !== '進行中' || match?.status !== '可開始') return;
+  const sameMatch = quickScoreDraft?.tournamentId === tournament.id
+    && quickScoreDraft?.roundIndex === roundIndex
+    && quickScoreDraft?.matchIndex === matchIndex;
+  if (sameMatch) {
+    const inline = app.querySelector('[data-quick-score-inline]');
+    if (inline) focusQuickScoreInline(inline);
+    return;
+  }
+  const arenaLabel = card.closest('.battle-station')?.querySelector('.battle-station-title span')?.textContent?.trim() || '戰鬥台 1';
+  quickScoreDraft = {
+    tournamentId: tournament.id,
+    roundIndex,
+    matchIndex,
+    arenaLabel,
+    scoreText: '',
+    error: '',
+    submitting: false,
+  };
+  mountQuickScoreInline(state);
 }
 
 function bindScheduleEvents(state) {
@@ -637,7 +659,7 @@ function bindScheduleEvents(state) {
   }
   bindTournamentListEvents();
   prepareRosterUi(state.selectedTournamentId);
-  bindQuickScoreDialog(state);
+  mountQuickScoreInline(state);
   app.querySelectorAll('[data-tournament-id]').forEach((card) => card.addEventListener('click', () => {
     selectTournament(card.dataset.tournamentId);
     render();
@@ -659,7 +681,7 @@ function bindScheduleEvents(state) {
   });
   app.querySelectorAll('.match-card.is-ready').forEach((card) => card.addEventListener('click', () => {
     if (state.isAdmin && readQuickScoreMode()) {
-      openQuickScoreDialog(state, card);
+      openQuickScoreInline(state, card);
       return;
     }
     scheduleScrollRestore = { top: window.scrollY, left: window.scrollX };

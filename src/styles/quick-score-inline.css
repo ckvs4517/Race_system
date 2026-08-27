@@ -1,0 +1,39 @@
+/* 主控快速登分：非阻塞式卡片內展開，手機與平板可持續查看其他對局。 */
+.match-card.is-quick-scoring {
+  border-color: #f2c94c;
+  box-shadow: 0 0 0 1px #f2c94c28 inset, 0 10px 24px #0005;
+}
+.quick-score-inline {
+  margin-top: -3px;
+  padding: 12px;
+  background: linear-gradient(145deg, #151b24, #0d1219);
+  border: 1px solid #f2c94c88;
+  border-radius: 9px;
+  box-shadow: 0 12px 28px #0006;
+}
+.quick-score-inline-form { display: grid; gap: 9px; }
+.quick-score-inline-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.quick-score-inline-heading span { min-width: 0; overflow: hidden; color: #ffe785; font-size: 11px; font-weight: 900; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.quick-score-inline-heading button { flex: 0 0 auto; padding: 5px 8px; background: transparent; color: #aeb7c5; border: 0; border-radius: 6px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.quick-score-inline-heading button:hover { background: #ffffff0a; color: #fff; }
+.quick-score-inline-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; }
+.quick-score-inline-entry label { min-width: 0; }
+.quick-score-inline-entry input { width: 100%; height: 52px; padding: 0 14px; background: #070a0f; color: #fff; border: 1px solid #566277; border-radius: 8px; font: 900 28px/1 var(--font-display); letter-spacing: 1px; text-align: center; font-variant-numeric: tabular-nums; }
+.quick-score-inline-entry input:focus { border-color: #f2c94c; box-shadow: 0 0 0 3px #f2c94c18; outline: 0; }
+.quick-score-inline-entry .button { min-height: 52px; padding-inline: 16px; white-space: nowrap; }
+.quick-score-inline .quick-score-help { margin: 0; font-size: 10px; line-height: 1.45; }
+.quick-score-inline .quick-score-error { margin: 0; padding: 8px 10px; font-size: 11px; }
+
+@media (max-width: 620px) {
+  .quick-score-inline { padding: 10px; }
+  .quick-score-inline-entry { grid-template-columns: minmax(0, 1fr) 112px; gap: 7px; }
+  .quick-score-inline-entry input { height: 50px; font-size: 27px; }
+  .quick-score-inline-entry .button { min-height: 50px; padding-inline: 10px; font-size: 12px; }
+  .quick-score-inline-heading span { font-size: 10px; }
+  .quick-score-inline .quick-score-help { font-size: 9px; }
+}
+
+@media (max-width: 390px) {
+  .quick-score-inline-entry { grid-template-columns: minmax(0, 1fr) 98px; }
+  .quick-score-inline-entry .button { font-size: 11px; }
+}

@@ -123,25 +123,7 @@ function bracketView(tournament, canManage, quickScoreMode = false) {
   const quickScoreNotice = canManage && tournament.status === '進行中' && quickScoreMode
     ? '<div class="quick-score-notice"><b>⚡ 快速登分模式已開啟</b><span>點擊未完成對局會直接在本頁輸入裁判回報的最終比分。</span></div>'
     : '';
-  const quickScoreDialog = canManage && tournament.status === '進行中' ? quickScoreDialogView() : '';
-  return `<section class="section-wrap page-section${canManage && tournament.status === '進行中' && quickScoreMode ? ' quick-score-active' : ''}">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${quickScoreNotice}${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}${quickScoreDialog}</section>`;
-}
-
-function quickScoreDialogView() {
-  return `<dialog class="mobile-sheet quick-score-dialog" data-quick-score-dialog>
-    <form class="mobile-sheet-card quick-score-card" data-quick-score-form novalidate>
-      <div class="mobile-sheet-heading"><div><p class="kicker">QUICK SCORE</p><h2>快速登分</h2></div><button type="button" data-quick-score-close aria-label="關閉">×</button></div>
-      <div class="quick-score-context"><span data-quick-score-round>目前輪次</span><b data-quick-score-arena>戰鬥台 1</b></div>
-      <div class="quick-score-grid">
-        <label><span data-quick-score-player-a>選手 A</span><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" name="scoreA" aria-label="選手 A 最終分數" required></label>
-        <i>:</i>
-        <label><span data-quick-score-player-b>選手 B</span><input type="number" min="0" step="1" inputmode="numeric" autocomplete="off" name="scoreB" aria-label="選手 B 最終分數" required></label>
-      </div>
-      <p class="quick-score-help">直接輸入裁判回報的最終比分；任一方達到或超過 4 分即獲勝，因此敗方最終比分必須低於 4 分。</p>
-      <p class="quick-score-error" data-quick-score-error role="alert" hidden></p>
-      <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-quick-score-close>取消</button><button type="submit" class="button button-primary" data-quick-score-submit>確認登分</button></div>
-    </form>
-  </dialog>`;
+  return `<section class="section-wrap page-section${canManage && tournament.status === '進行中' && quickScoreMode ? ' quick-score-active' : ''}">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${quickScoreNotice}${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}</section>`;
 }
 
 function currentRoundEntries(tournament, projectedRounds, isSwiss) {
