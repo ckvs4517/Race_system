@@ -20,6 +20,9 @@ import { showToast } from '../../ui/toast.js';
 import { bindDrinkSelectionFields, drinkSelectionFields, readDrinkSelection } from '../../views/drink-fields.js';
 import { bindScoreboard } from '../../views/scoreboard.js';
 import { registrationUrl } from '../registration/url.js';
+import { bindCheckInControls } from './check-in.js';
+import { bindQuickScoreControls } from './quick-score.js';
+import { bindStage2RoundsVisibility } from './stage2-controls.js';
 
 let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
 let tournamentListUiState = { tab: 'recent', query: '', year: 'all', format: 'all' };
@@ -48,6 +51,10 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
 
   bindTournamentListEvents(root);
   prepareRosterUi(state.selectedTournamentId);
+  bindQuickScoreControls(root, state, {
+    requestRender,
+    rememberScroll: (position) => { scheduleScrollRestore = position; },
+  });
 
   root.querySelectorAll('[data-tournament-id]').forEach((card) => card.addEventListener('click', () => {
     selectTournament(card.dataset.tournamentId);
@@ -60,11 +67,6 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
   }));
   root.querySelectorAll('[data-copy-tournament]').forEach((button) => button.addEventListener('click', () => {
     copyTournament(Number(button.dataset.copyTournament), requestRender);
-  }));
-  root.querySelectorAll('.match-card.is-ready').forEach((card) => card.addEventListener('click', () => {
-    scheduleScrollRestore = { top: window.scrollY, left: window.scrollX };
-    selectMatch(card.dataset.roundIndex, card.dataset.matchIndex);
-    requestRender(true);
   }));
   root.querySelector('[data-action="edit-tournament"]')?.addEventListener('click', () => {
     selectEditingTournament(state.selectedTournamentId);
@@ -141,6 +143,7 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
 }
 
 function bindRosterEvents(root, state, requestRender) {
+  bindCheckInControls(root, state, { applyRosterUi: () => applyRosterUi(root), requestRender });
   root.querySelector('[data-roster-search]')?.addEventListener('input', (event) => {
     rosterUiState.query = event.currentTarget.value;
     applyRosterUi(root);
@@ -178,18 +181,6 @@ function bindRosterEvents(root, state, requestRender) {
       showToast(error.message, 'error');
     }
   });
-  root.querySelectorAll('[data-check-in-player]').forEach((input) => input.addEventListener('change', async () => {
-    const player = input.dataset.checkInPlayer;
-    const checkedIn = input.checked;
-    input.disabled = true;
-    try {
-      await executeTournamentAction(state.selectedTournamentId, 'set_check_in', { player, checkedIn });
-      showToast(`${player}${checkedIn ? ' 已報到' : ' 已取消報到'}。`);
-    } catch (error) {
-      showToast(error.message, 'error');
-      requestRender();
-    }
-  }));
   root.querySelector('[data-add-draft-player-form]')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const input = event.currentTarget.elements.playerName;
@@ -270,13 +261,19 @@ function bindMatchAdministration(root, state, requestRender) {
     if (!confirm(`確定為選取的 ${candidates.length} 位選手建立資格積分決定賽嗎？`)) return;
     beginSwissQualifier(state.selectedTournamentId, candidates);
   });
-  root.querySelector('[data-swiss-final-form]')?.addEventListener('submit', (event) => {
+  const swissFinalForm = root.querySelector('[data-swiss-final-form]');
+  bindStage2RoundsVisibility(swissFinalForm);
+  swissFinalForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     const finalists = [...event.currentTarget.querySelectorAll('input[name="finalist"]:checked')].map((input) => input.value);
     const mode = event.currentTarget.querySelector('input[name="swissFinalMode"]:checked')?.value;
-    const label = mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
+    const rounds = mode === 'swiss' ? Number(event.currentTarget.elements.swissStage2Rounds?.value) || 4 : 4;
+    const selectedTournament = state.tournaments.find((item) => item.id === state.selectedTournamentId);
+    const configuredStage2 = selectedTournament?.swissStage2Config;
+    const modeLabel = mode === 'swiss' ? `瑞士輪 ${rounds} 輪` : mode === 'round_robin' ? '循環賽' : '單淘汰';
+    const label = configuredStage2 ? `第二階段${modeLabel}` : mode === 'single_elimination' ? '前四單淘汰決賽（含季軍賽）' : '前四循環決賽';
     if (!confirm(`確定由這 ${finalists.length} 位選手進入${label}嗎？`)) return;
-    beginSwissFinal(state.selectedTournamentId, finalists, mode);
+    beginSwissFinal(state.selectedTournamentId, finalists, mode, rounds);
   });
   root.querySelector('[data-complete-swiss-standings]')?.addEventListener('click', () => {
     if (!confirm('確定以目前瑞士輪積分榜作為最終成績並結束賽事嗎？此操作不會再建立四強賽程。')) return;
@@ -488,8 +485,8 @@ async function beginSwissQualifier(tournamentId, candidates) {
   catch (error) { alert(error.message); }
 }
 
-async function beginSwissFinal(tournamentId, finalists, mode) {
-  try { await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode }); }
+async function beginSwissFinal(tournamentId, finalists, mode, rounds = 4) {
+  try { await executeTournamentAction(tournamentId, 'start_swiss_final', { players: finalists, mode, rounds }); }
   catch (error) { alert(error.message); }
 }
 

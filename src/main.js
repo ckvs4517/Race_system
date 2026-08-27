@@ -27,6 +27,7 @@ import {
   syncPublicRegistrationRoute,
 } from './features/registration/controller.js';
 import { bindScheduleController } from './features/schedule/controller.js';
+import { isQuickScoreModeEnabled } from './features/schedule/quick-score.js';
 import { bindTournamentManagementController } from './features/tournament-management/controller.js';
 
 const app = document.querySelector('#app');
@@ -82,7 +83,7 @@ function render(resetScroll = false) {
         playerB: match.playerB,
       });
     } else {
-      view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin);
+      view = scheduleView(state.tournaments, state.selectedTournamentId, state.isAdmin, state.isAdmin && isQuickScoreModeEnabled());
     }
   }
   app.innerHTML = shell(route, view, state);
