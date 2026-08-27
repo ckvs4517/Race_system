@@ -1,0 +1,116 @@
+name: Port main schedule behavior into V2
+on:
+  push:
+    branches: [v2/codebase-refactor]
+permissions:
+  contents: write
+jobs:
+  port:
+    if: github.event.head_commit.message == 'Port main schedule behavior into V2 modules'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+          fetch-depth: 0
+      - name: Sync main schedule functions into V2 owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "ee92c0c407ed9df4db02944db6f651e01d158167"
+          python3 - <<'PY'
+          import re, subprocess
+          from pathlib import Path
+
+          main = subprocess.check_output(['git','show','origin/main:src/views/schedule.js'], text=True)
+          header = re.compile(r'(?m)^(?:export )?function\s+([A-Za-z0-9_]+)\s*\(')
+
+          def blocks(text):
+              ms=list(header.finditer(text)); out={}
+              for i,m in enumerate(ms):
+                  end=ms[i+1].start() if i+1 < len(ms) else len(text)
+                  out[m.group(1)] = text[m.start():end].rstrip()+"\n"
+              return out
+
+          main_blocks=blocks(main)
+
+          files={
+            'src/views/schedule/decision-panels.js': ['swissDecisionPanel','roundRobinTieBreakPanel','swissStageGuide','swissChampionLabel','hasTopFourTie','swissPlayerChoices','getDirectFinalRows','swissMiniStandings'],
+            'src/views/schedule/event-date.js': ['formatEventDate','localDateKey'],
+            'src/views/schedule/leaderboard.js': ['swissLiveLeaderboardRows','leaderboardView','leaderboardDescription','leaderboardPlayerRowLegacy','leaderboardPlayerRow','swissDirectMatchReason','stageSummaryView','playerCompletedMatches'],
+            'src/views/schedule/participant-panels.js': ['tournamentWorkflowView','registrationQuickView','pairingEditorView','eventInfoView','participantManagementView','safeHref','draftCheckInView','drinkSummaryView'],
+            'src/views/schedule/rounds.js': ['currentRoundEntries','roundPhaseLabel','roundColumnView','roundMatchesView','scoreGroupedMatchesView','swissGroupLabel','matchCard'],
+            'src/views/schedule/tournament-list.js': ['eventCardView','historyEventRow','eventListAdminMenu','eventListYear','compareCompletedEventDates','compareEventDates'],
+          }
+
+          def replace_block(text, name, new_block):
+              old=blocks(text).get(name)
+              if not old: raise SystemExit(f'missing V2 function {name}')
+              exported=old.lstrip().startswith('export function')
+              repl=new_block
+              if exported and repl.startswith('function '): repl='export '+repl
+              return text.replace(old, repl, 1)
+
+          for filename,names in files.items():
+              p=Path(filename); text=p.read_text()
+              for name in names:
+                  if name not in main_blocks: raise SystemExit(f'missing main function {name}')
+                  text=replace_block(text,name,main_blocks[name])
+              p.write_text(text)
+
+          # Add main-only helpers to the module that owns their responsibility.
+          additions={
+            'src/views/schedule/event-date.js': ['normalizeEventDateKey'],
+            'src/views/schedule/decision-panels.js': ['readSwissStage2Config','advancementCutState','configuredAdvanceResolution','configuredSwissDecisionPanel','stage2ModeOptions'],
+            'src/views/schedule/rounds.js': ['swissRoundArenaCount'],
+            'src/views/schedule/leaderboard.js': ['swissArchivedLeaderboardRows','shouldShowSwissOpponentWins','formatOpponentWins'],
+          }
+          for filename,names in additions.items():
+              p=Path(filename); text=p.read_text().rstrip()+"\n\n"
+              existing=blocks(text)
+              for name in names:
+                  if name not in existing:
+                      b=main_blocks[name]
+                      # Helpers consumed across modules need exports.
+                      if name in {'normalizeEventDateKey','swissRoundArenaCount'} and b.startswith('function '): b='export '+b
+                      text += b + "\n"
+              p.write_text(text.rstrip()+"\n")
+
+          # bracketView is the main equivalent of the V2 tournamentDetailView façade-owned detail renderer.
+          p=Path('src/views/schedule/tournament-detail.js'); text=p.read_text()
+          detail=blocks(text)['tournamentDetailView']
+          new=main_blocks['bracketView'].replace('function bracketView(', 'export function tournamentDetailView(', 1)
+          text=text.replace(detail,new,1)
+          # Import the new cross-module Swiss arena helper.
+          text=text.replace("import { currentRoundEntries, roundColumnView } from './rounds.js';", "import { currentRoundEntries, roundColumnView, swissRoundArenaCount } from './rounds.js';")
+          p.write_text(text)
+
+          # Stable schedule façade keeps the public API while forwarding the quick-score view mode.
+          p=Path('src/views/schedule.js'); text=p.read_text()
+          text=text.replace('export function scheduleView(tournaments, selectedId, canManage = false) {', 'export function scheduleView(tournaments, selectedId, canManage = false, quickScoreMode = false) {')
+          text=text.replace('return selected ? tournamentDetailView(selected, canManage) : tournamentListView(tournaments, canManage);', 'return selected ? tournamentDetailView(selected, canManage, quickScoreMode) : tournamentListView(tournaments, canManage);')
+          p.write_text(text)
+
+          # Imports required by helpers introduced from current main.
+          p=Path('src/views/schedule/tournament-list.js'); text=p.read_text()
+          text=text.replace("import { formatEventDate, localDateKey } from './event-date.js';", "import { formatEventDate, localDateKey, normalizeEventDateKey } from './event-date.js';")
+          p.write_text(text)
+
+          p=Path('src/views/schedule/leaderboard.js'); text=p.read_text()
+          ranking="import { SWISS_RANKING_RULE_BUCHHOLZ, normalizeSwissRankingRule } from '../../domain/ranking/swiss-ranking.js';\n"
+          if ranking not in text:
+              text=text.replace("import { getSwissPhaseStandings, getTournamentStandings } from '../../domain/tournament.js';\n", "import { getSwissPhaseStandings, getTournamentStandings } from '../../domain/tournament.js';\n"+ranking)
+          p.write_text(text)
+          PY
+          node --check src/views/schedule.js
+          for f in src/views/schedule/*.js; do node --check "$f"; done
+      - name: Remove temporary workflows and commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-port-main-schedule-v2.yml .github/workflows/tmp-analyze-schedule-sync.yml
+          git add src/views/schedule.js src/views/schedule/
+          git commit -m "Port tournament-ready schedule UI into V2 modules"
+          git push origin HEAD:v2/codebase-refactor
