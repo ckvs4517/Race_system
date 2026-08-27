@@ -16,6 +16,8 @@ const tournaments = [{
 const backup = createBackup(tournaments, '2026-07-21T00:00:00.000Z');
 assert(backup.format === 'spin-league-backup' && backup.version === 1, '備份包含格式與版本資訊');
 assert(parseBackup(JSON.stringify(backup)).tournaments[0].champion === '小明', '有效備份可以完整還原');
+const largeTournament = { ...tournaments[0], id: 2, name: '48 人測試賽', status: '準備中', players: Array.from({ length: 48 }, (_, index) => `P${index + 1}`) };
+assert(parseBackup(JSON.stringify(createBackup([largeTournament]))).tournaments[0].players.length === 48, '48 人賽事備份可以完整還原');
 assertThrows(() => parseBackup('{broken'), '損壞的 JSON 會被拒絕');
 assertThrows(() => parseBackup(JSON.stringify({ tournaments })), '非 Spin League 備份會被拒絕');
 

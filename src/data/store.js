@@ -21,7 +21,7 @@ let state = {
 const listeners = new Set();
 let refreshInFlight = false;
 const responseEtags = new Map();
-const EXPLICIT_RENDER_ACTIONS = new Set(['record_match', 'forfeit_match', 'replay_match']);
+const EXPLICIT_RENDER_ACTIONS = new Set(['record_match', 'forfeit_match', 'replay_match', 'set_check_in']);
 
 function notify() {
   listeners.forEach((listener) => listener(getState()));

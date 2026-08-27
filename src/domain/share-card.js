@@ -1,4 +1,5 @@
-import { getTournamentStandings, normalizeTournament } from './tournament.js';
+import { getSwissPhaseStandings, getTournamentStandings, normalizeTournament } from './tournament.js';
+import { SWISS_RANKING_RULE_BUCHHOLZ, normalizeSwissRankingRule } from './ranking/swiss-ranking.js';
 
 /**
  * 整理一名選手跨所有正式賽程階段的戰績，供分享圖模板使用。
@@ -40,16 +41,42 @@ function completedStageStats(tournament, playerName) {
   const groups = new Map();
   (tournament.rounds || []).forEach((round) => {
     const phase = round.phase || 'preliminary';
-    const label = phase === 'preliminary' ? '瑞士輪' : phase === 'qualifier' ? '同分加賽' : '四強／決賽';
-    if (!groups.has(label)) groups.set(label, { wins: 0, losses: 0, points: 0 });
+    const key = phase === 'preliminary'
+      ? 'preliminary'
+      : phase === 'qualifier'
+        ? 'qualifier'
+        : phase === 'placement'
+          ? 'placement'
+          : round.seriesId === 'stage2-swiss'
+            ? 'stage2'
+            : 'final';
+    const label = {
+      preliminary: '瑞士輪',
+      qualifier: '同分加賽',
+      placement: '冠亞名次加賽',
+      stage2: '第二階段瑞士輪',
+      final: tournament.swissStage2Config ? '第二階段' : '四強／決賽',
+    }[key];
+    if (!groups.has(key)) groups.set(key, { label, wins: 0, losses: 0, points: 0, opponentWins: null });
     (round.matches || []).filter((match) => isFormalCompletedMatch(match) && [match.playerA, match.playerB].includes(playerName)).forEach((match) => {
-      const value = groups.get(label);
+      const value = groups.get(key);
       const isA = match.playerA === playerName;
       value.points += Number(isA ? match.scoreA : match.scoreB) || 0;
       if (match.winner === playerName) value.wins += 1; else value.losses += 1;
     });
   });
-  return [...groups].map(([label, value]) => ({ label, ...value }));
+
+  if (tournament.format === 'swiss'
+    && normalizeSwissRankingRule(tournament.swissRankingRule) === SWISS_RANKING_RULE_BUCHHOLZ) {
+    const preliminary = getSwissPhaseStandings(tournament, 'preliminary').find((row) => row.player === playerName);
+    if (groups.has('preliminary') && preliminary) groups.get('preliminary').opponentWins = preliminary.opponentWins;
+    if (tournament.swissFinalMode === 'swiss' && groups.has('stage2')) {
+      const stage2 = getSwissPhaseStandings(tournament, 'final').find((row) => row.player === playerName);
+      if (stage2) groups.get('stage2').opponentWins = stage2.opponentWins;
+    }
+  }
+
+  return [...groups.values()];
 }
 
 function completedPlayerMatches(tournament, playerName) {
@@ -81,7 +108,9 @@ function isFormalCompletedMatch(match) {
 
 function phaseLabel(round, index) {
   if (round.phase === 'qualifier') return '資格積分決定賽';
-  if (round.phase === 'final') return '四強循環決賽';
+  if (round.phase === 'placement') return '冠亞名次加賽';
+  if (round.seriesId === 'stage2-swiss') return '第二階段瑞士輪';
+  if (round.phase === 'final') return String(round.name || '').includes('第二階段') ? round.name : '四強循環決賽';
   return round.name || `ROUND ${String(index + 1).padStart(2, '0')}`;
 }
 

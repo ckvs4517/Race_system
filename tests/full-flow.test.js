@@ -10,6 +10,7 @@ import {
   removeDraftPlayer,
   resetCompletedMatch,
   setDraftPlayerCheckedIn,
+  setAllDraftPlayersCheckedIn,
   prepareTournamentSchedule,
   startSwissFinal,
   startSwissQualifier,
@@ -23,6 +24,7 @@ const result = document.querySelector('#result');
 const records = new Map();
 const alerts = [];
 const scrollCalls = [];
+let failNextRecordMatch = false;
 let assertions = 0;
 
 location.hash = 'control';
@@ -85,7 +87,31 @@ try {
   click('[data-action="back-bracket"]');
   await waitFor('.match-card.is-ready');
 
-  await completeReadyMatch(4, 2);
+  expect(document.querySelector('[data-action="toggle-quick-score"]'), '進行中的 Admin 賽程提供快速登分模式');
+  click('[data-action="toggle-quick-score"]');
+  await waitUntil(() => document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'true');
+  expectText('快速登分模式已開啟', '快速登分模式有清楚的賽程頁提示');
+  click('.match-card.is-ready');
+  await waitFor('[data-quick-score-inline]');
+  expect(!document.querySelector('[data-scoreboard].match-mode'), '快速登分點對局不會跳到完整記分板');
+  expect(!document.querySelector('[data-quick-score-dialog][open]'), '快速登分不使用阻塞式 modal');
+  const firstQuickCard = document.querySelector('.match-card.is-quick-scoring');
+  const otherReadyMatch = [...document.querySelectorAll('.match-card.is-ready')].find((node) => node !== firstQuickCard);
+  expect(otherReadyMatch, '快速登分展開時其他待打對局仍留在畫面上');
+  otherReadyMatch.click();
+  await waitUntil(() => document.querySelector('.match-card.is-quick-scoring') === otherReadyMatch);
+  expect(document.querySelector('[data-quick-score-inline]'), '點另一場可直接把快速輸入區移到該對局');
+  fill('[data-quick-score-form] [name="score"]', '63');
+  failNextRecordMatch = true;
+  submit('[data-quick-score-form]');
+  await waitFor('[data-quick-score-inline] [data-quick-score-error]:not([hidden])');
+  expect(document.querySelector('[data-quick-score-form] [name="score"]').value === '63', '快速登分同步失敗會保留尚未送出的單欄比分');
+  submit('[data-quick-score-form]');
+  await waitFor('.match-card.is-ready');
+  expect(document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'true', '成功登分後仍維持快速登分模式');
+  expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 3))), '單欄快速登分可送出 6:3 合法比分');
+  click('[data-action="toggle-quick-score"]');
+  await waitUntil(() => document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'false');
   await forfeitReadyMatch();
   await completeReadyMatch(5, 3);
   await waitFor('.leaderboard');
@@ -206,13 +232,14 @@ function pause() {
 }
 
 async function checkInAllPlayers() {
-  while (true) {
-    const input = document.querySelector('[data-check-in-player]:not(:checked)');
-    if (!input) break;
-    input.click();
-    await waitUntil(() => !document.contains(input));
-    await pause();
-  }
+  const button = document.querySelector('[data-check-in-all]');
+  if (!button) throw new Error('找不到全部報到按鈕');
+  button.click();
+  await waitUntil(() => [...records.values()].some((tournament) => (
+    tournament.players.length > 0
+      && tournament.players.every((player) => tournament.participantStates?.[player]?.checkedIn)
+  )));
+  await waitUntil(() => [...document.querySelectorAll('[data-check-in-player]')].every((input) => input.checked));
 }
 
 async function mockFetch(input, options = {}) {
@@ -234,6 +261,10 @@ async function mockFetch(input, options = {}) {
     const id = decodeURIComponent(actionMatch[1]);
     const current = records.get(id);
     const { type, payload = {}, expectedRevision } = JSON.parse(options.body);
+    if (type === 'record_match' && failNextRecordMatch) {
+      failNextRecordMatch = false;
+      throw new Error('模擬快速登分同步失敗');
+    }
     if (!current || current.revision !== expectedRevision) return json({ error: '資料衝突', tournament: current }, 409);
     const saved = { ...applyAction(current, type, payload), revision: current.revision + 1 };
     records.set(id, saved);
@@ -261,6 +292,7 @@ function applyAction(tournament, type, payload) {
   delete source.revision;
   const actions = {
     set_check_in: () => setDraftPlayerCheckedIn(source, payload.player, payload.checkedIn),
+    set_all_check_in: () => setAllDraftPlayersCheckedIn(source),
     add_player: () => addDraftPlayer(source, payload.player),
     remove_player: () => removeDraftPlayer(source, payload.player),
     remove_players: () => payload.players.reduce((current, player) => removeDraftPlayer(current, player), source),

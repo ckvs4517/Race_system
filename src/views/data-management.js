@@ -1,5 +1,6 @@
 /** 資料管理頁，以及可獨立測試的 JSON 備份與 CSV 轉換函式。 */
 import { pageHeader } from '../ui/shell.js';
+import { MAX_TOURNAMENT_PLAYERS } from '../domain/tournament.js';
 import { getTournamentFormat } from '../formats/registry.js';
 
 const BACKUP_FORMAT = 'spin-league-backup';
@@ -77,7 +78,7 @@ export function parseBackup(text) {
   if (data?.format !== BACKUP_FORMAT || data?.version !== BACKUP_VERSION || !Array.isArray(data.tournaments)) throw new Error('這不是有效的 Spin League 備份檔案。');
   if (data.tournaments.length > 200) throw new Error('備份包含過多賽事，無法匯入。');
   data.tournaments.forEach((tournament, index) => {
-    if (!tournament || !Number.isFinite(Number(tournament.id)) || typeof tournament.name !== 'string' || !Array.isArray(tournament.players) || tournament.players.length > 32 || (tournament.status !== '準備中' && tournament.players.length < 2)) {
+    if (!tournament || !Number.isFinite(Number(tournament.id)) || typeof tournament.name !== 'string' || !Array.isArray(tournament.players) || tournament.players.length > MAX_TOURNAMENT_PLAYERS || (tournament.status !== '準備中' && tournament.players.length < 2)) {
       throw new Error(`第 ${index + 1} 場賽事的資料格式不正確。`);
     }
   });

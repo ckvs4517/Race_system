@@ -4,6 +4,12 @@ import { icons } from '../ui/icons.js';
 import { MAX_TOURNAMENT_PLAYERS, createTournament, updateDraftTournament } from '../domain/tournament.js';
 import { createDefaultDrinkSettings, normalizeDrinkSettings } from '../domain/drinks.js';
 import { listTournamentFormats } from '../formats/registry.js';
+import {
+  DEFAULT_SWISS_RANKING_RULE,
+  SWISS_RANKING_RULE_BUCHHOLZ,
+  SWISS_RANKING_RULE_LEGACY,
+  normalizeSwissRankingRule,
+} from '../domain/ranking/swiss-ranking.js';
 
 const DEFAULT_EVENT_INFO_for_88cafe = {
   venueName: '88coffee&tattoo',
@@ -23,6 +29,11 @@ export function manageView(tournament = null) {
   const eventInfo = tournament?.eventInfo || { ...DEFAULT_EVENT_INFO_for_88cafe, ...defaultEventSchedule() };
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
+  const swissStage2 = normalizeSwissStage2Config(tournament?.swissStage2Config);
+  const swissRankingRule = normalizeSwissRankingRule(
+    tournament?.swissRankingRule,
+    tournament ? SWISS_RANKING_RULE_LEGACY : DEFAULT_SWISS_RANKING_RULE,
+  );
   const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
 
   return `<section class="section-wrap page-section">
@@ -33,6 +44,10 @@ export function manageView(tournament = null) {
         <div class="step-heading"><span>01</span><div><b>基本資料</b><small>替這場賽事設定名稱</small></div></div>
         <label class="field"><span>賽事名稱</span><input name="name" maxlength="40" value="${escapeAttribute(tournament?.name || '')}" placeholder="例如：夏季陀螺公開賽" required></label>
         <label class="field"><span>比賽賽制</span><select name="format">${formatOptions}</select></label>
+        <div data-swiss-stage2-settings ${selectedFormat === 'swiss' ? '' : 'hidden'}>
+          <label class="field"><span>瑞士輪排名方式</span><select name="swissRankingRule"><option value="${SWISS_RANKING_RULE_BUCHHOLZ}" ${swissRankingRule === SWISS_RANKING_RULE_BUCHHOLZ ? 'selected' : ''}>對手強度排名（推薦）</option><option value="${SWISS_RANKING_RULE_LEGACY}" ${swissRankingRule === SWISS_RANKING_RULE_LEGACY ? 'selected' : ''}>傳統排名（舊版相容）</option></select><small>推薦：勝場 → 對手勝場總和 → 總得分 → 直接對戰；賽事開始後鎖定。</small></label>
+          <label class="field"><span>第二階段晉級人數</span><select name="swissAdvanceCount"><option value="4" ${swissStage2.advanceCount === 4 ? 'selected' : ''}>Top 4</option><option value="8" ${swissStage2.advanceCount === 8 ? 'selected' : ''}>Top 8</option></select><small>第一階段固定打 4 輪瑞士輪；第二階段實際賽制會在第一階段完成後再選擇。</small></label>
+        </div>
         <label class="field"><span>戰鬥台數</span><input name="arenaCount" type="number" inputmode="numeric" min="1" max="8" step="1" value="${tournament?.arenaCount || 1}" required><small>可設定 1 至 8 台；賽程會平均分配到各戰鬥台。</small></label>
         <div class="step-heading"><span>02</span><div><b>活動資訊</b><small>選填；填寫後會顯示在公開賽事頁</small></div></div>
         <div class="field-grid field-grid-time">
@@ -56,7 +71,7 @@ export function manageView(tournament = null) {
         ${drinkSettingsEditor(drinkSettings)}
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立賽事與報到名單'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽；可直接以積分榜結束，或先確認四強後選擇循環決賽／單淘汰決賽。資格線同分時也可先建立資格積分決定賽。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽並先設定 Top 4／Top 8 晉級人數；第一階段完成後再選擇第二階段賽制。Top 4 可用循環／單淘汰，Top 8 另可使用瑞士輪。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
 }
@@ -80,7 +95,13 @@ export function bindManage(root, options) {
   const players = form.elements.players;
   const count = root.querySelector('[data-player-count]');
   const getPlayers = () => players.value.split('\n').map((value) => value.trim()).filter(Boolean);
+  const syncSwissStage2Fields = () => {
+    const panel = root.querySelector('[data-swiss-stage2-settings]');
+    if (panel) panel.hidden = form.elements.format.value !== 'swiss';
+  };
   players.addEventListener('input', () => { count.textContent = `目前 ${getPlayers().length} 位參賽者`; });
+  form.elements.format.addEventListener('change', syncSwissStage2Fields);
+  syncSwissStage2Fields();
   root.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => options.onCancel?.());
   root.querySelector('[data-drink-enabled]')?.addEventListener('change', (event) => {
     root.querySelector('[data-drink-menu]').hidden = !event.currentTarget.checked;
@@ -112,9 +133,11 @@ export function bindManage(root, options) {
         notes: form.elements.notes.value,
       };
       const drinkSettings = readDrinkSettings(form);
-      const result = options.tournament
+      let result = options.tournament
         ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings)
         : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings);
+      result = applySwissStage2Config(result, form);
+      result = applySwissRankingRule(result, form);
       options.onSubmit(result);
     } catch (error) {
       alert(error.message);
@@ -155,6 +178,31 @@ function readDrinkSettings(form) {
       order: index + 1,
     })),
   };
+}
+
+function normalizeSwissStage2Config(value = {}) {
+  return { advanceCount: Number(value?.advanceCount) === 8 ? 8 : 4 };
+}
+
+function applySwissStage2Config(tournament, form) {
+  const next = { ...tournament };
+  delete next.swissStage2Config;
+  if (next.format !== 'swiss') return next;
+  next.swissStage2Config = normalizeSwissStage2Config({
+    advanceCount: form.elements.swissAdvanceCount?.value,
+  });
+  return next;
+}
+
+function applySwissRankingRule(tournament, form) {
+  const next = { ...tournament };
+  delete next.swissRankingRule;
+  if (next.format !== 'swiss') return next;
+  next.swissRankingRule = normalizeSwissRankingRule(
+    form.elements.swissRankingRule?.value,
+    DEFAULT_SWISS_RANKING_RULE,
+  );
+  return next;
 }
 
 function uniqueId(prefix) {
