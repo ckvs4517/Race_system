@@ -70,8 +70,8 @@ function eventListYear(item) {
 }
 
 function compareCompletedEventDates(left, right) {
-  const leftDate = String(left.eventInfo?.date || left.created || '');
-  const rightDate = String(right.eventInfo?.date || right.created || '');
+  const leftDate = normalizeEventDateKey(left.eventInfo?.date) || normalizeEventDateKey(left.created);
+  const rightDate = normalizeEventDateKey(right.eventInfo?.date) || normalizeEventDateKey(right.created);
   return rightDate.localeCompare(leftDate) || Number(right.id || 0) - Number(left.id || 0);
 }
 
@@ -230,8 +230,22 @@ function eventInfoView(info = {}) {
 }
 
 function formatEventDate(value) {
-  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? `${Number(match[1])}/${Number(match[2])}/${Number(match[3])}` : '';
+  const key = normalizeEventDateKey(value);
+  if (!key) return '';
+  const [year, month, day] = key.split('-').map(Number);
+  return `${year}/${month}/${day}`;
+}
+
+function normalizeEventDateKey(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return '';
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function safeHref(value) {
@@ -245,8 +259,8 @@ function safeHref(value) {
 
 function compareEventDates(left, right) {
   const today = localDateKey(new Date());
-  const leftDate = left.eventInfo?.date || '';
-  const rightDate = right.eventInfo?.date || '';
+  const leftDate = normalizeEventDateKey(left.eventInfo?.date);
+  const rightDate = normalizeEventDateKey(right.eventInfo?.date);
   const group = (date) => !date ? 1 : date >= today ? 0 : 2;
   const groupDifference = group(leftDate) - group(rightDate);
   if (groupDifference) return groupDifference;
