@@ -6,12 +6,16 @@ permissions:
   contents: write
 jobs:
   fix:
-    if: github.event.head_commit.message == 'Fix V2 schedule cross-module imports'
+    if: github.event.head_commit.message == 'Retry V2 schedule cross-module imports'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           ref: v2/codebase-refactor
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
       - name: Export and import Stage 2 view helper
         shell: bash
         run: |
