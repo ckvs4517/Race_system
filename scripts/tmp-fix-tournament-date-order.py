@@ -1,0 +1,73 @@
+from pathlib import Path
+
+
+def replace_once(path, old, new, label):
+    p = Path(path)
+    text = p.read_text(encoding='utf-8')
+    if old not in text:
+        raise RuntimeError(f'expected block not found: {label}')
+    p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+
+replace_once(
+    'src/views/schedule.js',
+    "function formatEventDate(value) {\n  const match = String(value || '').match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);\n  return match ? `${Number(match[1])}/${Number(match[2])}/${Number(match[3])}` : '';\n}",
+    "function formatEventDate(value) {\n  const key = normalizeEventDateKey(value);\n  if (!key) return '';\n  const [year, month, day] = key.split('-').map(Number);\n  return `${year}/${month}/${day}`;\n}\n\nfunction normalizeEventDateKey(value) {\n  const text = String(value || '').trim();\n  const match = text.match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})(?:$|[T\\s])/);\n  if (!match) return '';\n  const year = Number(match[1]);\n  const month = Number(match[2]);\n  const day = Number(match[3]);\n  const date = new Date(Date.UTC(year, month - 1, day));\n  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return '';\n  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;\n}",
+    'date formatter/parser',
+)
+
+replace_once(
+    'src/views/schedule.js',
+    "function compareEventDates(left, right) {\n  const today = localDateKey(new Date());\n  const leftDate = left.eventInfo?.date || '';\n  const rightDate = right.eventInfo?.date || '';\n  const group = (date) => !date ? 1 : date >= today ? 0 : 2;\n  const groupDifference = group(leftDate) - group(rightDate);\n  if (groupDifference) return groupDifference;\n  if (leftDate && rightDate && leftDate !== rightDate) return group(leftDate) === 2 ? rightDate.localeCompare(leftDate) : leftDate.localeCompare(rightDate);\n  return Number(right.id) - Number(left.id);\n}",
+    "function compareEventDates(left, right) {\n  const today = localDateKey(new Date());\n  const leftDate = normalizeEventDateKey(left.eventInfo?.date);\n  const rightDate = normalizeEventDateKey(right.eventInfo?.date);\n  const group = (date) => !date ? 1 : date >= today ? 0 : 2;\n  const groupDifference = group(leftDate) - group(rightDate);\n  if (groupDifference) return groupDifference;\n  if (leftDate && rightDate && leftDate !== rightDate) return group(leftDate) === 2 ? rightDate.localeCompare(leftDate) : leftDate.localeCompare(rightDate);\n  return Number(right.id) - Number(left.id);\n}",
+    'active event date ordering',
+)
+
+replace_once(
+    'src/views/schedule.js',
+    "function compareCompletedEventDates(left, right) {\n  const leftDate = String(left.eventInfo?.date || left.created || '');\n  const rightDate = String(right.eventInfo?.date || right.created || '');\n  return rightDate.localeCompare(leftDate) || Number(right.id || 0) - Number(left.id || 0);\n}",
+    "function compareCompletedEventDates(left, right) {\n  const leftDate = normalizeEventDateKey(left.eventInfo?.date) || normalizeEventDateKey(left.created);\n  const rightDate = normalizeEventDateKey(right.eventInfo?.date) || normalizeEventDateKey(right.created);\n  return rightDate.localeCompare(leftDate) || Number(right.id || 0) - Number(left.id || 0);\n}",
+    'completed event date ordering',
+)
+
+regression = r'''
+
+const mixedCompleted = [
+  ['最近 8月26日', '2026-08-26'],
+  ['舊格式 8月25日', '2026/8/25'],
+  ['舊格式 8月24日', '2026/8/24'],
+  ['舊格式 8月9日', '2026/8/9'],
+  ['舊格式 7月31日', '2026/7/31'],
+  ['舊格式 7月20日', '2026/7/20'],
+  ['應只在歷史 7月19日', '2026/7/19'],
+].map(([name, date], index) => ({
+  ...past,
+  id: 2026082600 + index,
+  name,
+  status: '已完成',
+  eventInfo: { ...past.eventInfo, date },
+}));
+const mixedDateListView = scheduleView(mixedCompleted, null, false);
+const recentStart = mixedDateListView.indexOf('<div class="event-grid event-grid-recent">');
+const recentEnd = mixedDateListView.indexOf('</section>', recentStart);
+const recentMarkup = mixedDateListView.slice(recentStart, recentEnd);
+assert.match(recentMarkup, /最近 8月26日/);
+assert.match(recentMarkup, /舊格式 8月25日/);
+assert.doesNotMatch(recentMarkup, /應只在歷史 7月19日/);
+assert.ok(recentMarkup.indexOf('最近 8月26日') < recentMarkup.indexOf('舊格式 8月25日'));
+assert.ok(recentMarkup.indexOf('舊格式 8月25日') < recentMarkup.indexOf('舊格式 8月9日'));
+assert.match(recentMarkup, /2026\/8\/26/);
+assert.match(recentMarkup, /2026\/8\/9/);
+
+const legacyFuture = { ...future, id: 20980102, name: '未來斜線格式', eventInfo: { ...future.eventInfo, date: '2098/1/2' } };
+const standardFuture = { ...future, id: 20990101, name: '未來標準格式', eventInfo: { ...future.eventInfo, date: '2099-01-01' } };
+const mixedActiveView = scheduleView([legacyFuture, standardFuture], null, false);
+assert.ok(mixedActiveView.indexOf('未來斜線格式') < mixedActiveView.indexOf('未來標準格式'));
+'''
+
+replace_once(
+    'tests/event-info.test.mjs',
+    "\nconsole.log('PASS event information fields');\n",
+    regression + "\nconsole.log('PASS event information fields');\n",
+    'event date regression assertions',
+)
