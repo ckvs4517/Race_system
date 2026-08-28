@@ -35,8 +35,8 @@ jobs:
           script = textwrap.dedent(raw[start:end])
           old = "import { SWISS_RANKING_RULE_LEGACY, normalizeSwissRankingRule } from '../ranking/swiss-ranking.js';"
           new = "import { DEFAULT_SWISS_RANKING_RULE, SWISS_RANKING_RULE_LEGACY, normalizeSwissRankingRule } from '../ranking/swiss-ranking.js';"
-          assert old in script
-          script = script.replace(old, new, 1)
+          assert script.count(old) == 2, script.count(old)
+          script = script.replace(old, new)
           Path('/tmp/phase3-split.py').write_text(script)
           PY
           python3 /tmp/phase3-split.py
