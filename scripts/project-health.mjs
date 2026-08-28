@@ -15,6 +15,10 @@ const required = [
   'src/formats/swiss.js',
   'src/formats/single-elimination.js',
   'worker/index.js',
+  'worker/tournament-domain.js',
+  'worker/routes/api.js',
+  'worker/services/tournament-actions.js',
+  'worker/db/tournaments.js',
 ];
 
 const errors = [];
@@ -30,8 +34,10 @@ try {
   errors.push(`Cannot parse hosting.json: ${error.message}`);
 }
 
-const worker = await readFile('worker/index.js', 'utf8');
-if (!worker.includes("from '../src/domain/tournament.js'")) errors.push('Worker shared domain import changed; update build-site.mjs packaging rule.');
+const workerEntry = await readFile('worker/index.js', 'utf8');
+if (!workerEntry.includes("from './routes/api.js'")) errors.push('Worker entry must delegate API routing to worker/routes/api.js.');
+const workerDomainBridge = await readFile('worker/tournament-domain.js', 'utf8');
+if (!workerDomainBridge.includes("from '../src/domain/tournament.js'")) errors.push('Worker tournament domain bridge changed; update build-site.mjs packaging rule.');
 
 const agents = await readFile('AGENTS.md', 'utf8');
 if (!agents.includes('ARCHITECTURE.md')) errors.push('AGENTS.md must point agents to ARCHITECTURE.md.');
@@ -47,5 +53,5 @@ if (errors.length) {
   errors.forEach((message) => console.error(`ERROR ${message}`));
   process.exitCode = 1;
 } else {
-  console.log(`PASS project health: ${required.length} required files, V2 architecture contract, Sites identity, and Worker packaging import.`);
+  console.log(`PASS project health: ${required.length} required files, V2 architecture contract, Sites identity, and Worker packaging bridge.`);
 }
