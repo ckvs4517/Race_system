@@ -8,8 +8,9 @@
 | Shared tournament domain | `src/domain/tournament.js` facade, `src/domain/tournament/*` | `tests/v2-domain-boundary.test.mjs`, tournament regressions |
 | Single elimination | `src/formats/single-elimination.js` | browser tournament test, format matrix |
 | Swiss | `src/formats/swiss.js` | `tests/swiss.test.mjs`, format matrix |
-| Registration | `src/views/registration*.js`, Worker registration routes | `tests/registration.test.mjs` |
+| Registration | `src/views/registration*.js`, `worker/routes/api.js`, `worker/services/registration-validation.js`, `worker/db/registrations.js` | `tests/registration.test.mjs` |
 | Backup/CSV | `src/views/data-management.js` | `tests/data-management.test.mjs`, backup validator |
-| Worker/API/security | `worker/index.js` | `tests/api.test.mjs`, registration/action sync tests |
+| Worker API routing/security | `worker/index.js`, `worker/routes/*`, `worker/services/*` | `tests/v2-worker-boundary.test.mjs`, `tests/api.test.mjs`, registration/action sync tests |
+| Worker D1 persistence | `worker/db/*` | `tests/v2-worker-boundary.test.mjs`, API/registration tests, Sites build |
 | D1 schema | `db/schema.ts`, `.openai/drizzle/*.sql` | API tests, Sites build |
 | Sites packaging | `scripts/build-site.mjs`, `.openai/hosting.json` | `node scripts/build-site.mjs` |
