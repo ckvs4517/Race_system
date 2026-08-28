@@ -40,6 +40,19 @@ jobs:
           Path('/tmp/phase3-split.py').write_text(script)
           PY
           python3 /tmp/phase3-split.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/build-site.mjs')
+          source = path.read_text()
+          old = "  [join(serverDir, 'domain', 'tournament.js'), 20_000],\n"
+          new = """  [join(serverDir, 'domain', 'tournament.js'), 50],
+          [join(serverDir, 'domain', 'tournament', 'index.js'), 500],
+          [join(serverDir, 'domain', 'tournament', 'lifecycle.js'), 3_000],
+          [join(serverDir, 'domain', 'tournament', 'matches.js'), 2_000],
+          """
+          assert old in source
+          path.write_text(source.replace(old, new, 1))
+          PY
           node --check src/domain/tournament.js
           for file in src/domain/tournament/*.js; do node --check "$file"; done
           node tests/v2-domain-boundary.test.mjs
@@ -52,6 +65,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/tmp-phase3-domain-split.yml
-          git add src/domain/tournament.js src/domain/tournament tests/v2-domain-boundary.test.mjs scripts/test-fast.mjs
+          git add src/domain/tournament.js src/domain/tournament tests/v2-domain-boundary.test.mjs scripts/test-fast.mjs scripts/build-site.mjs
           git commit -m "Decompose tournament domain for V2 Phase 3"
           git push origin HEAD:v2/codebase-refactor
