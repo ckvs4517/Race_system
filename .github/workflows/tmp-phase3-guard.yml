@@ -1,0 +1,98 @@
+name: Finalize Phase 3 architecture guards
+on:
+  push:
+    branches: [v2/codebase-refactor]
+permissions:
+  contents: write
+jobs:
+  finalize:
+    if: github.event.head_commit.message == 'Finalize Phase 3 architecture guards'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Tighten Phase 3 guards and docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          guard = Path('scripts/check-architecture.mjs')
+          source = guard.read_text()
+          source = source.replace("  ['src/domain/tournament.js', 39715],\n", '', 1)
+          source = source.replace(
+            "const MIGRATED_FILE_LIMITS = new Map([\n  ['src/views/schedule.js', 2_000],\n]);",
+            "const MIGRATED_FILE_LIMITS = new Map([\n  ['src/views/schedule.js', 2_000],\n  ['src/domain/tournament.js', 1_000],\n]);",
+            1,
+          )
+          source = source.replace(
+            "const SCHEDULE_MODULE_HARD_LIMIT = 20_000;\n",
+            "const SCHEDULE_MODULE_HARD_LIMIT = 20_000;\nconst TOURNAMENT_MODULE_SOFT_LIMIT = 12_000;\nconst TOURNAMENT_MODULE_HARD_LIMIT = 18_000;\n",
+            1,
+          )
+          marker = "// 7. Guardrail files themselves are part of the architecture contract.\n"
+          assert marker in source
+          tournament_guard = """// 7. Phase 3 tournament modules are bounded so the domain monolith cannot reappear behind the facade.
+          for (const file of jsFiles.filter((item) => item.startsWith('src/domain/tournament/'))) {
+            const content = await readFile(file);
+            const size = content.byteLength;
+            if (size > TOURNAMENT_MODULE_HARD_LIMIT) {
+              errors.push(`${file}: ${size} bytes exceeds the tournament-domain module hard limit ${TOURNAMENT_MODULE_HARD_LIMIT}; split the responsibility before adding more behavior.`);
+            } else if (size > TOURNAMENT_MODULE_SOFT_LIMIT) {
+              warnings.push(`${file}: ${size} bytes is approaching the tournament-domain module hard limit; consider a responsibility split.`);
+            }
+          }
+
+          // 8. Guardrail files themselves are part of the architecture contract.
+          """.replace('          ', '')
+          source = source.replace(marker, tournament_guard, 1)
+          guard.write_text(source)
+
+          architecture = Path('ARCHITECTURE.md')
+          text = architecture.read_text()
+          old = """### Phase 3 — Tournament domain decomposition
+
+          Separate lifecycle, normalization, match operations, ranking-related shared logic, and registration concerns while keeping a stable domain facade.
+          """.replace('          ', '')
+          new = """### Phase 3 — Tournament domain decomposition
+
+          `src/domain/tournament.js` is now a compatibility facade over `src/domain/tournament/index.js`; existing callers keep the same public imports while internal ownership is split by responsibility:
+
+          - lifecycle and scheduling transitions: `lifecycle.js`
+          - backward-compatible record normalization: `normalization.js`
+          - formal result, replay, forfeit, and withdrawal operations: `matches.js`
+          - standings and Swiss-stage queries/actions: `standings.js`, `swiss-actions.js`
+          - draft roster, participant invariants, and registration: `roster.js`, `participant-model.js`, `registration.js`, `registration-settings.js`
+          - pairings, metadata, legacy compatibility, score validation, constants, and record factory remain narrow support modules
+
+          Outside callers must continue importing through `src/domain/tournament.js`; deep imports into `src/domain/tournament/` are reserved for domain-internal composition. Tournament JSON semantics, format strategies, Worker API contracts, and D1 persistence are unchanged by this phase.
+          """.replace('          ', '')
+          assert old in text
+          architecture.write_text(text.replace(old, new, 1))
+
+          amap = Path('.agents/skills/spin-league-debug/references/architecture-map.md')
+          map_text = amap.read_text()
+          old_row = '| Shared lifecycle | `src/domain/tournament.js` | `tests/check-in.test.mjs`, `tests/tournament.test.js` |'
+          new_row = '| Shared tournament domain | `src/domain/tournament.js` facade, `src/domain/tournament/*` | `tests/v2-domain-boundary.test.mjs`, tournament regressions |'
+          assert old_row in map_text
+          amap.write_text(map_text.replace(old_row, new_row, 1))
+          PY
+          npm run health
+          node scripts/test-fast.mjs
+          node scripts/test-full.mjs --browser=required
+      - name: Commit Phase 3 guardrails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-phase3-guard.yml
+          git add scripts/check-architecture.mjs ARCHITECTURE.md .agents/skills/spin-league-debug/references/architecture-map.md
+          git commit -m "Lock V2 Phase 3 domain boundaries"
+          git push origin HEAD:v2/codebase-refactor
