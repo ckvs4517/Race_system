@@ -13,16 +13,18 @@ const warnings = [];
 
 const HOTSPOT_BASELINES = new Map([
   ['src/main.js', 42035],
-  ['src/domain/tournament.js', 39715],
   ['worker/index.js', 29513],
   ['src/styles/app.css', 106621],
 ]);
 
 const MIGRATED_FILE_LIMITS = new Map([
   ['src/views/schedule.js', 2_000],
+  ['src/domain/tournament.js', 1_000],
 ]);
 const SCHEDULE_MODULE_SOFT_LIMIT = 15_000;
 const SCHEDULE_MODULE_HARD_LIMIT = 20_000;
+const TOURNAMENT_MODULE_SOFT_LIMIT = 12_000;
+const TOURNAMENT_MODULE_HARD_LIMIT = 18_000;
 const MAX_HOTSPOT_GROWTH = 1.05;
 const GENERIC_MODULE_NAMES = new Set([
   'utils.js',
@@ -221,7 +223,18 @@ for (const file of jsFiles.filter((item) => item.startsWith('src/views/schedule/
   }
 }
 
-// 7. Guardrail files themselves are part of the architecture contract.
+// 7. Phase 3 tournament modules are bounded so the domain monolith cannot reappear behind the facade.
+for (const file of jsFiles.filter((item) => item.startsWith('src/domain/tournament/'))) {
+  const content = await readFile(file);
+  const size = content.byteLength;
+  if (size > TOURNAMENT_MODULE_HARD_LIMIT) {
+    errors.push(`${file}: ${size} bytes exceeds the tournament-domain module hard limit ${TOURNAMENT_MODULE_HARD_LIMIT}; split the responsibility before adding more behavior.`);
+  } else if (size > TOURNAMENT_MODULE_SOFT_LIMIT) {
+    warnings.push(`${file}: ${size} bytes is approaching the tournament-domain module hard limit; consider a responsibility split.`);
+  }
+}
+
+// 8. Guardrail files themselves are part of the architecture contract.
 for (const required of ['ARCHITECTURE.md', 'AGENTS.md']) {
   try { await access(required); } catch { errors.push(`Missing architecture contract file: ${required}`); }
 }

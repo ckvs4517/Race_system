@@ -201,7 +201,16 @@ Split tournament list/history, bracket/match cards, standings, roster, and sched
 
 ### Phase 3 — Tournament domain decomposition
 
-Separate lifecycle, normalization, match operations, ranking-related shared logic, and registration concerns while keeping a stable domain facade.
+`src/domain/tournament.js` is now a compatibility facade over `src/domain/tournament/index.js`; existing callers keep the same public imports while internal ownership is split by responsibility:
+
+- lifecycle and scheduling transitions: `lifecycle.js`
+- backward-compatible record normalization: `normalization.js`
+- formal result, replay, forfeit, and withdrawal operations: `matches.js`
+- standings and Swiss-stage queries/actions: `standings.js`, `swiss-actions.js`
+- draft roster, participant invariants, and registration: `roster.js`, `participant-model.js`, `registration.js`, `registration-settings.js`
+- pairings, metadata, legacy compatibility, score validation, constants, and record factory remain narrow support modules
+
+Outside callers must continue importing through `src/domain/tournament.js`; deep imports into `src/domain/tournament/` are reserved for domain-internal composition. Tournament JSON semantics, format strategies, Worker API contracts, and D1 persistence are unchanged by this phase.
 
 ### Phase 4 — Worker decomposition
 

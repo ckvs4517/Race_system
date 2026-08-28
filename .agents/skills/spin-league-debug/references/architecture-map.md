@@ -5,7 +5,7 @@
 | Routing/navigation | `src/core/router.js`, `src/main.js` | `tests/navigation.test.mjs`, browser flows |
 | Public/admin rendering | `src/views/*`, `src/ui/*`, `src/styles/app.css` | view-specific tests, `tests/responsive-ui.test.mjs` |
 | Client API and sync | `src/data/store.js` | `tests/sync.test.mjs`, `tests/action-sync.test.mjs` |
-| Shared lifecycle | `src/domain/tournament.js` | `tests/check-in.test.mjs`, `tests/tournament.test.js` |
+| Shared tournament domain | `src/domain/tournament.js` facade, `src/domain/tournament/*` | `tests/v2-domain-boundary.test.mjs`, tournament regressions |
 | Single elimination | `src/formats/single-elimination.js` | browser tournament test, format matrix |
 | Swiss | `src/formats/swiss.js` | `tests/swiss.test.mjs`, format matrix |
 | Registration | `src/views/registration*.js`, Worker registration routes | `tests/registration.test.mjs` |
