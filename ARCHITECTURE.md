@@ -35,7 +35,7 @@ worker/
 ├─ routes/                      # request routing/handlers
 ├─ services/                    # server application services
 ├─ db/                          # D1 persistence adapters
-└─ index.js                     # eventual thin Worker entry point
+└─ index.js                     # thin Worker entry point
 ```
 
 The repository is currently migrating toward this structure. Existing paths remain supported during the transition, but new code must move toward the target instead of increasing legacy coupling.
@@ -89,7 +89,9 @@ Owns reusable presentation primitives shared by multiple features. UI primitives
 
 ### `worker/`
 
-The Worker entry point should progressively become routing/coordination only. Business validation belongs in server services/domain code, and D1 access belongs in persistence adapters.
+`worker/index.js` is a thin Worker entry point. HTTP path/method coordination and response shaping belong in `worker/routes/`; authorization, server-side validation, revision metadata helpers, and server-authoritative action dispatch belong in `worker/services/`; D1 SQL belongs only in `worker/db/` persistence adapters.
+
+`worker/tournament-domain.js` is the packaging bridge from Worker modules to the shared tournament domain. Worker route/service code must not reintroduce direct D1 statements outside `worker/db/`.
 
 ## Dependency direction
 
@@ -157,7 +159,7 @@ Large file size is a warning signal, not proof of bad architecture. During the V
 | `worker/index.js` | 29,513 bytes |
 | `src/styles/app.css` | 106,621 bytes |
 
-`check-architecture` warns when a hotspot grows beyond its baseline and fails if it grows more than 5% without first updating the architecture plan. Updating the baseline simply to bypass the check is not acceptable.
+Unmigrated hotspots warn when they grow beyond their baseline and fail if they grow more than 5% without first updating the architecture plan. Once a migration phase lands, the old hotspot is removed from the legacy growth baseline and replaced by a much tighter migrated-facade/module limit. Updating a baseline simply to bypass the check is not acceptable.
 
 The long-term intent is:
 
@@ -214,7 +216,16 @@ Outside callers must continue importing through `src/domain/tournament.js`; deep
 
 ### Phase 4 — Worker decomposition
 
-Separate routing, server services, and D1 persistence while preserving all API contracts, revision checks, and server-side validation.
+`worker/index.js` is now a thin entry point that delegates API handling to `worker/routes/api.js`. The old Worker monolith is separated into stable server responsibilities:
+
+- API path/method coordination, response shaping, ETag/304 behavior: `worker/routes/`
+- authorization/session signing, registration validation, tournament payload validation, revision helpers, and server-authoritative action dispatch: `worker/services/`
+- tournament and registration D1 statements, row mapping, optimistic update/delete helpers, and backup replacement persistence: `worker/db/`
+- shared tournament business rules remain in `src/domain/tournament.js`, reached through the packaging bridge `worker/tournament-domain.js`
+
+Phase 4 preserves all existing API paths, HTTP status behavior, JSON payload shapes, authorization checks, ETags, revision conflict responses, server-side action validation, tournament JSON semantics, D1 schema, and production data. `scripts/build-site.mjs` packages the decomposed Worker modules and rewrites only the dedicated domain bridge for the Sites server artifact.
+
+Architecture checks require `worker/index.js` to remain below 2 KB, bound Worker route/support module growth, and reject direct D1 `.prepare()` / `.batch()` calls outside `worker/db/`.
 
 ### Phase 5 — CSS organization
 
