@@ -53,7 +53,10 @@ await Promise.all(migrationNames.map((name) =>
 
 const requiredFiles = [
   [join(serverDir, 'index.js'), 20_000],
-  [join(serverDir, 'domain', 'tournament.js'), 20_000],
+  [join(serverDir, 'domain', 'tournament.js'), 50],
+[join(serverDir, 'domain', 'tournament', 'index.js'), 500],
+[join(serverDir, 'domain', 'tournament', 'lifecycle.js'), 3_000],
+[join(serverDir, 'domain', 'tournament', 'matches.js'), 2_000],
   [join(serverDir, 'formats', 'registry.js'), 100],
   [join(clientDir, 'index.html'), 500],
   // V2: main.js 是 coordinator，功能實作已移到 features；不再用肥大的入口檔作為建置完整性指標。
