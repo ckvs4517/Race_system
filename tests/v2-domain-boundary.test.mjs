@@ -8,6 +8,7 @@ const facadeSource = await readFile(facadeUrl, 'utf8');
 const facadeInfo = await stat(facadeUrl);
 assert.ok(facadeInfo.size < 1_000, `tournament.js should stay a thin facade; current size is ${facadeInfo.size} bytes`);
 assert.match(facadeSource, /tournament\/index\.js/, 'compatibility facade must point at the V2 tournament index');
+assert.ok(!/\bfunction\b/.test(facadeSource), 'compatibility facade must not regain tournament implementation details');
 
 const expected = [
   'MAX_TOURNAMENT_PLAYERS', 'nextPowerOfTwo', 'requiredSeedCount', 'createTournament', 'duplicateTournament',
