@@ -13,18 +13,21 @@ const warnings = [];
 
 const HOTSPOT_BASELINES = new Map([
   ['src/main.js', 42035],
-  ['worker/index.js', 29513],
   ['src/styles/app.css', 106621],
 ]);
 
 const MIGRATED_FILE_LIMITS = new Map([
   ['src/views/schedule.js', 2_000],
   ['src/domain/tournament.js', 1_000],
+  ['worker/index.js', 2_000],
 ]);
 const SCHEDULE_MODULE_SOFT_LIMIT = 15_000;
 const SCHEDULE_MODULE_HARD_LIMIT = 20_000;
 const TOURNAMENT_MODULE_SOFT_LIMIT = 12_000;
 const TOURNAMENT_MODULE_HARD_LIMIT = 18_000;
+const WORKER_ROUTE_SOFT_LIMIT = 14_000;
+const WORKER_ROUTE_HARD_LIMIT = 18_000;
+const WORKER_SUPPORT_HARD_LIMIT = 10_000;
 const MAX_HOTSPOT_GROWTH = 1.05;
 const GENERIC_MODULE_NAMES = new Set([
   'utils.js',
@@ -205,7 +208,7 @@ for (const [file, hardLimit] of MIGRATED_FILE_LIMITS) {
     const content = await readFile(file);
     const size = content.byteLength;
     if (size > hardLimit) {
-      errors.push(`${file}: ${size} bytes exceeds the migrated façade limit ${hardLimit} bytes. Keep orchestration thin and put view responsibilities in the owning modules.`);
+      errors.push(`${file}: ${size} bytes exceeds the migrated façade limit ${hardLimit} bytes. Keep orchestration thin and put responsibilities in the owning modules.`);
     }
   } catch {
     errors.push(`${file}: migrated architecture façade is missing.`);
@@ -234,7 +237,30 @@ for (const file of jsFiles.filter((item) => item.startsWith('src/domain/tourname
   }
 }
 
-// 8. Guardrail files themselves are part of the architecture contract.
+// 8. Phase 4 Worker modules keep request coordination, services, and D1 persistence separate.
+for (const file of jsFiles.filter((item) => item.startsWith('worker/routes/'))) {
+  const content = await readFile(file);
+  const size = content.byteLength;
+  if (size > WORKER_ROUTE_HARD_LIMIT) {
+    errors.push(`${file}: ${size} bytes exceeds the Worker route hard limit ${WORKER_ROUTE_HARD_LIMIT}; split endpoint coordination before it becomes a new monolith.`);
+  } else if (size > WORKER_ROUTE_SOFT_LIMIT) {
+    warnings.push(`${file}: ${size} bytes is approaching the Worker route hard limit; consider an endpoint split.`);
+  }
+}
+for (const file of jsFiles.filter((item) => item.startsWith('worker/services/') || item.startsWith('worker/db/'))) {
+  const content = await readFile(file);
+  if (content.byteLength > WORKER_SUPPORT_HARD_LIMIT) {
+    errors.push(`${file}: ${content.byteLength} bytes exceeds the Worker support-module hard limit ${WORKER_SUPPORT_HARD_LIMIT}.`);
+  }
+}
+for (const file of jsFiles.filter((item) => item.startsWith('worker/') && !item.startsWith('worker/db/'))) {
+  const source = await sourceOf(file);
+  if (/\.prepare\s*\(/.test(source) || /\.batch\s*\(/.test(source)) {
+    errors.push(`${file}: direct D1 statements are reserved for worker/db persistence adapters.`);
+  }
+}
+
+// 9. Guardrail files themselves are part of the architecture contract.
 for (const required of ['ARCHITECTURE.md', 'AGENTS.md']) {
   try { await access(required); } catch { errors.push(`Missing architecture contract file: ${required}`); }
 }
