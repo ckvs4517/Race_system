@@ -31,6 +31,13 @@ assert.throws(() => assertE2ETournamentName('一般測試賽'), /拒絕刪除非
 const syntax = spawnSync(process.execPath, ['--check', 'scripts/verify-staging-e2e.mjs'], { encoding: 'utf8' });
 assert.equal(syntax.status, 0, `staging E2E runner 語法錯誤：${syntax.stderr || syntax.stdout}`);
 
+const browserRunner = await readFile(new URL('../scripts/verify-staging-browser-e2e.mjs', import.meta.url), 'utf8');
+const legacyRunner = await readFile(new URL('../scripts/verify-staging-e2e.mjs', import.meta.url), 'utf8');
+for (const [label, runner] of [['browser', browserRunner], ['legacy', legacyRunner]]) {
+  assert.match(runner, /input\.checked && !input\.disabled/, `${label} runner 必須等待報到儲存完成`);
+  assert.doesNotMatch(runner, /!document\.contains\(input\), 'check-in save'/, `${label} runner 不得假設報到會替換 DOM 節點`);
+}
+
 const workflow = await readFile(new URL('../.github/workflows/staging-e2e.yml', import.meta.url), 'utf8');
 assert.match(workflow, /STAGING_SITE_URL: https:\/\/spin-league-test\.ckvs4517\.chatgpt\.site\//, 'workflow 固定指向測試站');
 assert.match(workflow, /STAGING_ADMIN_PIN: \$\{\{ secrets\.STAGING_ADMIN_PIN \}\}/, 'PIN 只能從 GitHub Actions secret 讀取');

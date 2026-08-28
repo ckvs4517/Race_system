@@ -322,7 +322,8 @@ async function browserFlow(pin, e2eName, temporaryPlayer) {
       const input = query('[data-check-in-player]:not(:checked)');
       if (!input) break;
       input.click();
-      await waitUntil(() => !document.contains(input), 'check-in save');
+      // 報到控制器會保留同一個 input；只有雲端寫入成功後才解除 disabled。
+      await waitUntil(() => input.checked && !input.disabled, 'check-in save');
       checked += 1;
     }
     await waitUntil(() => textIncludes('已報到 4／報名 4 人'), 'all players checked in');
