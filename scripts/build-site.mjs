@@ -17,21 +17,20 @@ const buildVersion = sourceVersionToken(sourceVersion);
 await rm(dist, { recursive: true, force: true });
 await Promise.all([
   mkdir(serverDir, { recursive: true }),
+  mkdir(join(serverDir, 'routes'), { recursive: true }),
+  mkdir(join(serverDir, 'services'), { recursive: true }),
+  mkdir(join(serverDir, 'db'), { recursive: true }),
   mkdir(clientDir, { recursive: true }),
   mkdir(drizzleDir, { recursive: true }),
   mkdir(join(clientDir, 'node_modules', 'html-to-image', 'dist'), { recursive: true }),
 ]);
 
-const workerPath = join(projectRoot, 'worker', 'index.js');
-const workerSource = await readFile(workerPath, 'utf8');
-const packagedWorker = workerSource.replace(
-  "from '../src/domain/tournament.js'",
-  "from './domain/tournament.js'",
-);
-if (packagedWorker === workerSource) throw new Error('Worker shared-module import was not found.');
-
 await Promise.all([
-  writeFile(join(serverDir, 'index.js'), packagedWorker, 'utf8'),
+  cp(join(projectRoot, 'worker', 'index.js'), join(serverDir, 'index.js')),
+  cp(join(projectRoot, 'worker', 'routes'), join(serverDir, 'routes'), { recursive: true }),
+  cp(join(projectRoot, 'worker', 'services'), join(serverDir, 'services'), { recursive: true }),
+  cp(join(projectRoot, 'worker', 'db'), join(serverDir, 'db'), { recursive: true }),
+  cp(join(projectRoot, 'worker', 'tournament-domain.js'), join(serverDir, 'tournament-domain.js')),
   cp(join(projectRoot, 'src', 'domain'), join(serverDir, 'domain'), { recursive: true }),
   cp(join(projectRoot, 'src', 'formats'), join(serverDir, 'formats'), { recursive: true }),
   cp(join(projectRoot, 'index.html'), join(clientDir, 'index.html')),
@@ -40,26 +39,33 @@ await Promise.all([
   cp(join(projectRoot, '.openai', 'hosting.json'), join(dist, '.openai', 'hosting.json')),
 ]);
 
+const domainBridgePath = join(serverDir, 'tournament-domain.js');
+const domainBridgeSource = await readFile(domainBridgePath, 'utf8');
+const packagedDomainBridge = domainBridgeSource.replace("from '../src/domain/tournament.js'", "from './domain/tournament.js'");
+if (packagedDomainBridge === domainBridgeSource) throw new Error('Worker tournament domain bridge import was not found.');
+await writeFile(domainBridgePath, packagedDomainBridge, 'utf8');
+
 const buildInfoPath = join(clientDir, 'src', 'core', 'build-info.js');
 const buildInfoToken = '__SPIN_BUILD_VERSION__';
 const buildInfoSource = await readFile(buildInfoPath, 'utf8');
 if (!buildInfoSource.includes(buildInfoToken)) throw new Error('Build version token was not found.');
 await writeFile(buildInfoPath, buildInfoSource.replace(buildInfoToken, buildVersion), 'utf8');
 
-const migrationNames = (await readdir(join(projectRoot, '.openai', 'drizzle')))
-  .filter((name) => name.endsWith('.sql'));
-await Promise.all(migrationNames.map((name) =>
-  cp(join(projectRoot, '.openai', 'drizzle', name), join(drizzleDir, name))));
+const migrationNames = (await readdir(join(projectRoot, '.openai', 'drizzle'))).filter((name) => name.endsWith('.sql'));
+await Promise.all(migrationNames.map((name) => cp(join(projectRoot, '.openai', 'drizzle', name), join(drizzleDir, name))));
 
 const requiredFiles = [
-  [join(serverDir, 'index.js'), 20_000],
+  [join(serverDir, 'index.js'), 300],
+  [join(serverDir, 'routes', 'api.js'), 5_000],
+  [join(serverDir, 'services', 'tournament-actions.js'), 2_000],
+  [join(serverDir, 'db', 'tournaments.js'), 1_000],
+  [join(serverDir, 'tournament-domain.js'), 300],
   [join(serverDir, 'domain', 'tournament.js'), 50],
-[join(serverDir, 'domain', 'tournament', 'index.js'), 500],
-[join(serverDir, 'domain', 'tournament', 'lifecycle.js'), 3_000],
-[join(serverDir, 'domain', 'tournament', 'matches.js'), 2_000],
+  [join(serverDir, 'domain', 'tournament', 'index.js'), 500],
+  [join(serverDir, 'domain', 'tournament', 'lifecycle.js'), 3_000],
+  [join(serverDir, 'domain', 'tournament', 'matches.js'), 2_000],
   [join(serverDir, 'formats', 'registry.js'), 100],
   [join(clientDir, 'index.html'), 500],
-  // V2: main.js 是 coordinator，功能實作已移到 features；不再用肥大的入口檔作為建置完整性指標。
   [join(clientDir, 'src', 'main.js'), 4_000],
   [join(clientDir, 'src', 'features', 'schedule', 'controller.js'), 8_000],
   [join(clientDir, 'src', 'features', 'registration', 'controller.js'), 2_000],
@@ -70,9 +76,7 @@ const requiredFiles = [
 ];
 for (const [path, minimumBytes] of requiredFiles) {
   const info = await stat(path);
-  if (!info.isFile() || info.size < minimumBytes) {
-    throw new Error(`Invalid build artifact: ${path}`);
-  }
+  if (!info.isFile() || info.size < minimumBytes) throw new Error(`Invalid build artifact: ${path}`);
 }
 
 const packagedBuildInfo = await readFile(buildInfoPath, 'utf8');

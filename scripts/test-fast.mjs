@@ -1,10 +1,10 @@
-/** 常用快速回歸：成功時只輸出摘要，失敗時才顯示該測試完整輸出。 */
 import { runCommand } from './lib/test-runner.mjs';
 
 const tests = [
   'tests/v2-main-boundary.test.mjs',
   'tests/v2-schedule-boundary.test.mjs',
   'tests/v2-domain-boundary.test.mjs',
+  'tests/v2-worker-boundary.test.mjs',
   'tests/source-version.test.mjs',
   'tests/staging-target.test.mjs',
   'tests/roster-filter.test.mjs',
@@ -29,6 +29,10 @@ const tests = [
   'tests/speed-report.test.mjs',
 ];
 
-const started = Date.now();
-for (const test of tests) await runCommand(test, process.execPath, [test]);
-console.log(`SUMMARY fast tests: ${tests.length} passed in ${((Date.now() - started) / 1000).toFixed(1)}s`);
+const startedAt = Date.now();
+for (const test of tests) {
+  const result = await runCommand(process.execPath, [test], { label: test });
+  console.log(`PASS ${test} (${((Date.now() - startedAt) / 1000).toFixed(1)}s)`);
+  if (result.stdout.trim()) console.log(result.stdout.trim());
+}
+console.log(`SUMMARY fast tests: ${tests.length} passed in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
