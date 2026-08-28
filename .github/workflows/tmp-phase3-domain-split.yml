@@ -1,0 +1,339 @@
+name: Phase 3 tournament domain split
+on:
+  push:
+    branches: [v2/codebase-refactor]
+permissions:
+  contents: write
+jobs:
+  split:
+    if: github.event.head_commit.message == 'Prepare Phase 3 tournament domain split'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: v2/codebase-refactor
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Split tournament domain behind stable facade
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source_path = Path('src/domain/tournament.js')
+          source = source_path.read_text()
+          pattern = re.compile(r'(?m)^(?:export\s+)?function\s+([A-Za-z0-9_]+)\s*\(')
+          matches = list(pattern.finditer(source))
+          blocks = {}
+          for index, match in enumerate(matches):
+              end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+              blocks[match.group(1)] = source[match.start():end].rstrip() + '\n'
+
+          expected = {
+              'nextPowerOfTwo','requiredSeedCount','createTournament','duplicateTournament','updateDraftTournament',
+              'setDraftPlayerCheckedIn','setAllDraftPlayersCheckedIn','addDraftPlayer','removeDraftPlayer','updateDraftParticipant',
+              'addConfirmedParticipant','drawRandomSeeds','randomizeDraftTournament','startTournament','prepareTournamentSchedule',
+              'randomizeTournamentSchedule','updateOpeningPairings','confirmTournamentSchedule','normalizeTournament','buildRounds',
+              'getTournamentStandings','getSwissPhaseStandings','startSwissQualifier','startSwissFinal','completeSwissByStandings',
+              'completeTournamentEarlyLegacy','startRoundRobinTieBreak','completeTournamentEarly','updateRegistrationSettings',
+              'resetCompletedMatch','recordMatchResult','forfeitMatch','withdrawPlayer','settleAdministrativeMatch','findPendingMatch',
+              'projectFutureRounds','validatePlayers','validateOpeningPairs','validateDraftPlayers','assertDraftRosterChange',
+              'draftCompetitionPlayers','rebuildDraftRoster','normalizeDraftParticipantDetail','assertUniqueParticipantPhone',
+              'assertSelectedDrinkOptionsRemain','validateFinalScore','createParticipantStates','normalizeParticipantStates',
+              'validateArenaCount','normalizeStoredArenaCount','normalizeEventInfo','createRegistrationSettings',
+              'revokeRegistrationSettings','normalizeRegistrationSettings','createPublicToken','cleanEventText','cleanEventUrl',
+              'recordLegacyResult','advanceLegacyWins',
+          }
+          missing = sorted(expected - set(blocks))
+          extra = sorted(set(blocks) - expected)
+          assert not missing, f'missing functions: {missing}'
+          assert not extra, f'unclassified functions: {extra}'
+
+          def block(name, export=False, rename=None):
+              text = blocks[name]
+              if rename:
+                  text = re.sub(rf'^(export\s+)?function\s+{name}\s*\(', f'export function {rename}(', text, count=1)
+              elif export and not text.startswith('export function'):
+                  text = re.sub(r'^function\s+', 'export function ', text, count=1)
+              return text.rstrip() + '\n\n'
+
+          def write(name, header, imports, functions):
+              path = Path('src/domain/tournament') / name
+              path.parent.mkdir(parents=True, exist_ok=True)
+              body = header.rstrip() + '\n' + imports.rstrip() + '\n\n' + ''.join(functions).rstrip() + '\n'
+              path.write_text(body)
+
+          write('constants.js', '/** Tournament-wide constants and simple size calculations. */', '', [
+              "export const BYE = '輪空';\nexport const PENDING = '待定';\nexport const MAX_TOURNAMENT_PLAYERS = 48;\n\n",
+              block('nextPowerOfTwo'),
+          ])
+
+          write('metadata.js', '/** Arena and event metadata validation/normalization. */', '', [
+              block('validateArenaCount', True),
+              block('normalizeStoredArenaCount', True),
+              block('normalizeEventInfo', True),
+              block('cleanEventText'),
+              block('cleanEventUrl'),
+          ])
+
+          write('registration-settings.js', '/** Public registration settings and token lifecycle. */', "import { MAX_TOURNAMENT_PLAYERS } from './constants.js';", [
+              block('createRegistrationSettings', True),
+              block('revokeRegistrationSettings', True),
+              block('normalizeRegistrationSettings', True),
+              block('createPublicToken'),
+          ])
+
+          write('participant-model.js', '/** Participant roster invariants and draft-roster reconstruction. */', """import { getTournamentFormat } from '../../formats/registry.js';
+          import { normalizeParticipantDetails, normalizePhone, resolveDrinkSelection } from '../drinks.js';
+          import { MAX_TOURNAMENT_PLAYERS } from './constants.js';""", [
+              block('validatePlayers', True),
+              block('validateDraftPlayers', True),
+              block('assertDraftRosterChange', True),
+              block('draftCompetitionPlayers', True),
+              block('rebuildDraftRoster', True),
+              block('normalizeDraftParticipantDetail', True),
+              block('assertUniqueParticipantPhone', True),
+              block('assertSelectedDrinkOptionsRemain', True),
+              block('createParticipantStates', True),
+              block('normalizeParticipantStates', True),
+          ])
+
+          write('factory.js', '/** Low-level tournament record factory shared by creation and legacy normalization. */', """import { getTournamentFormat } from '../../formats/registry.js';
+          import { DEFAULT_SWISS_RANKING_RULE } from '../ranking/swiss-ranking.js';
+          import { createDefaultDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
+          import { normalizeEventInfo, validateArenaCount } from './metadata.js';
+          import { createParticipantStates, validateDraftPlayers } from './participant-model.js';
+          import { createRegistrationSettings } from './registration-settings.js';""", [
+              block('createTournament', rename='createTournamentRecord'),
+          ])
+
+          write('legacy-bracket.js', '/** Compatibility operations for pre-V2 single-elimination tournament records. */', "import { BYE, PENDING } from './constants.js';", [
+              block('recordLegacyResult', True),
+              block('advanceLegacyWins', True),
+          ])
+
+          write('pairings.js', '/** Shared opening-pair validation and projected bracket helpers. */', "import { BYE, PENDING } from './constants.js';", [
+              block('validateOpeningPairs', True),
+              block('projectFutureRounds', True),
+          ])
+
+          write('normalization.js', '/** Backward-compatible tournament record normalization. */', """import { getTournamentFormat } from '../../formats/registry.js';
+          import { SWISS_RANKING_RULE_LEGACY, normalizeSwissRankingRule } from '../ranking/swiss-ranking.js';
+          import { createEmptyDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
+          import { createTournamentRecord } from './factory.js';
+          import { advanceLegacyWins } from './legacy-bracket.js';
+          import { normalizeEventInfo, normalizeStoredArenaCount } from './metadata.js';
+          import { createParticipantStates, normalizeParticipantStates, rebuildDraftRoster } from './participant-model.js';
+          import { normalizeRegistrationSettings } from './registration-settings.js';""", [
+              block('normalizeTournament'),
+          ])
+          normalization_path = Path('src/domain/tournament/normalization.js')
+          normalization = normalization_path.read_text().replace('const migrated = createTournament(', 'const migrated = createTournamentRecord(')
+          normalization_path.write_text(normalization)
+
+          write('roster.js', '/** Draft roster and check-in operations. */', """import { normalizeTournament } from './normalization.js';
+          import {
+            assertDraftRosterChange,
+            assertUniqueParticipantPhone,
+            normalizeDraftParticipantDetail,
+            rebuildDraftRoster,
+            validateDraftPlayers,
+          } from './participant-model.js';""", [
+              block('setDraftPlayerCheckedIn'),
+              block('setAllDraftPlayersCheckedIn'),
+              block('addDraftPlayer'),
+              block('removeDraftPlayer'),
+              block('updateDraftParticipant'),
+          ])
+
+          write('registration.js', '/** Registration-to-roster confirmation and registration settings actions. */', """import { normalizePhone, resolveDrinkSelection } from '../drinks.js';
+          import { normalizeTournament } from './normalization.js';
+          import { assertDraftRosterChange, assertUniqueParticipantPhone, rebuildDraftRoster, validateDraftPlayers } from './participant-model.js';
+          import { normalizeRegistrationSettings, revokeRegistrationSettings } from './registration-settings.js';""", [
+              block('addConfirmedParticipant'),
+              block('updateRegistrationSettings'),
+          ])
+
+          write('standings.js', '/** Tournament standings, Swiss phase standings, and bracket projection queries. */', """import { getTournamentFormat } from '../../formats/registry.js';
+          import { normalizeTournament } from './normalization.js';
+          import { projectFutureRounds } from './pairings.js';""", [
+              block('buildRounds'),
+              block('getTournamentStandings'),
+              block('getSwissPhaseStandings'),
+          ])
+
+          write('swiss-actions.js', '/** Swiss-stage and round-robin tie-break transitions delegated to format strategies. */', """import { getTournamentFormat } from '../../formats/registry.js';
+          import { startRoundRobinTieBreak as createRoundRobinTieBreak } from '../../formats/round-robin.js';
+          import { normalizeTournament } from './normalization.js';""", [
+              block('startSwissQualifier'),
+              block('startSwissFinal'),
+              block('completeSwissByStandings'),
+              block('startRoundRobinTieBreak'),
+          ])
+
+          lifecycle_imports = """import { getTournamentFormat } from '../../formats/registry.js';
+          import { SWISS_RANKING_RULE_LEGACY, normalizeSwissRankingRule } from '../ranking/swiss-ranking.js';
+          import { createDefaultDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
+          import { BYE } from './constants.js';
+          import { createTournamentRecord } from './factory.js';
+          import { normalizeEventInfo, validateArenaCount } from './metadata.js';
+          import { normalizeTournament } from './normalization.js';
+          import { validateOpeningPairs } from './pairings.js';
+          import {
+            assertSelectedDrinkOptionsRemain,
+            draftCompetitionPlayers,
+            normalizeParticipantStates,
+            validateDraftPlayers,
+            validatePlayers,
+          } from './participant-model.js';
+          import { revokeRegistrationSettings } from './registration-settings.js';
+          import { getTournamentStandings } from './standings.js';"""
+          create_wrapper = """export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}, drinkSettings = createDefaultDrinkSettings()) {
+            return createTournamentRecord(name, players, formatId, arenaCount, eventInfo, drinkSettings);
+          }
+
+          """
+          write('lifecycle.js', '/** Tournament creation, draft setup, scheduling, and top-level lifecycle transitions. */', lifecycle_imports, [
+              create_wrapper,
+              block('requiredSeedCount'),
+              block('duplicateTournament'),
+              block('updateDraftTournament'),
+              block('drawRandomSeeds'),
+              block('randomizeDraftTournament'),
+              block('startTournament'),
+              block('prepareTournamentSchedule'),
+              block('randomizeTournamentSchedule'),
+              block('updateOpeningPairings'),
+              block('confirmTournamentSchedule'),
+              block('completeTournamentEarlyLegacy'),
+              block('completeTournamentEarly'),
+          ])
+
+          write('score-validation.js', '/** Formal match final-score validation. */', '', [
+              block('validateFinalScore', True),
+          ])
+
+          write('matches.js', '/** Formal match result, replay, forfeit, and withdrawal operations. */', """import { getTournamentFormat } from '../../formats/registry.js';
+          import { recordLegacyResult } from './legacy-bracket.js';
+          import { normalizeTournament } from './normalization.js';
+          import { validateFinalScore } from './score-validation.js';""", [
+              block('resetCompletedMatch'),
+              block('recordMatchResult'),
+              block('forfeitMatch'),
+              block('withdrawPlayer'),
+              block('settleAdministrativeMatch'),
+              block('findPendingMatch'),
+          ])
+
+          index = """/** Stable public tournament-domain surface. Internal modules may change without affecting callers. */
+          export { MAX_TOURNAMENT_PLAYERS, nextPowerOfTwo } from './constants.js';
+          export {
+            createTournament,
+            duplicateTournament,
+            updateDraftTournament,
+            requiredSeedCount,
+            drawRandomSeeds,
+            randomizeDraftTournament,
+            startTournament,
+            prepareTournamentSchedule,
+            randomizeTournamentSchedule,
+            updateOpeningPairings,
+            confirmTournamentSchedule,
+            completeTournamentEarly,
+          } from './lifecycle.js';
+          export {
+            setDraftPlayerCheckedIn,
+            setAllDraftPlayersCheckedIn,
+            addDraftPlayer,
+            removeDraftPlayer,
+            updateDraftParticipant,
+          } from './roster.js';
+          export { addConfirmedParticipant, updateRegistrationSettings } from './registration.js';
+          export { normalizeTournament } from './normalization.js';
+          export { buildRounds, getTournamentStandings, getSwissPhaseStandings } from './standings.js';
+          export { startSwissQualifier, startSwissFinal, completeSwissByStandings, startRoundRobinTieBreak } from './swiss-actions.js';
+          export { resetCompletedMatch, recordMatchResult, forfeitMatch, withdrawPlayer } from './matches.js';
+          """
+          Path('src/domain/tournament/index.js').write_text(index)
+          source_path.write_text("/** Stable compatibility facade for the decomposed V2 tournament domain. */\nexport * from './tournament/index.js';\n")
+
+          test = r'''/** V2 Phase 3: tournament.js remains a stable thin facade over coherent domain modules. */
+          import assert from 'node:assert/strict';
+          import { readFile, readdir, stat } from 'node:fs/promises';
+          import path from 'node:path';
+
+          const facadeUrl = new URL('../src/domain/tournament.js', import.meta.url);
+          const facadeSource = await readFile(facadeUrl, 'utf8');
+          const facadeInfo = await stat(facadeUrl);
+          assert.ok(facadeInfo.size < 1_000, `tournament.js should stay a thin facade; current size is ${facadeInfo.size} bytes`);
+          assert.match(facadeSource, /tournament\/index\.js/, 'compatibility facade must point at the V2 tournament index');
+
+          const expected = [
+            'MAX_TOURNAMENT_PLAYERS', 'nextPowerOfTwo', 'requiredSeedCount', 'createTournament', 'duplicateTournament',
+            'updateDraftTournament', 'setDraftPlayerCheckedIn', 'setAllDraftPlayersCheckedIn', 'addDraftPlayer', 'removeDraftPlayer',
+            'updateDraftParticipant', 'addConfirmedParticipant', 'drawRandomSeeds', 'randomizeDraftTournament', 'startTournament',
+            'prepareTournamentSchedule', 'randomizeTournamentSchedule', 'updateOpeningPairings', 'confirmTournamentSchedule',
+            'normalizeTournament', 'buildRounds', 'getTournamentStandings', 'getSwissPhaseStandings', 'startSwissQualifier',
+            'startSwissFinal', 'completeSwissByStandings', 'startRoundRobinTieBreak', 'completeTournamentEarly',
+            'updateRegistrationSettings', 'resetCompletedMatch', 'recordMatchResult', 'forfeitMatch', 'withdrawPlayer',
+          ].sort();
+          const facade = await import('../src/domain/tournament.js');
+          const index = await import('../src/domain/tournament/index.js');
+          assert.deepEqual(Object.keys(facade).sort(), expected, 'legacy tournament.js public exports must remain stable');
+          assert.deepEqual(Object.keys(index).sort(), expected, 'V2 tournament index must expose the same supported API');
+
+          const modulesDir = new URL('../src/domain/tournament/', import.meta.url);
+          const modules = (await readdir(modulesDir)).filter((name) => name.endsWith('.js'));
+          assert.ok(modules.length >= 10, 'Phase 3 should split the tournament domain into coherent modules');
+          for (const name of modules) {
+            const info = await stat(new URL(name, modulesDir));
+            assert.ok(info.size < 18_000, `${name} must not become a replacement tournament monolith (${info.size} bytes)`);
+          }
+
+          async function walk(directory) {
+            const entries = await readdir(directory, { withFileTypes: true });
+            const files = [];
+            for (const entry of entries) {
+              const child = path.join(directory, entry.name);
+              if (entry.isDirectory()) files.push(...await walk(child));
+              else if (/\.m?js$/.test(entry.name)) files.push(child);
+            }
+            return files;
+          }
+          const appFiles = [...await walk('src'), ...await walk('worker')]
+            .filter((file) => !file.startsWith(path.join('src', 'domain', 'tournament')));
+          for (const file of appFiles) {
+            const source = await readFile(file, 'utf8');
+            assert.ok(!source.includes('/domain/tournament/'), `${file} must use the stable tournament facade instead of domain internals`);
+          }
+
+          console.log(`PASS V2 tournament domain boundary (${modules.length} modules)`);
+          '''
+          Path('tests/v2-domain-boundary.test.mjs').write_text(test.replace('          ', ''))
+
+          fast = Path('scripts/test-fast.mjs')
+          fast_text = fast.read_text()
+          anchor = "  'tests/v2-schedule-boundary.test.mjs',\n"
+          assert anchor in fast_text and "tests/v2-domain-boundary.test.mjs" not in fast_text
+          fast.write_text(fast_text.replace(anchor, anchor + "  'tests/v2-domain-boundary.test.mjs',\n", 1))
+          PY
+
+          node --check src/domain/tournament.js
+          for file in src/domain/tournament/*.js; do node --check "$file"; done
+          node tests/v2-domain-boundary.test.mjs
+          node scripts/test-fast.mjs
+          node scripts/test-full.mjs --browser=required
+      - name: Commit Phase 3 split
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-phase3-domain-split.yml
+          git add src/domain/tournament.js src/domain/tournament tests/v2-domain-boundary.test.mjs scripts/test-fast.mjs
+          git commit -m "Decompose tournament domain for V2 Phase 3"
+          git push origin HEAD:v2/codebase-refactor
