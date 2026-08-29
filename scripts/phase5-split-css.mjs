@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const sourcePath = 'src/styles/app.css';
@@ -57,17 +57,5 @@ await writeFile(sourcePath, manifest, 'utf8');
 const expanded = chunks.map((chunk) => chunk.content).join('');
 if (expanded !== source) throw new Error('Expanded Phase 5 CSS does not match the original stylesheet.');
 
-const boundaryTest = `/** V2 Phase 5: app.css stays a thin ordered style manifest. */\nimport assert from 'node:assert/strict';\nimport { readFile, stat } from 'node:fs/promises';\n\nconst appUrl = new URL('../src/styles/app.css', import.meta.url);\nconst source = await readFile(appUrl, 'utf8');\nconst info = await stat(appUrl);\nassert.ok(info.size < 2_000, \\`app.css should stay a thin style manifest; current size is \\${info.size} bytes\\`);\nassert.ok(!source.includes('{'), 'app.css must not regain concrete style rules');\n\nconst expected = ${JSON.stringify(parts.map((part) => `./${part.file}`), null, 2)};\nconst imports = [...source.matchAll(/@import\\s+url\\(['\"]([^'\"]+)['\"]\\);/g)].map((match) => match[1]);\nassert.deepEqual(imports, expected, 'Phase 5 stylesheet import order is part of the visual compatibility contract');\n\nfor (const relative of imports) {\n  const fileUrl = new URL(\\`../src/styles/\\${relative.slice(2)}\\`, import.meta.url);\n  const moduleSource = await readFile(fileUrl, 'utf8');\n  const moduleInfo = await stat(fileUrl);\n  assert.ok(moduleSource.trim().length > 0, \\`\\${relative} must not be empty\\`);\n  assert.ok(!moduleSource.includes('@import'), \\`\\${relative} must not create nested style import chains\\`);\n  assert.ok(moduleInfo.size < 35_000, \\`\\${relative} is too large for a Phase 5 responsibility module (\\${moduleInfo.size} bytes)\\`);\n}\n\nconsole.log(\\`PASS V2 CSS boundary (\\${imports.length} ordered style modules)\\`);\n`;
-await writeFile('tests/v2-css-boundary.test.mjs', boundaryTest, 'utf8');
-
-const fastPath = 'scripts/test-fast.mjs';
-let fast = await readFile(fastPath, 'utf8');
-if (!fast.includes("'tests/v2-css-boundary.test.mjs'")) {
-  const anchor = "  'tests/v2-worker-boundary.test.mjs',\n";
-  if (!fast.includes(anchor)) throw new Error('Cannot find fast-test insertion point for Phase 5 boundary test.');
-  fast = fast.replace(anchor, `${anchor}  'tests/v2-css-boundary.test.mjs',\n`);
-  await writeFile(fastPath, fast, 'utf8');
-}
-
-console.log(`PASS Phase 5 CSS migration: ${source.length} bytes preserved across ${chunks.length} ordered modules.`);
+console.log(`PASS Phase 5 CSS migration: ${Buffer.byteLength(source)} bytes preserved across ${chunks.length} ordered modules.`);
 for (const chunk of chunks) console.log(`${chunk.file}: ${Buffer.byteLength(chunk.content)} bytes`);
