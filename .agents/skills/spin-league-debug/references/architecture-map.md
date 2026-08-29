@@ -3,7 +3,8 @@
 | Concern | Primary files | Verification |
 | --- | --- | --- |
 | Routing/navigation | `src/core/router.js`, `src/main.js` | `tests/navigation.test.mjs`, browser flows |
-| Public/admin rendering | `src/views/*`, `src/ui/*`, `src/styles/app.css` | view-specific tests, `tests/responsive-ui.test.mjs` |
+| Public/admin rendering | `src/views/*`, `src/ui/*` | view-specific tests, browser flows |
+| Styles/responsive layout | `src/styles/app.css` manifest, `src/styles/base/*`, `src/styles/features/*`, `src/styles/responsive/*` | `tests/v2-css-boundary.test.mjs`, `tests/responsive-ui.test.mjs`, browser flows |
 | Client API and sync | `src/data/store.js` | `tests/sync.test.mjs`, `tests/action-sync.test.mjs` |
 | Shared tournament domain | `src/domain/tournament.js` facade, `src/domain/tournament/*` | `tests/v2-domain-boundary.test.mjs`, tournament regressions |
 | Single elimination | `src/formats/single-elimination.js` | browser tournament test, format matrix |
