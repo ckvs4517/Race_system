@@ -2,9 +2,9 @@
 
 ## Goal
 
-Spin League V2 uses a hybrid architecture: user-facing behavior is organized by feature, while tournament rules, format algorithms, API communication, and reusable UI stay in dedicated layers.
+Spin League V2 uses a hybrid architecture: user-facing behavior is organized by feature, while tournament rules, format algorithms, API communication, reusable UI, and styles stay in dedicated layers.
 
-The objective is not to maximize file count. The objective is to keep each module responsible for one coherent reason to change, so future features can be added without turning `main.js`, `schedule.js`, `tournament.js`, or `worker/index.js` into new monoliths.
+The objective is not to maximize file count. The objective is to keep each module responsible for one coherent reason to change, so future features can be added without turning `main.js`, `schedule.js`, `tournament.js`, `worker/index.js`, or `app.css` into new monoliths.
 
 This document is a repository contract. AI agents and human contributors must follow it. `scripts/check-architecture.mjs` enforces the rules that can be checked automatically.
 
@@ -29,6 +29,11 @@ src/
 ├─ formats/                     # competition-format algorithms
 ├─ ui/                          # reusable UI primitives only
 ├─ export/                      # export/rendering utilities
+├─ styles/
+│  ├─ base/                     # global foundation/footer styles
+│  ├─ features/                 # feature-owned style ranges
+│  ├─ responsive/               # cross-feature responsive overrides
+│  └─ app.css                   # thin ordered import manifest
 └─ main.js                      # eventual thin bootstrap entry point
 
 worker/
@@ -86,6 +91,12 @@ Owns HTTP/API communication. Once a feature is migrated to V2 services, its feat
 ### `src/ui/`
 
 Owns reusable presentation primitives shared by multiple features. UI primitives must not become a second business/domain layer.
+
+### `src/styles/`
+
+`src/styles/app.css` is an ordered manifest, not a destination for concrete style rules. The import order is part of the visual compatibility contract because it preserves the original cascade.
+
+Global foundation/footer rules belong in `styles/base/`; feature-specific rules belong in `styles/features/`; cross-feature responsive overrides belong in `styles/responsive/`. Existing standalone stylesheets that are explicitly loaded by `index.html` remain supported and must not be silently folded into the manifest if doing so changes cascade order.
 
 ### `worker/`
 
@@ -167,7 +178,7 @@ The long-term intent is:
 - `schedule.js`: split into coherent schedule feature/view modules
 - `tournament.js`: preserve a stable public API while internal responsibilities are separated
 - `worker/index.js`: thin request router/entry point
-- `app.css`: feature/component styles instead of one global stylesheet
+- `app.css`: thin ordered stylesheet manifest
 
 ## Change rules
 
@@ -229,7 +240,17 @@ Architecture checks require `worker/index.js` to remain below 2 KB, bound Worker
 
 ### Phase 5 — CSS organization
 
-Move feature/component styles out of the global stylesheet without visual changes.
+`src/styles/app.css` is now a thin ordered import manifest. The original stylesheet was mechanically split into contiguous responsibility modules without reordering or rewriting rules, so the legacy cascade remains intact:
+
+- foundation and footer: `src/styles/base/`
+- scoreboard, tournament management, schedule, quick score, guide, share card, speedometer, registration, and late schedule overrides: `src/styles/features/`
+- cross-feature touch/responsive rules: `src/styles/responsive/`
+
+The migration verifies that concatenating the imported modules in manifest order reproduces the original stylesheet bytes. Existing standalone `src/styles/schedule-responsive.css`, `quick-score-inline.css`, and `tournament-share.css` continue to use their previous loading paths and are not silently merged into the new manifest.
+
+Architecture checks require `app.css` to remain below 2 KB with no concrete rules, forbid nested imports inside Phase 5 modules, warn when a Phase 5 style module exceeds 28 KB, and fail above 35 KB. `tests/v2-css-boundary.test.mjs` locks the import order, while existing responsive/visibility tests read the manifest-expanded stylesheet.
+
+No class names, HTML structure, JavaScript behavior, responsive rules, or visual values are intentionally changed by Phase 5.
 
 ### After V2 architecture stabilization
 
