@@ -1,0 +1,53 @@
+name: Apply Phase 5 CSS split
+
+on:
+  push:
+    branches: [v2/phase5-css-split]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+        with:
+          ref: v2/phase5-css-split
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Split stylesheet without changing CSS bytes
+        run: node scripts/phase5-split-css.mjs
+
+      - name: Verify Phase 5 boundary
+        run: node tests/v2-css-boundary.test.mjs
+
+      - name: Run architecture and repository health
+        run: npm run health
+
+      - name: Run fast regression suite
+        run: node scripts/test-fast.mjs
+
+      - name: Run full regression with browser
+        run: node scripts/test-full.mjs --browser=required
+
+      - name: Commit validated Phase 5 split
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm scripts/phase5-split-css.mjs .github/workflows/tmp-phase5-css-split.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Split Phase 5 CSS responsibilities"
+          git push origin HEAD:v2/phase5-css-split
