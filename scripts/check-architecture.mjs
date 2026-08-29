@@ -13,13 +13,13 @@ const warnings = [];
 
 const HOTSPOT_BASELINES = new Map([
   ['src/main.js', 42035],
-  ['src/styles/app.css', 106621],
 ]);
 
 const MIGRATED_FILE_LIMITS = new Map([
   ['src/views/schedule.js', 2_000],
   ['src/domain/tournament.js', 1_000],
   ['worker/index.js', 2_000],
+  ['src/styles/app.css', 2_000],
 ]);
 const SCHEDULE_MODULE_SOFT_LIMIT = 15_000;
 const SCHEDULE_MODULE_HARD_LIMIT = 20_000;
@@ -28,6 +28,8 @@ const TOURNAMENT_MODULE_HARD_LIMIT = 18_000;
 const WORKER_ROUTE_SOFT_LIMIT = 14_000;
 const WORKER_ROUTE_HARD_LIMIT = 18_000;
 const WORKER_SUPPORT_HARD_LIMIT = 10_000;
+const STYLE_MODULE_SOFT_LIMIT = 28_000;
+const STYLE_MODULE_HARD_LIMIT = 35_000;
 const MAX_HOTSPOT_GROWTH = 1.05;
 const GENERIC_MODULE_NAMES = new Set([
   'utils.js',
@@ -85,6 +87,9 @@ const sourceFiles = [
 
 const jsFiles = sourceFiles
   .filter((file) => /\.(?:m?js)$/.test(file))
+  .map((file) => toPosix(path.relative(root, file)));
+const styleFiles = sourceFiles
+  .filter((file) => /\.css$/.test(file))
   .map((file) => toPosix(path.relative(root, file)));
 
 const jsFileSet = new Set(jsFiles);
@@ -202,7 +207,7 @@ for (const [file, baseline] of HOTSPOT_BASELINES) {
   }
 }
 
-// 5. Migrated façades must stay thin after their phase is complete.
+// 5. Migrated façades/manifests must stay thin after their phase is complete.
 for (const [file, hardLimit] of MIGRATED_FILE_LIMITS) {
   try {
     const content = await readFile(file);
@@ -260,7 +265,35 @@ for (const file of jsFiles.filter((item) => item.startsWith('worker/') && !item.
   }
 }
 
-// 9. Guardrail files themselves are part of the architecture contract.
+// 9. Phase 5 styles keep app.css as an ordered manifest and bound the new responsibility modules.
+const phase5StyleFiles = styleFiles.filter((item) =>
+  item.startsWith('src/styles/base/')
+  || item.startsWith('src/styles/features/')
+  || item.startsWith('src/styles/responsive/'));
+for (const file of phase5StyleFiles) {
+  const content = await readFile(file, 'utf8');
+  const size = Buffer.byteLength(content);
+  if (/@import\b/.test(content)) {
+    errors.push(`${file}: nested CSS imports are forbidden; keep the ordered import chain in src/styles/app.css.`);
+  }
+  if (size > STYLE_MODULE_HARD_LIMIT) {
+    errors.push(`${file}: ${size} bytes exceeds the Phase 5 style-module hard limit ${STYLE_MODULE_HARD_LIMIT}; split the responsibility before adding more styles.`);
+  } else if (size > STYLE_MODULE_SOFT_LIMIT) {
+    warnings.push(`${file}: ${size} bytes is approaching the Phase 5 style-module hard limit; consider a responsibility split.`);
+  }
+}
+try {
+  const manifest = await readFile('src/styles/app.css', 'utf8');
+  if (manifest.includes('{')) errors.push('src/styles/app.css: Phase 5 manifest must not contain concrete CSS rules.');
+  const imports = [...manifest.matchAll(/@import\s+url\(['"]([^'"]+)['"]\);/g)].map((match) => match[1]);
+  if (imports.length < 10 || new Set(imports).size !== imports.length) {
+    errors.push('src/styles/app.css: expected a unique ordered Phase 5 import manifest.');
+  }
+} catch {
+  errors.push('src/styles/app.css: Phase 5 style manifest is missing.');
+}
+
+// 10. Guardrail files themselves are part of the architecture contract.
 for (const required of ['ARCHITECTURE.md', 'AGENTS.md']) {
   try { await access(required); } catch { errors.push(`Missing architecture contract file: ${required}`); }
 }
@@ -272,5 +305,5 @@ if (errors.length) {
   console.error(`FAIL architecture: ${errors.length} error(s), ${warnings.length} warning(s).`);
   process.exitCode = 1;
 } else {
-  console.log(`PASS architecture: ${jsFiles.length} JS modules checked, 0 dependency violations, 0 cycles, ${warnings.length} warning(s).`);
+  console.log(`PASS architecture: ${jsFiles.length} JS modules and ${styleFiles.length} stylesheets checked, 0 dependency violations, 0 cycles, ${warnings.length} warning(s).`);
 }
