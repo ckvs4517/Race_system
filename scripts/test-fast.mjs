@@ -32,8 +32,7 @@ const tests = [
 
 const startedAt = Date.now();
 for (const test of tests) {
-  const result = await runCommand(process.execPath, [test], { label: test });
-  console.log(`PASS ${test} (${((Date.now() - startedAt) / 1000).toFixed(1)}s)`);
+  const result = await runCommand(test, process.execPath, [test]);
   if (result.stdout.trim()) console.log(result.stdout.trim());
 }
 console.log(`SUMMARY fast tests: ${tests.length} passed in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
