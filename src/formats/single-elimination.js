@@ -22,12 +22,16 @@ export const singleElimination = {
   activateOpeningRound(round, stats) {
     const activatedStats = structuredClone(stats);
     const byeMatch = round.matches.find((match) => match.status === '輪空晉級');
-    if (byeMatch?.winner) activatedStats[byeMatch.winner].byeCount += 1;
+    if (byeMatch?.winner) {
+      activatedStats[byeMatch.winner].byeCount += 1;
+      activatedStats[byeMatch.winner].wins += 1;
+    }
     return activatedStats;
   },
 
   getStandings(tournament) {
-    const stats = tournament.playerStats || deriveStats(tournament.players, tournament.rounds);
+    // 單淘汰賽所有正式統計都能由 rounds 完整重建；以 rounds 為準可自動修正舊 V2 資料漏記的輪空勝場。
+    const stats = deriveStats(tournament.players, tournament.rounds);
     return tournament.players.map((player) => {
       const playerStats = { ...emptyStats(), ...(stats[player] || {}) };
       return {
@@ -59,8 +63,8 @@ export const singleElimination = {
   recordResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
     // 只允許目前最後一輪記分，避免回頭修改後讓既有晉級資料失去一致性。
     const rounds = structuredClone(tournament.rounds);
-    const stats = structuredClone(tournament.playerStats);
-    Object.keys(stats).forEach((player) => { stats[player] = { ...emptyStats(), ...stats[player] }; });
+    // 每次由 rounds 重建，避免舊資料的 playerStats 漏記輪空勝場後繼續向後傳播。
+    const stats = deriveStats(tournament.players, rounds);
     const match = rounds[roundIndex]?.matches[matchIndex];
     if (!match || match.status !== '可開始') throw new Error('這場比賽目前無法記分。');
     if (roundIndex !== rounds.length - 1) throw new Error('只能記錄目前輪次的比賽。');
@@ -91,7 +95,10 @@ export const singleElimination = {
       ? selectPerformanceSeed(advancingPlayers, stats, random)
       : null;
     const nextRound = createRound(advancingPlayers, performanceSeed, roundIndex + 2, 'performance');
-    if (performanceSeed) stats[performanceSeed].byeCount += 1;
+    if (performanceSeed) {
+      stats[performanceSeed].byeCount += 1;
+      stats[performanceSeed].wins += 1;
+    }
     rounds.push(nextRound);
     return { rounds, playerStats: stats, champion: null };
   },
@@ -170,8 +177,15 @@ function selectPerformanceSeed(players, stats, random) {
 function deriveStats(players, rounds = []) {
   const stats = Object.fromEntries(players.map((player) => [player, emptyStats()]));
   rounds.forEach((round) => {
-    if (round.seedPlayer && stats[round.seedPlayer]) stats[round.seedPlayer].byeCount += 1;
     round.matches.forEach((match) => {
+      if (match.status === '輪空晉級') {
+        const winner = match.winner || [match.playerA, match.playerB].find((player) => player !== BYE && player !== PENDING);
+        if (winner && stats[winner]) {
+          stats[winner].byeCount += 1;
+          stats[winner].wins += 1;
+        }
+        return;
+      }
       if (match.status !== '已完成' || match.scoreA == null || match.scoreB == null) return;
       updateStats(stats, match.playerA, match.scoreA, match.scoreB);
       updateStats(stats, match.playerB, match.scoreB, match.scoreA);
