@@ -1,6 +1,7 @@
 /** 即時排行榜、選手階段成績與已完成對戰紀錄。 */
 import { getSwissPhaseStandings, getTournamentStandings } from '../../domain/tournament.js';
 import { SWISS_RANKING_RULE_BUCHHOLZ, normalizeSwissRankingRule } from '../../domain/ranking/swiss-ranking.js';
+import { getTournamentFormat } from '../../formats/registry.js';
 import { icons } from '../../ui/icons.js';
 import { readSwissStage2Config } from './decision-panels.js';
 import { escapeAttribute, escapeText } from './html-escape.js';
@@ -87,24 +88,30 @@ function swissDirectMatchReason(tournament, row, rows) {
 
 function stageSummaryView(tournament, player) {
   const groups = new Map();
+  const isSwiss = tournament.format === 'swiss';
+  const formatLabel = isSwiss ? '' : getTournamentFormat(tournament.format).name;
   (tournament.rounds || []).forEach((round) => {
-    const phase = round.phase || 'preliminary';
-    const key = phase === 'preliminary'
-      ? 'preliminary'
-      : phase === 'qualifier'
-        ? 'qualifier'
-        : phase === 'placement'
-          ? 'placement'
-          : round.seriesId === 'stage2-swiss'
-            ? 'stage2'
-            : 'final';
-    const label = {
-      preliminary: '瑞士輪',
-      qualifier: '同分加賽',
-      placement: '冠亞名次加賽',
-      stage2: '第二階段瑞士輪',
-      final: tournament.swissStage2Config ? '第二階段' : '四強／決賽',
-    }[key];
+    const phase = isSwiss ? (round.phase || 'preliminary') : 'main';
+    const key = isSwiss
+      ? phase === 'preliminary'
+        ? 'preliminary'
+        : phase === 'qualifier'
+          ? 'qualifier'
+          : phase === 'placement'
+            ? 'placement'
+            : round.seriesId === 'stage2-swiss'
+              ? 'stage2'
+              : 'final'
+      : 'main';
+    const label = isSwiss
+      ? {
+        preliminary: '瑞士輪',
+        qualifier: '同分加賽',
+        placement: '冠亞名次加賽',
+        stage2: '第二階段瑞士輪',
+        final: tournament.swissStage2Config ? '第二階段' : '四強／決賽',
+      }[key]
+      : formatLabel;
     if (!groups.has(key)) groups.set(key, { label, wins: 0, losses: 0, points: 0, opponentWins: null });
     round.matches.filter((match) => ['已完成', '輪空晉級'].includes(match.status) && [match.playerA, match.playerB].includes(player)).forEach((match) => {
       const group = groups.get(key);
@@ -120,7 +127,7 @@ function stageSummaryView(tournament, player) {
     });
   });
 
-  if (normalizeSwissRankingRule(tournament.swissRankingRule) === SWISS_RANKING_RULE_BUCHHOLZ) {
+  if (isSwiss && normalizeSwissRankingRule(tournament.swissRankingRule) === SWISS_RANKING_RULE_BUCHHOLZ) {
     const preliminary = getSwissPhaseStandings(tournament, 'preliminary').find((row) => row.player === player);
     if (groups.has('preliminary') && preliminary) groups.get('preliminary').opponentWins = preliminary.opponentWins;
     if (tournament.swissFinalMode === 'swiss' && groups.has('stage2')) {
