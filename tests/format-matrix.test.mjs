@@ -12,6 +12,7 @@ import {
   startSwissFinal,
   startTournament,
 } from '../src/domain/tournament.js';
+import { getTournamentFormat } from '../src/formats/registry.js';
 import { leaderboardView } from '../src/views/schedule/leaderboard.js';
 
 let completedTournaments = 0;
@@ -90,6 +91,51 @@ const singleEliminationLeaderboardHtml = leaderboardView(
 );
 assert.match(singleEliminationLeaderboardHtml, /<b>單淘汰賽<\/b>/, '單淘汰排行榜階段成績應顯示單淘汰賽');
 assert.doesNotMatch(singleEliminationLeaderboardHtml, /<b>瑞士輪<\/b>/, '單淘汰排行榜不得誤顯示瑞士輪');
+
+let openingByeTournament = startTournament(checkInAll(createTournament('單淘汰第一輪輪空', ['A', 'B', 'C'], 'single_elimination')));
+const openingByeMatch = openingByeTournament.rounds[0].matches.find((match) => match.status === '輪空晉級');
+assert.ok(openingByeMatch?.winner, '三人單淘汰第一輪應有一名輪空者');
+const openingByePlayer = openingByeMatch.winner;
+const openingByeStanding = getTournamentStandings(openingByeTournament).find((row) => row.player === openingByePlayer);
+assert.equal(openingByeStanding.wins, 1, '第一輪輪空應立即計入排行榜 1 勝');
+assert.equal(openingByeStanding.losses, 0, '輪空不得增加敗場');
+assert.equal(openingByeStanding.totalPoints, 0, '單淘汰輪空不得額外增加得分');
+assert.equal(openingByeTournament.playerStats[openingByePlayer].wins, 1, 'stored stats 應記錄輪空勝場');
+assert.equal(openingByeTournament.playerStats[openingByePlayer].matchesPlayed, 0, '輪空不算實際出賽');
+
+const staleOpeningByeTournament = structuredClone(openingByeTournament);
+staleOpeningByeTournament.playerStats[openingByePlayer].wins = 0;
+assert.equal(
+  getTournamentStandings(staleOpeningByeTournament).find((row) => row.player === openingByePlayer).wins,
+  1,
+  '舊 V2 stored stats 漏記輪空勝場時，排行榜應由 rounds 自動推導正確勝場',
+);
+const rebuiltOpeningByeStats = getTournamentFormat('single_elimination').rebuildStats(
+  staleOpeningByeTournament.players,
+  staleOpeningByeTournament.rounds,
+);
+assert.equal(rebuiltOpeningByeStats[openingByePlayer].wins, 1, 'rebuildStats 應把輪空重建為 1 勝');
+assert.equal(rebuiltOpeningByeStats[openingByePlayer].byeCount, 1, 'rebuildStats 應保留輪空次數');
+assert.equal(rebuiltOpeningByeStats[openingByePlayer].matchesPlayed, 0, 'rebuildStats 不得把輪空算成實際出賽');
+
+let laterByeTournament = startTournament(checkInAll(createTournament('單淘汰後續輪空', ['A', 'B', 'C', 'D', 'E'], 'single_elimination')));
+const firstRoundPlayableIds = laterByeTournament.rounds[0].matches
+  .filter((match) => match.status === '可開始')
+  .map((match) => match.id);
+for (const matchId of firstRoundPlayableIds) {
+  const roundIndex = laterByeTournament.rounds.findIndex((round) => round.matches.some((match) => match.id === matchId));
+  const matchIndex = laterByeTournament.rounds[roundIndex].matches.findIndex((match) => match.id === matchId);
+  laterByeTournament = recordMatchResult(laterByeTournament, roundIndex, matchIndex, 4, 1, () => 0);
+}
+const laterByeMatch = laterByeTournament.rounds[1].matches.find((match) => match.status === '輪空晉級');
+assert.ok(laterByeMatch?.winner, '五人單淘汰完成第一輪後，三名晉級者應再產生一名輪空者');
+const laterByePlayer = laterByeMatch.winner;
+const expectedLaterByeWins = laterByeTournament.rounds
+  .flatMap((round) => round.matches)
+  .filter((match) => match.winner === laterByePlayer && ['已完成', '輪空晉級'].includes(match.status))
+  .length;
+assert.equal(laterByeTournament.playerStats[laterByePlayer].wins, expectedLaterByeWins, '後續輪次輪空也必須計入 stored wins');
+assert.equal(getTournamentStandings(laterByeTournament).find((row) => row.player === laterByePlayer).wins, expectedLaterByeWins, '後續輪次輪空也必須計入排行榜勝場');
 
 console.log(`PASS format matrix: ${completedTournaments} tournaments, ${completedMatches} matches`);
 
