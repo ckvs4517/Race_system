@@ -50,6 +50,18 @@ await replaceOnce(
 );
 
 await replaceOnce(
+  'tests/swiss.test.mjs',
+  `assertBuchholzOrder(preliminary);`,
+  `assertLegacySwissOrder(preliminary);`,
+);
+
+await replaceOnce(
+  'tests/swiss.test.mjs',
+  `function assertBuchholzOrder(rows) {\n  rows.slice(1).forEach((row, index) => {\n    const previous = rows[index];\n    if (previous.wins !== row.wins) return;\n    assert.ok(previous.opponentWins >= row.opponentWins, '勝場相同時對手勝場總和較高者排前面');\n    if (previous.opponentWins === row.opponentWins) {\n      assert.ok(previous.totalPoints >= row.totalPoints, '勝場與對手勝場相同時總得分較高者排前面');\n    }\n  });\n}`,
+  `function assertLegacySwissOrder(rows) {\n  rows.slice(1).forEach((row, index) => {\n    const previous = rows[index];\n    if (previous.wins !== row.wins) {\n      assert.ok(previous.wins >= row.wins, '傳統排名應先依勝場排序');\n      return;\n    }\n    if (previous.losses !== row.losses) {\n      assert.ok(previous.losses <= row.losses, '勝場相同時敗場較少者排前面');\n      return;\n    }\n    assert.ok(previous.totalPoints >= row.totalPoints, '勝敗相同時總得分較高者排前面');\n  });\n}`,
+);
+
+await replaceOnce(
   'tests/swiss-ranking.test.mjs',
   `  assert.equal(created.swissRankingRule, DEFAULT_SWISS_RANKING_RULE);\n  assert.equal(created.swissRankingRule, SWISS_RANKING_RULE_BUCHHOLZ);`,
   `  assert.equal(created.swissRankingRule, DEFAULT_SWISS_RANKING_RULE);\n  assert.equal(created.swissRankingRule, SWISS_RANKING_RULE_LEGACY, '新瑞士賽改回傳統排名');`,
