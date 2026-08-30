@@ -91,7 +91,7 @@ function match(playerA, playerB, winner = null, scoreA = null, scoreB = null) {
 {
   const created = createTournament('新規則', ['A', 'B', 'C', 'D'], 'swiss');
   assert.equal(created.swissRankingRule, DEFAULT_SWISS_RANKING_RULE);
-  assert.equal(created.swissRankingRule, SWISS_RANKING_RULE_BUCHHOLZ);
+  assert.equal(created.swissRankingRule, SWISS_RANKING_RULE_LEGACY, '新瑞士賽改回傳統排名');
 
   const storedOld = structuredClone(created);
   delete storedOld.swissRankingRule;
@@ -101,11 +101,11 @@ function match(playerA, playerB, winner = null, scoreA = null, scoreB = null) {
   assert.equal(updateDraftTournament(storedOld, storedOld.name, storedOld.players, 'swiss').swissRankingRule, SWISS_RANKING_RULE_LEGACY, '編輯舊草稿不得偷偷換排名規則');
 
   const nonSwiss = createTournament('切換賽制', ['A', 'B', 'C', 'D'], 'single_elimination');
-  assert.equal(updateDraftTournament(nonSwiss, nonSwiss.name, nonSwiss.players, 'swiss').swissRankingRule, SWISS_RANKING_RULE_BUCHHOLZ, '新切換成瑞士制時應使用新預設');
+  assert.equal(updateDraftTournament(nonSwiss, nonSwiss.name, nonSwiss.players, 'swiss').swissRankingRule, SWISS_RANKING_RULE_LEGACY, '新切換成瑞士制時應使用傳統排名預設');
 }
 
 {
-  const tournament = createTournament('UI 測試', ['A', 'B', 'C', 'D'], 'swiss');
+  const tournament = { ...createTournament('UI 測試', ['A', 'B', 'C', 'D'], 'swiss'), swissRankingRule: SWISS_RANKING_RULE_BUCHHOLZ };
   tournament.participantStates = Object.fromEntries(tournament.players.map((player) => [player, { status: 'active', checkedIn: true }]));
   tournament.status = '進行中';
   tournament.rounds = [{
@@ -116,15 +116,20 @@ function match(playerA, playerB, winner = null, scoreA = null, scoreB = null) {
   assert.match(html, /對手勝場/);
   assert.match(html, /輪空以該階段總輪數一半/);
   const form = manageView(null);
-  assert.match(form, /對手強度排名（推薦）/);
-  assert.match(form, /buchholz_v1/);
+  assert.match(form, /傳統排名/);
+  assert.match(form, /傳統排名：勝場 → 敗場較少 → 總得分/);
+  assert.doesNotMatch(form, /對手強度排名/);
+  assert.doesNotMatch(form, /buchholz_v1/);
+  const legacyCompatibilityForm = manageView({ ...tournament, status: '準備中' });
+  assert.match(legacyCompatibilityForm, /對手強度排名（既有賽事相容）/);
+  assert.match(legacyCompatibilityForm, /對手強度排名：勝場 → 對手勝場總和 → 總得分 → 兩人直接對戰/);
 
   const rows = getSwissPhaseStandings(tournament, 'preliminary');
   assert(rows.every((row) => typeof row.opponentWins === 'number'));
 }
 
 {
-  const tournament = createTournament('戰績圖測試', ['A', 'B', 'C', 'D'], 'swiss');
+  const tournament = { ...createTournament('戰績圖測試', ['A', 'B', 'C', 'D'], 'swiss'), swissRankingRule: SWISS_RANKING_RULE_BUCHHOLZ };
   tournament.participantStates = Object.fromEntries(tournament.players.map((player) => [player, { status: 'active', checkedIn: true }]));
   tournament.status = '已完成';
   tournament.swissStage = 'completed';

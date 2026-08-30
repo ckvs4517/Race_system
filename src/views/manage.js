@@ -34,6 +34,9 @@ export function manageView(tournament = null) {
     tournament?.swissRankingRule,
     tournament ? SWISS_RANKING_RULE_LEGACY : DEFAULT_SWISS_RANKING_RULE,
   );
+  const swissRankingOptions = swissRankingRule === SWISS_RANKING_RULE_BUCHHOLZ
+    ? `<option value="${SWISS_RANKING_RULE_BUCHHOLZ}" selected>對手強度排名（既有賽事相容）</option><option value="${SWISS_RANKING_RULE_LEGACY}">傳統排名</option>`
+    : `<option value="${SWISS_RANKING_RULE_LEGACY}" selected>傳統排名</option>`;
   const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
 
   return `<section class="section-wrap page-section">
@@ -45,7 +48,7 @@ export function manageView(tournament = null) {
         <label class="field"><span>賽事名稱</span><input name="name" maxlength="40" value="${escapeAttribute(tournament?.name || '')}" placeholder="例如：夏季陀螺公開賽" required></label>
         <label class="field"><span>比賽賽制</span><select name="format">${formatOptions}</select></label>
         <div data-swiss-stage2-settings ${selectedFormat === 'swiss' ? '' : 'hidden'}>
-          <label class="field"><span>瑞士輪排名方式</span><select name="swissRankingRule"><option value="${SWISS_RANKING_RULE_BUCHHOLZ}" ${swissRankingRule === SWISS_RANKING_RULE_BUCHHOLZ ? 'selected' : ''}>對手強度排名（推薦）</option><option value="${SWISS_RANKING_RULE_LEGACY}" ${swissRankingRule === SWISS_RANKING_RULE_LEGACY ? 'selected' : ''}>傳統排名（舊版相容）</option></select><small>推薦：勝場 → 對手勝場總和 → 總得分 → 直接對戰；賽事開始後鎖定。</small></label>
+          <label class="field"><span>瑞士輪排名方式</span><select name="swissRankingRule">${swissRankingOptions}</select><small data-swiss-ranking-description>${swissRankingRuleDescription(swissRankingRule)}</small></label>
           <label class="field"><span>第二階段晉級人數</span><select name="swissAdvanceCount"><option value="4" ${swissStage2.advanceCount === 4 ? 'selected' : ''}>Top 4</option><option value="8" ${swissStage2.advanceCount === 8 ? 'selected' : ''}>Top 8</option></select><small>第一階段固定打 4 輪瑞士輪；第二階段實際賽制會在第一階段完成後再選擇。</small></label>
         </div>
         <label class="field"><span>戰鬥台數</span><input name="arenaCount" type="number" inputmode="numeric" min="1" max="8" step="1" value="${tournament?.arenaCount || 1}" required><small>可設定 1 至 8 台；賽程會平均分配到各戰鬥台。</small></label>
@@ -99,9 +102,15 @@ export function bindManage(root, options) {
     const panel = root.querySelector('[data-swiss-stage2-settings]');
     if (panel) panel.hidden = form.elements.format.value !== 'swiss';
   };
+  const syncSwissRankingDescription = () => {
+    const description = root.querySelector('[data-swiss-ranking-description]');
+    if (description) description.textContent = swissRankingRuleDescription(form.elements.swissRankingRule?.value);
+  };
   players.addEventListener('input', () => { count.textContent = `目前 ${getPlayers().length} 位參賽者`; });
   form.elements.format.addEventListener('change', syncSwissStage2Fields);
+  form.elements.swissRankingRule?.addEventListener('change', syncSwissRankingDescription);
   syncSwissStage2Fields();
+  syncSwissRankingDescription();
   root.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => options.onCancel?.());
   root.querySelector('[data-drink-enabled]')?.addEventListener('change', (event) => {
     root.querySelector('[data-drink-menu]').hidden = !event.currentTarget.checked;
@@ -178,6 +187,14 @@ function readDrinkSettings(form) {
       order: index + 1,
     })),
   };
+}
+
+function swissRankingRuleDescription(rule) {
+  const normalized = normalizeSwissRankingRule(rule, SWISS_RANKING_RULE_LEGACY);
+  if (normalized === SWISS_RANKING_RULE_BUCHHOLZ) {
+    return '對手強度排名：勝場 → 對手勝場總和 → 總得分 → 兩人直接對戰；賽事開始後鎖定。';
+  }
+  return '傳統排名：勝場 → 敗場較少 → 總得分；完全同分時維持原始順序，賽事開始後鎖定。';
 }
 
 function normalizeSwissStage2Config(value = {}) {

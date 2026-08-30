@@ -121,7 +121,7 @@ assert.match(qualificationView, /瑞士輪結算方式/);
 
 const preliminary = getTournamentStandings(tournament);
 assert.ok(preliminary.every((row) => Number.isInteger(row.totalPoints)), '排行榜列出總得分');
-assertBuchholzOrder(preliminary);
+assertLegacySwissOrder(preliminary);
 const initialFinalForm = qualificationView.match(/<form data-swiss-final-form>[\s\S]*?<\/form>/)?.[0] || '';
 assert.equal((initialFinalForm.match(/name="finalist"/g) || []).length, 4, '直接確認四強只列排行榜前四名');
 assert.ok(preliminary.slice(0, 4).every((row) => initialFinalForm.includes(row.player)), '直接四強包含排行榜前四名');
@@ -174,9 +174,50 @@ assert.equal(reset.rounds[0].matches[0].status, '可開始');
 let odd = startTournament(checkInAll(createTournament('五人瑞士賽', ['A', 'B', 'C', 'D', 'E'], 'swiss')));
 const firstBye = odd.rounds[0].seedPlayer;
 assert.ok(firstBye);
+assert.equal(odd.rounds[0].byePoints, 4, '新產生的瑞士輪應記錄輪空 4 分規則');
 assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
+assert.equal(odd.playerStats[firstBye].pointsFor, 4, '輪空應同時取得 4 分排名積分');
+assert.equal(odd.playerStats[firstBye].pointsAgainst, 0, '輪空不應增加失分');
+assert.equal(odd.playerStats[firstBye].matchesPlayed, 0, '輪空不是實際出賽，不應增加出賽場次');
+const oddLeaderboard = scheduleView([odd], odd.id, true);
+const oddPlayerStart = oddLeaderboard.indexOf(`<strong>${firstBye}`);
+const oddPlayerEnd = oddLeaderboard.indexOf('</details>', oddPlayerStart);
+const oddPlayerSection = oddLeaderboard.slice(oddPlayerStart, oddPlayerEnd);
+assert.match(oddPlayerSection, /<span>1<\/span><span>0<\/span><b>4<\/b>/, '排行榜勝敗與總得分必須包含輪空');
+assert.match(oddPlayerSection, /<b>瑞士輪<\/b><i>1 勝 0 敗 · 4 分/, '排行榜展開的階段成績也必須把輪空算成勝場');
 odd = finishCurrentRound(odd);
 assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
+
+const historicalByeProbe = {
+  ...createTournament('舊輪空資料', ['舊A', '舊B', '舊C'], 'swiss'),
+  status: '進行中',
+  participantStates: {
+    '舊A': { status: 'active', checkedIn: true },
+    '舊B': { status: 'active', checkedIn: true },
+    '舊C': { status: 'active', checkedIn: true },
+  },
+  rounds: [{
+    name: '瑞士制第 1 輪',
+    phase: 'preliminary',
+    phaseRound: 1,
+    seriesId: 'preliminary',
+    // 舊資料沒有 byePoints，必須維持當時只加勝場、不加總得分的語意。
+    matches: [
+      { id: 'legacy-bye', playerA: '舊A', playerB: '輪空', scoreA: null, scoreB: null, winner: '舊A', status: '輪空晉級' },
+      completedMatch('legacy-played', '舊B', '舊C', 4, 1),
+    ],
+  }],
+};
+const historicalByeRows = getSwissPhaseStandings(historicalByeProbe, 'preliminary');
+const historicalByePlayer = historicalByeRows.find((row) => row.player === '舊A');
+assert.equal(historicalByePlayer.wins, 1, '舊輪空仍應保留一勝');
+assert.equal(historicalByePlayer.totalPoints, 0, '舊 round 沒有 byePoints 時不可回溯增加 4 分');
+const historicalByeView = scheduleView([historicalByeProbe], historicalByeProbe.id, true);
+const historicalPlayerStart = historicalByeView.indexOf('<strong>舊A');
+const historicalPlayerEnd = historicalByeView.indexOf('</details>', historicalPlayerStart);
+const historicalPlayerSection = historicalByeView.slice(historicalPlayerStart, historicalPlayerEnd);
+assert.match(historicalPlayerSection, /<span>1<\/span><span>0<\/span><b>0<\/b>/, '舊輪空在排行榜仍應顯示一勝但不回溯補分');
+assert.match(historicalPlayerSection, /<b>瑞士輪<\/b><i>1 勝 0 敗 · 0 分/, '舊輪空的階段成績要顯示勝場且維持歷史 0 分');
 
 let swissWithdrawal = startTournament(checkInAll(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss')));
 const withdrawalMatch = swissWithdrawal.rounds[0].matches[0];
@@ -334,14 +375,18 @@ function assertNoRepeatedPairings(rounds) {
   }));
 }
 
-function assertBuchholzOrder(rows) {
+function assertLegacySwissOrder(rows) {
   rows.slice(1).forEach((row, index) => {
     const previous = rows[index];
-    if (previous.wins !== row.wins) return;
-    assert.ok(previous.opponentWins >= row.opponentWins, '勝場相同時對手勝場總和較高者排前面');
-    if (previous.opponentWins === row.opponentWins) {
-      assert.ok(previous.totalPoints >= row.totalPoints, '勝場與對手勝場相同時總得分較高者排前面');
+    if (previous.wins !== row.wins) {
+      assert.ok(previous.wins >= row.wins, '傳統排名應先依勝場排序');
+      return;
     }
+    if (previous.losses !== row.losses) {
+      assert.ok(previous.losses <= row.losses, '勝場相同時敗場較少者排前面');
+      return;
+    }
+    assert.ok(previous.totalPoints >= row.totalPoints, '勝敗相同時總得分較高者排前面');
   });
 }
 
