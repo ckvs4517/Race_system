@@ -15,7 +15,7 @@ const expected = [
   'updateDraftTournament', 'setDraftPlayerCheckedIn', 'setAllDraftPlayersCheckedIn', 'addDraftPlayer', 'removeDraftPlayer',
   'updateDraftParticipant', 'addConfirmedParticipant', 'drawRandomSeeds', 'randomizeDraftTournament', 'startTournament',
   'prepareTournamentSchedule', 'randomizeTournamentSchedule', 'updateOpeningPairings', 'confirmTournamentSchedule',
-  'normalizeTournament', 'buildRounds', 'getTournamentStandings', 'getSwissPhaseStandings', 'startSwissQualifier',
+  'normalizeTournament', 'toPublicTournament', 'buildRounds', 'getTournamentStandings', 'getSwissPhaseStandings', 'startSwissQualifier',
   'startSwissFinal', 'completeSwissByStandings', 'startRoundRobinTieBreak', 'completeTournamentEarly',
   'updateRegistrationSettings', 'resetCompletedMatch', 'recordMatchResult', 'forfeitMatch', 'withdrawPlayer',
 ].sort();
@@ -23,6 +23,18 @@ const facade = await import('../src/domain/tournament.js');
 const index = await import('../src/domain/tournament/index.js');
 assert.deepEqual(Object.keys(facade).sort(), expected, 'legacy tournament.js public exports must remain stable');
 assert.deepEqual(Object.keys(index).sort(), expected, 'V2 tournament index must expose the same supported API');
+
+const privateTournament = {
+  id: 1,
+  name: 'Privacy projection',
+  participantDetails: { A: { phone: '0900000000', notes: 'private', answers: { team: 'secret' } } },
+  registrationSettings: { enabled: true, token: 'private-registration-token', capacity: 8 },
+};
+const publicTournament = facade.toPublicTournament(privateTournament);
+assert.equal('participantDetails' in publicTournament, false, 'public tournament projection removes participant personal details');
+assert.equal('token' in publicTournament.registrationSettings, false, 'public tournament projection removes registration token');
+assert.equal(publicTournament.registrationSettings.capacity, 8, 'public registration configuration needed by public views is preserved');
+assert.equal(privateTournament.participantDetails.A.phone, '0900000000', 'privacy projection must not mutate the stored/admin tournament');
 
 const modulesDir = new URL('../src/domain/tournament/', import.meta.url);
 const modules = (await readdir(modulesDir)).filter((name) => name.endsWith('.js'));
