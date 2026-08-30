@@ -122,7 +122,12 @@ The V2 split itself is structurally healthy:
 - CSS source ownership is split while deployment can remain a single stylesheet;
 - architecture guard checks dependency direction, cycles, generic dumping-ground modules, and module growth limits.
 
-The main architecture warning is `src/views/schedule/decision-panels.js`, which is close to the schedule module hard size limit. This is a maintainability warning, not a reproduced runtime bug.
+Current architecture warnings:
+
+- `src/views/schedule/decision-panels.js` is close to the schedule module hard size limit;
+- `src/styles/features/schedule.css` is above the Phase 5 soft warning threshold but below the hard limit.
+
+These are maintainability warnings, not reproduced runtime bugs.
 
 ## Concurrency / multi-device review
 
@@ -172,28 +177,53 @@ Whole-collection JSON restore intentionally replaces the tournaments collection.
 
 The new private participant flow writes confirmed participants directly into tournament JSON. The old `registrations` table remains for compatibility/history and has no foreign-key cascade when a tournament is deleted.
 
+## Automated audit evidence
+
+Validation PR: `#31 V2 post-refactor release audit`.
+
+GitHub `Test and build #192`, run `33283194407`, passed on audit implementation SHA:
+
+```text
+cc4771ccee30f68803408f25c37964cc9f9a0460
+```
+
+The run completed:
+
+- repository/architecture health: pass;
+- architecture graph: 0 dependency violations, 0 cycles;
+- all discovered Node tests: 42 pass;
+- `tests/admin-privacy-transition.test.mjs`: pass;
+- `tests/registration.test.mjs` public/private API assertions: pass;
+- `tests/html-escaping.test.mjs`: pass;
+- Sites build including CSS flatten: pass;
+- browser `tournament.test.html`: `PASS 62`;
+- browser `full-flow.test.html`: `PASS 38 full browser flow`;
+- build structure and deployable artifact: pass.
+
+The only architecture output was the two maintainability warnings listed above.
+
 ## Release checklist for the audited candidate
 
 Before calling the audit complete:
 
-1. focused privacy/auth/build tests pass;
-2. `node scripts/test-fast.mjs` passes;
-3. `node scripts/test-full.mjs --browser=required` passes;
-4. standard GitHub `Test and build` passes on the audit head;
-5. audit head is reviewed/fast-forwarded into `v2/codebase-refactor`;
-6. exact audit/V2 SHA is deployed to `spin-league-test`;
-7. footer shows that exact `GIT` SHA;
-8. `Staging E2E` is dispatched with the same required `expected_sha` and passes;
-9. public staging `/api/tournaments` contains no private participant details or registration token;
+1. focused privacy/auth/build tests pass — complete;
+2. full Node suite/build passes — complete;
+3. browser tournament/full-management flows pass — complete;
+4. standard GitHub `Test and build` passes on the audit implementation — complete (`#192`);
+5. audit head is reviewed/fast-forwarded into `v2/codebase-refactor` — pending;
+6. exact final V2 SHA is deployed to `spin-league-test` — pending;
+7. footer shows that exact `GIT` SHA — pending;
+8. `Staging E2E` is dispatched with the same required `expected_sha` and passes — pending;
+9. public staging `/api/tournaments` contains no private participant details or registration token — pending live deployment verification;
 10. only after explicit production approval: take/confirm a fresh backup, preview/publish to the existing production Site, run deployment smoke, and verify pre-existing production tournament data remains readable.
 
 ## Audit status
 
 ```text
-Code/privacy/build/documentation audit: in progress
-Standard CI on audit head: pending
-Exact-SHA staging acceptance: pending
+Code/privacy/build/documentation audit: automated validation passed
+Standard CI: PASS — Test and build #192 / run 33283194407
+Exact-SHA staging acceptance: pending final audit candidate deployment
 Production deployment: not performed
 ```
 
-This status section must be updated with the final audited SHA and test run IDs before production release.
+Do not mark this review production-ready until the final V2 SHA itself passes the exact-SHA staging gate.
