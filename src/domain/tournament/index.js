@@ -23,6 +23,7 @@ export {
 } from './roster.js';
 export { addConfirmedParticipant, updateRegistrationSettings } from './registration.js';
 export { normalizeTournament } from './normalization.js';
+export { toPublicTournament } from './visibility.js';
 export { buildRounds, getTournamentStandings, getSwissPhaseStandings } from './standings.js';
 export { startSwissQualifier, startSwissFinal, completeSwissByStandings, startRoundRobinTieBreak } from './swiss-actions.js';
 export { resetCompletedMatch, recordMatchResult, forfeitMatch, withdrawPlayer } from './matches.js';
