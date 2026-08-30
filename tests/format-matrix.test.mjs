@@ -12,6 +12,7 @@ import {
   startSwissFinal,
   startTournament,
 } from '../src/domain/tournament.js';
+import { leaderboardView } from '../src/views/schedule/leaderboard.js';
 
 let completedTournaments = 0;
 let completedMatches = 0;
@@ -79,6 +80,16 @@ assert.throws(() => recordMatchResult(validation, 0, 0, 1, 0), /至少為 4/);
 assert.throws(() => recordMatchResult(validation, 0, 0, 4, 4), /比分相同/);
 assert.throws(() => recordMatchResult(validation, 0, 0, -1, 4), /0 以上的整數/);
 assert.throws(() => recordMatchResult(validation, 0, 0, 4.5, 1), /0 以上的整數/);
+
+let singleEliminationLeaderboard = startTournament(checkInAll(createTournament('單淘汰排行榜標籤', ['A', 'B', 'C', 'D'], 'single_elimination')));
+singleEliminationLeaderboard = recordMatchResult(singleEliminationLeaderboard, 0, 0, 4, 1, () => 0);
+const singleEliminationLeaderboardHtml = leaderboardView(
+  singleEliminationLeaderboard,
+  getTournamentStandings(singleEliminationLeaderboard),
+  false,
+);
+assert.match(singleEliminationLeaderboardHtml, /<b>單淘汰賽<\/b>/, '單淘汰排行榜階段成績應顯示單淘汰賽');
+assert.doesNotMatch(singleEliminationLeaderboardHtml, /<b>瑞士輪<\/b>/, '單淘汰排行榜不得誤顯示瑞士輪');
 
 console.log(`PASS format matrix: ${completedTournaments} tournaments, ${completedMatches} matches`);
 
