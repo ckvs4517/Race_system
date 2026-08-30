@@ -49,6 +49,7 @@ const env = {
   DB: new MockDatabase(),
   ADMIN_PIN: '2468',
   TOKEN_SECRET: 'test-secret-that-is-long-enough',
+  BACKUP_TOKEN: 'backup-only-test-secret',
   ASSETS: { fetch: () => new Response('asset') },
 };
 
@@ -61,10 +62,31 @@ const authorizedHeaders = { 'content-type': 'application/json', authorization: `
 const denied = await request('/api/tournaments', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tournaments: [] }) });
 assert(denied.status === 401, '未登入不可修改賽事');
 
-const tournament = { id: 1, name: 'API 測試賽', status: '準備中', players: ['A', 'B'], rounds: [] };
+const tournament = {
+  id: 1,
+  name: 'API 測試賽',
+  status: '準備中',
+  players: ['A', 'B'],
+  rounds: [],
+  participantDetails: { A: { phone: '0900000000' } },
+};
 const created = await request('/api/tournaments', { method: 'POST', headers: authorizedHeaders, body: JSON.stringify({ tournament }) });
 const createdData = await created.json();
 assert(created.status === 201 && createdData.tournament.revision === 1, '登入後可建立單一賽事並取得版本');
+
+const backupDenied = await request('/api/backup');
+assert(backupDenied.status === 401, '未提供備份憑證不可取得完整備份');
+const backupAdminDenied = await request('/api/backup', { headers: { authorization: `Bearer ${token}` } });
+assert(backupAdminDenied.status === 401, '一般 Admin token 不等同長期備份憑證');
+const backupResponse = await request('/api/backup', { headers: { authorization: `Bearer ${env.BACKUP_TOKEN}` } });
+const backup = await backupResponse.json();
+assert(backupResponse.status === 200
+  && backup.format === 'spin-league-backup'
+  && backup.version === 1
+  && Array.isArray(backup.tournaments)
+  && backup.tournaments.some((item) => item.name === tournament.name && item.participantDetails?.A?.phone === '0900000000'), '唯讀備份憑證可取得與手動備份相容的完整資料');
+const backupWriteDenied = await request('/api/backup', { method: 'POST', headers: { authorization: `Bearer ${env.BACKUP_TOKEN}` } });
+assert(backupWriteDenied.status === 404, '備份憑證沒有任何寫入 API');
 
 const largePlayers = Array.from({ length: MAX_TOURNAMENT_PLAYERS }, (_, index) => `大型選手${index + 1}`);
 const largeDraft = { ...createTournament('48 人 API 測試賽', largePlayers, 'swiss'), id: 48 };
@@ -168,7 +190,7 @@ assert(staleAction.status === 409 && (await staleAction.json()).tournament.revis
 const session = await request('/api/admin/session', { headers: { authorization: `Bearer ${token}` } });
 assert((await session.json()).authenticated === true, '有效登入權杖可以恢復後台工作階段');
 
-console.log('PASS 21 API tests');
+console.log('PASS 25 API tests');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
