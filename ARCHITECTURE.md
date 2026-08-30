@@ -1,276 +1,272 @@
 # Spin League V2 Architecture Contract
 
-## Goal
+## Status
 
-Spin League V2 uses a hybrid architecture: user-facing behavior is organized by feature, while tournament rules, format algorithms, API communication, reusable UI, and styles stay in dedicated layers.
+V2 architecture phases 0–5 are complete. This file describes the current supported architecture, not a future migration plan.
 
-The objective is not to maximize file count. The objective is to keep each module responsible for one coherent reason to change, so future features can be added without turning `main.js`, `schedule.js`, `tournament.js`, `worker/index.js`, or `app.css` into new monoliths.
+The goal is to keep each module responsible for one coherent reason to change so new tournament features can be added without rebuilding the former `main.js`, `schedule.js`, `tournament.js`, `worker/index.js`, or `app.css` monoliths.
 
-This document is a repository contract. AI agents and human contributors must follow it. `scripts/check-architecture.mjs` enforces the rules that can be checked automatically.
+`scripts/check-architecture.mjs` enforces the mechanical parts of this contract. `AGENTS.md` contains the short operational rules used by AI/human contributors.
 
-## Target structure
+## Current structure
 
 ```text
 src/
-├─ app/                         # bootstrap, routing coordination, app-level state
-├─ features/                    # user-facing features and interaction controllers
-│  ├─ schedule/
-│  ├─ scoreboard/
-│  ├─ registration/
-│  ├─ tournament-management/
+├─ main.js                         # thin app coordinator
+├─ core/                           # router/build/runtime primitives
+├─ data/
+│  └─ store.js                     # browser API/state, auth, ETag/revision sync
+├─ features/                       # user interactions/controllers
+│  ├─ control/
 │  ├─ data-management/
-│  ├─ speedometer/
-│  └─ spinlab/
-├─ domain/                      # business rules; no DOM or network access
-│  ├─ tournament/
 │  ├─ registration/
-│  └─ scoring/
-├─ services/                    # browser/server API communication
-├─ formats/                     # competition-format algorithms
-├─ ui/                          # reusable UI primitives only
-├─ export/                      # export/rendering utilities
-├─ styles/
-│  ├─ base/                     # global foundation/footer styles
-│  ├─ features/                 # feature-owned style ranges
-│  ├─ responsive/               # cross-feature responsive overrides
-│  └─ app.css                   # thin ordered import manifest
-└─ main.js                      # eventual thin bootstrap entry point
+│  ├─ schedule/
+│  └─ tournament-management/
+├─ domain/                         # browser-independent business rules
+│  ├─ tournament.js               # stable compatibility facade
+│  ├─ tournament/                 # tournament lifecycle/roster/result modules
+│  ├─ ranking/
+│  └─ other focused domains
+├─ formats/                        # competition-format algorithms
+├─ views/
+│  ├─ schedule.js                 # thin schedule facade
+│  └─ schedule/                    # schedule rendering responsibilities
+├─ ui/                             # reusable UI primitives
+├─ export/                         # client export/render utilities
+└─ styles/
+   ├─ app.css                      # ordered source manifest only
+   ├─ base/
+   ├─ features/
+   └─ responsive/
 
 worker/
-├─ routes/                      # request routing/handlers
-├─ services/                    # server application services
-├─ db/                          # D1 persistence adapters
-└─ index.js                     # thin Worker entry point
+├─ index.js                        # thin Worker entry
+├─ tournament-domain.js            # packaging bridge to shared tournament domain
+├─ routes/                          # HTTP path/method coordination and responses
+├─ services/                        # auth, validation, server actions
+└─ db/                              # D1 statements and row persistence
 ```
 
-The repository is currently migrating toward this structure. Existing paths remain supported during the transition, but new code must move toward the target instead of increasing legacy coupling.
+There is intentionally no framework layer, DI container, global event bus, Redux-style store, or bundler architecture. Browser-native ES Modules remain the default.
 
-## Layer responsibilities
+## Responsibility boundaries
 
-### `src/app/`
+### `src/main.js`
 
-Owns application bootstrap and top-level coordination.
-
-May know about features, services, router state, and app-level state. It must not contain tournament business rules or feature-specific DOM details.
+Owns top-level route/render coordination. It may compose feature controllers and views, but feature-specific DOM behavior and tournament business rules do not belong here.
 
 ### `src/features/<feature>/`
 
-Owns a user-visible capability and its interactions. A feature may compose views, domain functions, services, and reusable UI.
+Owns user-facing interactions and controllers. Features can call the browser store, domain functions, views, and reusable UI, but should not implement ranking/pairing rules or direct D1/network logic.
 
-Examples: opening a match, filtering tournament history, submitting registration, operating the scoreboard.
+### `src/views/`
 
-A feature must not implement tournament ranking/pairing rules or direct D1 access.
+Owns HTML string rendering. Schedule rendering is decomposed under `src/views/schedule/`; `src/views/schedule.js` remains a thin facade. User-controlled text inserted into HTML must be escaped.
+
+### `src/data/store.js`
+
+Owns browser-side API access and official client state:
+
+- admin session token in `sessionStorage`;
+- GET ETags;
+- revision conflict handling and safe retries;
+- tournament refresh/polling;
+- switching between public-safe and admin-private tournament representations.
+
+Views/features must not introduce ad-hoc `fetch()` calls for official tournament state.
 
 ### `src/domain/`
 
-Owns product/business rules that should be testable without a browser.
+Owns pure business rules. Domain code must not use DOM/browser state, storage, or network APIs and must not import views/features/store/UI.
 
-Domain code MUST NOT use:
+`src/domain/tournament.js` is the stable public facade over focused modules in `src/domain/tournament/`. External callers use the facade; deep imports are reserved for domain-internal composition.
 
-- `window`
-- `document`
-- `navigator`
-- `localStorage` / `sessionStorage`
-- `fetch`
-- UI modules
-- feature controllers
-- API/data-store modules
+Important tournament modules include:
+
+- `lifecycle.js`: create/edit, scheduling transitions, start/finish;
+- `normalization.js`: backward-compatible record normalization;
+- `roster.js` / `participant-model.js`: draft roster/check-in invariants;
+- `registration.js` / `registration-settings.js`: confirmed participant and private-link settings;
+- `matches.js` / `score-validation.js`: formal result, forfeit, replay, withdrawal validation;
+- `standings.js` / `swiss-actions.js`: standings and Swiss Stage 2 actions;
+- `visibility.js`: public-safe tournament projection;
+- narrow support modules for pairings, metadata, legacy compatibility, factory, and constants.
 
 ### `src/formats/`
 
-Owns format-specific algorithms such as Swiss, single elimination, round robin, and win streak.
-
-Format code MUST remain browser-independent and must not depend on views, UI, features, API clients, or app coordination.
-
-### `src/services/`
-
-Owns HTTP/API communication. Once a feature is migrated to V2 services, its feature/controller must not make direct network requests.
-
-`src/data/store.js` is a legacy API/state boundary and will be decomposed gradually. Do not expand it with unrelated feature logic during V2 work.
-
-### `src/ui/`
-
-Owns reusable presentation primitives shared by multiple features. UI primitives must not become a second business/domain layer.
-
-### `src/styles/`
-
-`src/styles/app.css` is an ordered manifest, not a destination for concrete style rules. The import order is part of the visual compatibility contract because it preserves the original cascade.
-
-Global foundation/footer rules belong in `styles/base/`; feature-specific rules belong in `styles/features/`; cross-feature responsive overrides belong in `styles/responsive/`. Existing standalone stylesheets that are explicitly loaded by `index.html` remain supported and must not be silently folded into the manifest if doing so changes cascade order.
+Owns format-specific algorithms such as single elimination, Swiss, round robin, and win streak. Format code is browser/network independent.
 
 ### `worker/`
 
-`worker/index.js` is a thin Worker entry point. HTTP path/method coordination and response shaping belong in `worker/routes/`; authorization, server-side validation, revision metadata helpers, and server-authoritative action dispatch belong in `worker/services/`; D1 SQL belongs only in `worker/db/` persistence adapters.
+- `worker/index.js`: only Worker entry/static asset handoff/API delegation.
+- `worker/routes/`: HTTP request coordination, response shaping, ETag behavior.
+- `worker/services/`: admin auth, input validation, official action dispatch, record validation.
+- `worker/db/`: all D1 `.prepare()` / `.batch()` calls.
+- `worker/tournament-domain.js`: the only packaging bridge from Worker code to the shared tournament domain.
 
-`worker/tournament-domain.js` is the packaging bridge from Worker modules to the shared tournament domain. Worker route/service code must not reintroduce direct D1 statements outside `worker/db/`.
+No D1 statements may drift back into routes/services.
+
+### `src/styles/`
+
+Phase 5 source CSS is modular for ownership, while cascade order remains contractual:
+
+```text
+app.css manifest
+  → base/foundation.css
+  → feature ranges in historical cascade order
+  → base/footer.css / responsive ranges
+  → later feature ranges
+```
+
+Do not reorder manifest imports casually. `tests/v2-css-boundary.test.mjs` locks the source order.
+
+For event-site performance, `scripts/build-site.mjs` expands the manifest into a single `dist/client/src/styles/app.css`. Source remains modular; deployed clients do not pay a separate request for every source CSS module.
 
 ## Dependency direction
 
-The desired dependency flow is:
+Conceptually:
 
 ```text
-app
+main
  ↓
-features ─────→ ui
- ↓  ↓
-services  domain ─────→ formats
-```
+features ─────→ views / ui
+ ↓
+store          domain ─────→ formats
+                  ↑
+             shared rules
 
-Server-side:
-
-```text
-worker/index
+Worker:
+index
  ↓
 routes
  ↓
-services/domain
- ↓
-db adapters
+services ─────→ tournament-domain bridge
+ ↓                    ↓
+db               src/domain + formats
 ```
 
-Dependencies should point inward toward stable rules. Domain and format code must never depend back on browser/UI layers.
+Dependencies must point toward stable business rules. Domain/format code must never depend back on browser/UI layers.
 
-## Public APIs
+## Public/private data boundary
 
-When a domain is split into several files, expose its supported surface through an `index.js` facade where practical.
+A tournament record stored in D1 can contain private participant information:
 
-Prefer:
+- `participantDetails[player].phone`
+- `participantDetails[player].notes`
+- `participantDetails[player].answers`
+- `registrationSettings.token`
 
-```js
-import { recordMatchResult } from '../domain/tournament/index.js';
+These fields are admin/private data.
+
+Unauthenticated:
+
+- `GET /api/tournaments`
+- `GET /api/tournaments/:id`
+
+must return `toPublicTournament(...)`, which removes `participantDetails` and `registrationSettings.token` while preserving the public roster, schedule, standings, event information, and safe registration settings.
+
+Authenticated admin GETs return the full tournament record. Public and admin representations use distinct ETag namespaces so a public cached validator cannot cause an authenticated request to receive an incorrect `304`.
+
+The browser store must reload full tournament data after successful admin login and must remove private fields from in-memory state immediately on logout.
+
+This privacy boundary is a release invariant and is covered by domain, registration, store-transition, and deployment-smoke tests.
+
+## Tournament persistence and concurrency
+
+D1 stores one tournament JSON record plus a separate integer revision. Official changes use optimistic compare-and-swap semantics:
+
+```sql
+UPDATE tournaments
+SET data = ?, revision = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND revision = ?
 ```
 
-instead of importing internal implementation details from deeply nested files.
+A stale revision must not overwrite newer data. Worker action endpoints read the latest record, validate/derive the official result on the server, then write only if the expected revision still matches.
 
-Internal files may change without forcing unrelated features to change.
+The client may retry a command once when it is safe to reapply to the newest revision. Formal actions such as scoring remain server-authoritative.
 
-## Naming rules
+ETags reduce unchanged GET payloads but do not replace revision checks for writes.
 
-Do not create generic dumping-ground modules such as:
+## API ownership
 
-- `utils.js`
-- `helpers.js`
-- `common.js`
-- `misc.js`
-- `shared.js`
+Public endpoints are read-only except the token-protected participant-information submission endpoint. Admin mutations require a valid Bearer session.
 
-Use responsibility-specific names such as `score-validation.js`, `date-format.js`, or `tournament-id.js`.
+Formal tournament results must use the command endpoint rather than client-calculated full-record overwrite. Whole-tournament `PUT` remains restricted to preparation-stage editing; whole-collection `PUT` is reserved for explicit backup restore.
 
-A generic file may only be introduced when its responsibility is genuinely coherent and documented.
+When adding a new official operation:
 
-## File growth policy
+1. define/extend the shared domain behavior;
+2. expose a Worker action type;
+3. validate payload and current state server-side;
+4. preserve revision conflict behavior;
+5. add focused domain/API/sync tests.
 
-Large file size is a warning signal, not proof of bad architecture. During the V2 transition, existing hotspots have a recorded baseline and should trend downward:
+## File-growth guardrails
 
-| File | V2 starting size |
-| --- | ---: |
-| `src/main.js` | 42,035 bytes |
-| `src/views/schedule.js` | 52,725 bytes |
-| `src/domain/tournament.js` | 39,715 bytes |
-| `worker/index.js` | 29,513 bytes |
-| `src/styles/app.css` | 106,621 bytes |
+Architecture limits are intentionally tighter after migration:
 
-Unmigrated hotspots warn when they grow beyond their baseline and fail if they grow more than 5% without first updating the architecture plan. Once a migration phase lands, the old hotspot is removed from the legacy growth baseline and replaced by a much tighter migrated-facade/module limit. Updating a baseline simply to bypass the check is not acceptable.
+- `src/main.js`: thin coordinator limit;
+- `src/views/schedule.js`: thin facade;
+- `src/domain/tournament.js`: thin facade;
+- `worker/index.js`: thin entry;
+- `src/styles/app.css`: thin source manifest;
+- decomposed schedule/domain/Worker/style modules have soft/hard size limits so a monolith cannot simply reappear under a new filename.
 
-The long-term intent is:
+A size warning is not automatically a bug, but it signals that a responsibility split should be considered before adding more behavior. Do not raise limits merely to make CI pass.
 
-- `main.js`: thin bootstrap/coordinator
-- `schedule.js`: split into coherent schedule feature/view modules
-- `tournament.js`: preserve a stable public API while internal responsibilities are separated
-- `worker/index.js`: thin request router/entry point
-- `app.css`: thin ordered stylesheet manifest
+## Build contract
 
-## Change rules
+`scripts/build-site.mjs` creates the ChatGPT Sites artifact and must preserve:
 
-Before adding code:
+- the existing `.openai/hosting.json` identity;
+- all D1 migration files;
+- Worker route/service/db modules;
+- shared domain/format modules through the Worker bridge;
+- the actual source Git marker displayed in the UI;
+- a single flattened deployed stylesheet produced from the ordered Phase 5 manifest.
 
-1. Identify the owning feature or layer.
-2. Extend an existing coherent module when it owns the behavior.
-3. If the behavior does not fit cleanly, create/refactor the correct boundary instead of adding a special case to a hotspot.
-4. Keep refactor-only PRs behavior-preserving.
-5. Keep production tournament JSON and D1 compatibility unless a separately reviewed migration is explicitly required.
-6. Add regression coverage before or with behavior changes.
+The build must never rewrite production data.
 
-## V2 migration phases
+## Test and release layers
 
-### Phase 0 — Architecture guardrails
+A green unit test is not equivalent to production confidence. V2 uses multiple layers:
 
-- architecture contract
-- agent instructions
-- automated architecture check
-- PR checklist
-- CI architecture validation
-- health reporting
+1. focused Node regressions for changed behavior;
+2. `node scripts/test-fast.mjs` for common invariants;
+3. `node scripts/test-full.mjs --browser=required` for all Node tests, browser flows, and Sites build;
+4. standard GitHub `Test and build` CI;
+5. deployment to permanent staging `spin-league-test` using the separate Test D1;
+6. manual `Staging E2E` with `expected_sha` equal to the exact deployed Git source revision;
+7. only after explicit approval: production preview/publish and read-only verification of existing production data.
 
-No user-visible behavior changes.
+Staging E2E is hard-locked to `spin-league-test.ckvs4517.chatgpt.site`. It must never be repointed to production.
 
-### Phase 1 — App/controller extraction
+## Completed V2 phases
 
-Reduce `main.js` by moving feature interactions/controllers to feature modules. Do not redesign global state at the same time.
+- Phase 0 — architecture contract, health checks, CI guardrails: complete.
+- Phase 1 — `main.js` feature/controller extraction: complete.
+- Phase 2 — schedule view decomposition: complete.
+- Phase 3 — tournament domain decomposition with stable facade: complete.
+- Phase 4 — Worker route/service/db decomposition: complete.
+- Phase 5 — CSS ownership decomposition with ordered manifest: complete.
 
-### Phase 2 — Schedule feature decomposition
+The post-refactor release audit adds privacy/release/build safeguards without changing tournament formats or D1 schema.
 
-Split tournament list/history, bracket/match cards, standings, roster, and schedule interactions into coherent modules.
+## Next functional work
 
-### Phase 3 — Tournament domain decomposition
+Scoring V2 (GitHub Issue #13) is the next planned feature after the post-refactor audit is accepted on staging. It should be implemented on these boundaries rather than introducing scoring state back into `main.js`, views, or Worker routes.
 
-`src/domain/tournament.js` is now a compatibility facade over `src/domain/tournament/index.js`; existing callers keep the same public imports while internal ownership is split by responsibility:
+## Known architectural/operational debt
 
-- lifecycle and scheduling transitions: `lifecycle.js`
-- backward-compatible record normalization: `normalization.js`
-- formal result, replay, forfeit, and withdrawal operations: `matches.js`
-- standings and Swiss-stage queries/actions: `standings.js`, `swiss-actions.js`
-- draft roster, participant invariants, and registration: `roster.js`, `participant-model.js`, `registration.js`, `registration-settings.js`
-- pairings, metadata, legacy compatibility, score validation, constants, and record factory remain narrow support modules
+These are not hidden by a green CI result:
 
-Outside callers must continue importing through `src/domain/tournament.js`; deep imports into `src/domain/tournament/` are reserved for domain-internal composition. Tournament JSON semantics, format strategies, Worker API contracts, and D1 persistence are unchanged by this phase.
+- all organizers/judges still share one PIN;
+- admin login has no rate limiter or individual account/audit log;
+- private registration submission has token secrecy/honeypot protection but no platform rate limiter/Turnstile;
+- synchronization is polling + revision locking, not realtime push;
+- live staging E2E exercises one browser/admin session and cannot reproduce every multi-device/network race;
+- collection GET currently reads/parses every tournament record, which may need pagination/summary rows if history grows substantially;
+- backup restore intentionally replaces the tournaments collection and therefore requires deliberate operator confirmation/backups;
+- browser/Web Bluetooth support varies by platform.
 
-### Phase 4 — Worker decomposition
-
-`worker/index.js` is now a thin entry point that delegates API handling to `worker/routes/api.js`. The old Worker monolith is separated into stable server responsibilities:
-
-- API path/method coordination, response shaping, ETag/304 behavior: `worker/routes/`
-- authorization/session signing, registration validation, tournament payload validation, revision helpers, and server-authoritative action dispatch: `worker/services/`
-- tournament and registration D1 statements, row mapping, optimistic update/delete helpers, and backup replacement persistence: `worker/db/`
-- shared tournament business rules remain in `src/domain/tournament.js`, reached through the packaging bridge `worker/tournament-domain.js`
-
-Phase 4 preserves all existing API paths, HTTP status behavior, JSON payload shapes, authorization checks, ETags, revision conflict responses, server-side action validation, tournament JSON semantics, D1 schema, and production data. `scripts/build-site.mjs` packages the decomposed Worker modules and rewrites only the dedicated domain bridge for the Sites server artifact.
-
-Architecture checks require `worker/index.js` to remain below 2 KB, bound Worker route/support module growth, and reject direct D1 `.prepare()` / `.batch()` calls outside `worker/db/`.
-
-### Phase 5 — CSS organization
-
-`src/styles/app.css` is now a thin ordered import manifest. The original stylesheet was mechanically split into contiguous responsibility modules without reordering or rewriting rules, so the legacy cascade remains intact:
-
-- foundation and footer: `src/styles/base/`
-- scoreboard, tournament management, schedule, quick score, guide, share card, speedometer, registration, and late schedule overrides: `src/styles/features/`
-- cross-feature touch/responsive rules: `src/styles/responsive/`
-
-The migration verifies that concatenating the imported modules in manifest order reproduces the original stylesheet bytes. Existing standalone `src/styles/schedule-responsive.css`, `quick-score-inline.css`, and `tournament-share.css` continue to use their previous loading paths and are not silently merged into the new manifest.
-
-Architecture checks require `app.css` to remain below 2 KB with no concrete rules, forbid nested imports inside Phase 5 modules, warn when a Phase 5 style module exceeds 28 KB, and fail above 35 KB. `tests/v2-css-boundary.test.mjs` locks the import order, while existing responsive/visibility tests read the manifest-expanded stylesheet.
-
-No class names, HTML structure, JavaScript behavior, responsive rules, or visual values are intentionally changed by Phase 5.
-
-### After V2 architecture stabilization
-
-Implement Scoring V2 (GitHub Issue #13) on top of the new boundaries.
-
-## Enforcement policy
-
-Architecture checks are deliberately progressive.
-
-Hard failures during Phase 0:
-
-- forbidden browser/network dependencies inside domain/format code
-- forbidden cross-layer imports from domain/format code
-- circular relative JavaScript module dependencies
-- generic dumping-ground module names
-- legacy hotspot growth beyond 5% of the V2 baseline
-
-Warnings during Phase 0:
-
-- hotspot growth above the baseline but below the hard limit
-- legacy structures that are scheduled for later V2 phases
-
-As each migration phase lands, `scripts/check-architecture.mjs` must be tightened so the old architecture cannot silently return.
+Treat these as explicit release risks, not as reasons to bypass tests or data-safety rules.
