@@ -20,6 +20,7 @@ const tests = [
   'tests/data-management.test.mjs',
   'tests/registration.test.mjs',
   'tests/admin-privacy-transition.test.mjs',
+  'tests/html-escaping.test.mjs',
   'tests/api.test.mjs',
   'tests/sync.test.mjs',
   'tests/action-sync.test.mjs',
