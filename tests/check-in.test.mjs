@@ -89,8 +89,8 @@ assert.throws(() => setDraftPlayerCheckedIn(started, '甲', false), /開始後/)
 assert.throws(() => setAllDraftPlayersCheckedIn(started), /開始後/);
 
 const storeSource = readFileSync(new URL('../src/data/store.js', import.meta.url), 'utf8');
-const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const checkInSource = readFileSync(new URL('../src/features/schedule/check-in.js', import.meta.url), 'utf8');
 assert.match(storeSource, /EXPLICIT_RENDER_ACTIONS[^;]*set_check_in/s, '單人報到成功不觸發整個 schedule 頁重畫');
-assert.match(mainSource, /checkInSaveQueue/, '快速連續報到會序列化送出，避免 revision 衝突');
+assert.match(checkInSource, /checkInSaveQueue/, '快速連續報到會在 schedule feature 序列化送出，避免 revision 衝突');
 
 console.log('PASS check-in flow');

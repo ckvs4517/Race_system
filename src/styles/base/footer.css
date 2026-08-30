@@ -1,0 +1,6 @@
+footer { min-height: 62px; display: flex; justify-content: space-between; align-items: center; padding: 0 max(4vw, 28px); color: #555f6f; border-top: 1px solid var(--line); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; }
+footer span { display: flex; align-items: center; gap: 5px; }footer svg { color: var(--red); }
+.footer-links { display: flex; align-items: center; gap: 14px; }
+.footer-github { display: inline-flex; min-height: 44px; align-items: center; padding: 0 7px; color: #697384; text-decoration: none; transition: color .2s ease; }
+.footer-github:hover, .footer-github:focus-visible { color: #aeb8c8; }
+

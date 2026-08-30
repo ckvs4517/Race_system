@@ -1,0 +1,200 @@
+/* SpinLab / Battle Pass 轉速表 / Performance Lab */
+.speedometer-page { max-width: 1280px; }
+.speed-connect-panel { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; padding: 16px 18px; background: linear-gradient(135deg, #0e141d, #0a0e14); border: 1px solid var(--line); border-radius: 12px; }
+.speed-connect-panel.is-connected { border-color: #35dc8245; box-shadow: inset 0 0 32px #35dc8208; }
+.speed-connect-statuses { min-width: 0; display: grid; gap: 11px; }
+.speed-connect-device { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.speed-display-device { padding-top: 10px; border-top: 1px solid var(--line); }
+.speed-connect-device > div { min-width: 0; display: grid; gap: 3px; }
+.speed-connect-device b { font-size: 13px; letter-spacing: .5px; }
+.speed-connect-device span:last-child { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.speed-status-dot { width: 10px; height: 10px; flex: 0 0 auto; background: #566172; border-radius: 50%; box-shadow: 0 0 0 4px #56617218; }
+.speed-status-dot.is-online { background: #35dc82; box-shadow: 0 0 13px #35dc82; }
+.speed-status-dot.is-waiting { background: var(--yellow); box-shadow: 0 0 13px #f2c94c88; }
+.speed-status-dot.is-error { background: var(--red); box-shadow: 0 0 13px #ff493d88; }
+.speed-connect-actions, .speed-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.speed-wake-toggle { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; cursor: pointer; }
+.speed-wake-toggle input { width: 17px; height: 17px; accent-color: var(--red); }
+.speed-browser-warning { display: flex; gap: 10px 18px; align-items: center; margin-bottom: 16px; padding: 13px 16px; color: #ffe6a3; background: #f2c94c0c; border: 1px solid #f2c94c35; border-radius: 9px; font-size: 13px; }
+.speed-browser-warning span { color: #a59c7e; }
+.speed-browser-warning.is-error { color: #ffaaa4; background: #ff493d0d; border-color: #ff493d38; }
+.speed-browser-warning.is-error span { color: #c39491; }
+.speed-live-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(330px, .75fr); gap: 16px; }
+.speed-live-card, .speed-stats-card, .speed-panel, .speed-history-panel { background: linear-gradient(145deg, #10161f, #0a0e14); border: 1px solid var(--line); border-radius: 14px; }
+.speed-live-card { position: relative; min-height: 390px; display: flex; flex-direction: column; padding: 26px 30px; overflow: hidden; }
+.speed-live-card::after { content: ''; position: absolute; right: -90px; bottom: -150px; width: 360px; height: 360px; background: var(--red); border-radius: 50%; filter: blur(130px); opacity: .08; pointer-events: none; }
+.speed-live-card.has-reading::after { opacity: .15; }
+.speed-card-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 1.8px; }
+.speed-card-head i { color: #657084; font-style: normal; letter-spacing: .7px; }
+.speed-live-card.has-reading .speed-card-head i { color: #55e998; }
+.speed-live-value { flex: 1; display: flex; align-items: flex-end; gap: 14px; padding: 30px 0 5px; }
+.speed-live-value strong { font: 900 clamp(110px, 16vw, 210px)/.72 var(--font-display); letter-spacing: -5px; font-variant-numeric: tabular-nums; }
+.speed-live-value b { margin-bottom: 14px; color: var(--red); font: 900 28px/1 var(--font-display); letter-spacing: 1px; }
+.speed-live-meta { min-height: 34px; display: flex; align-items: center; gap: 16px; color: #b7c0cc; font-size: 13px; font-weight: 700; }
+.speed-live-meta em { padding: 5px 8px; background: #ffffff08; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; font-size: 10px; font-style: normal; }
+.speed-live-meta em.is-up { color: #70e8a7; border-color: #35dc8238; }
+.speed-live-meta em.is-down { color: #ff958e; border-color: #ff493d38; }
+.speed-live-card > p { max-width: 680px; margin: 15px 0 0; color: #687384; font-size: 11px; line-height: 1.6; }
+.speed-spinlab-metrics { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.speed-spinlab-metrics span { min-width: 135px; display: grid; gap: 3px; padding: 9px 11px; background: #ffffff08; border: 1px solid var(--line); border-radius: 7px; }
+.speed-spinlab-metrics b { color: #edf2f8; font: 800 16px/1.1 var(--font-display); }
+.speed-spinlab-metrics small { color: var(--muted); font-size: 9px; letter-spacing: .7px; }
+.speed-spinlab-detail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 4px 0 8px; }
+.speed-spinlab-detail > div { min-height: 112px; display: grid; align-content: center; gap: 6px; padding: 18px; background: #ffffff06; border: 1px solid var(--line); border-radius: 9px; }
+.speed-spinlab-detail span, .speed-spinlab-detail small { color: var(--muted); font-size: 10px; }
+.speed-spinlab-detail strong { font: 900 30px/1 var(--font-display); }
+.speed-stats-card { min-height: 390px; padding: 26px; }
+.speed-stats-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 24px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.speed-stats-grid > div { min-height: 135px; display: flex; flex-direction: column; justify-content: center; padding: 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.speed-stats-grid > div:nth-child(2n) { border-right: 0; }
+.speed-stats-grid > div:nth-last-child(-n+2) { border-bottom: 0; }
+.speed-stats-grid span { color: var(--muted); font-size: 11px; }
+.speed-stats-grid strong { margin-top: 7px; font: 900 42px/.9 var(--font-display); letter-spacing: -1px; }
+.speed-stats-grid b { margin-top: 5px; color: #697486; font-size: 9px; letter-spacing: 1.3px; }
+.speed-stats-grid .is-peak strong, .speed-stats-grid .is-peak b { color: #ff7168; }
+.speed-analysis-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(290px, .65fr); gap: 16px; margin-top: 16px; }
+.speed-panel { min-height: 360px; padding: 24px; }
+.speed-panel-heading, .speed-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.speed-panel-heading > div > span, .speed-history-heading > div > span { color: var(--red); font-size: 10px; font-weight: 900; letter-spacing: 2px; }
+.speed-panel-heading h2, .speed-history-heading h2 { margin: 4px 0 0; font-size: 22px; }
+.speed-panel-heading > b { padding: 7px 10px; color: #aab4c2; background: #ffffff08; border: 1px solid var(--line); border-radius: 5px; font-size: 10px; letter-spacing: 1px; }
+.speed-chart-wrap { margin-top: 18px; overflow: hidden; border-radius: 12px; }
+.speed-line-chart { width: 100%; height: auto; display: block; }
+.speed-profile-panel { min-height: 0; margin-top: 16px; }
+.speed-profile-panel > p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.speed-ranking-list { display: grid; gap: 8px; margin-top: 20px; }
+.speed-ranking-list > div { min-height: 49px; display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; padding: 0 14px; background: #0a0e14; border: 1px solid var(--line); border-radius: 8px; }
+.speed-ranking-list span { color: #687384; font: 800 13px var(--font-display); }
+.speed-ranking-list strong { font: 900 24px var(--font-display); text-align: right; }
+.speed-ranking-list b { color: #667184; font-size: 9px; letter-spacing: 1px; }
+.speed-ranking-list .is-first { min-height: 70px; background: linear-gradient(90deg, #ff493d14, #0a0e14); border-color: #ff493d42; }
+.speed-ranking-list .is-first span, .speed-ranking-list .is-first strong { color: #ff8179; }
+.speed-ranking-list .is-first strong { font-size: 36px; }
+.speed-history-panel { margin-top: 16px; overflow: hidden; }
+.speed-history-heading { padding: 24px; border-bottom: 1px solid var(--line); }
+.speed-history-heading p { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+.speed-history-table-wrap { overflow-x: auto; }
+.speed-history-row { min-width: 720px; min-height: 58px; display: grid; grid-template-columns: 80px 1.2fr 1.2fr 1fr; align-items: center; padding: 0 24px; border-top: 1px solid var(--line); font-size: 13px; }
+.speed-history-row:first-child { border-top: 0; }
+.speed-history-row > span:not(:first-child), .speed-history-row strong { text-align: right; }
+.speed-history-row strong { font: 900 22px var(--font-display); }
+.speed-history-row strong b { color: var(--red); font-size: 10px; letter-spacing: 1px; }
+.speed-history-table-head { min-height: 42px; color: #687384; background: #0d1219; font-size: 10px; font-weight: 900; letter-spacing: 1px; }
+.speed-history-table-head strong { font: inherit; }
+.speed-history-empty { padding: 62px 24px; color: #687384; text-align: center; font-size: 13px; }
+
+/* 匯出頁固定像素，透過 html-to-image 轉成 JPEG/PNG，再包成 PDF。 */
+.speed-report-export-layer { position: fixed; top: 0; left: -20000px; z-index: -100; width: 1080px; pointer-events: none; }
+.speed-report-page, .speed-analysis-card { box-sizing: border-box; color: #f5f7fa; background: #080a0d; font-family: var(--font-body); }
+.speed-report-page { width: 1080px; height: 1528px; position: relative; padding: 74px 74px 64px; overflow: hidden; }
+.speed-report-page::after, .speed-analysis-card::after { content: ''; position: absolute; right: -180px; bottom: -220px; width: 520px; height: 520px; background: #ff493d; border-radius: 50%; filter: blur(190px); opacity: .12; pointer-events: none; }
+.speed-report-masthead { display: flex; justify-content: space-between; gap: 50px; padding-bottom: 34px; border-bottom: 2px solid #252d39; }
+.speed-report-masthead > div:first-child > span { color: #ff493d; font-size: 15px; font-weight: 900; letter-spacing: 4px; }
+.speed-report-masthead h1 { margin: 8px 0 0; font: 900 48px/.9 var(--font-display); letter-spacing: 2px; }
+.speed-report-masthead h1 em { color: #ff493d; font-style: normal; }
+.speed-report-masthead h2 { margin: 15px 0 0; color: #b6bfcb; font-size: 21px; font-weight: 700; }
+.speed-report-meta { min-width: 300px; display: grid; align-content: end; gap: 5px; color: #7e8998; font-size: 13px; text-align: right; }
+.speed-report-meta b { color: #edf0f5; font-size: 15px; }
+.speed-report-meta i { margin-top: 7px; color: #ff7168; font-style: normal; font-weight: 900; }
+.speed-report-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 24px; margin-top: 38px; }
+.speed-report-hero > div:first-child { min-height: 280px; display: flex; flex-direction: column; justify-content: center; padding: 34px; background: linear-gradient(135deg, #141a23, #0b0f15); border: 1px solid #2b3442; border-radius: 18px; }
+.speed-report-hero > div:first-child span { color: #8791a0; font-size: 15px; font-weight: 900; letter-spacing: 3px; }
+.speed-report-hero > div:first-child strong { margin-top: 14px; font: 900 126px/.75 var(--font-display); letter-spacing: -5px; }
+.speed-report-hero > div:first-child b { margin-top: 18px; color: #ff493d; font: 900 25px var(--font-display); letter-spacing: 2px; }
+.speed-report-summary { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #29313d; border-radius: 18px; overflow: hidden; }
+.speed-report-summary > div { display: flex; flex-direction: column; justify-content: center; padding: 24px; border-right: 1px solid #29313d; border-bottom: 1px solid #29313d; }
+.speed-report-summary > div:nth-child(2) { border-right: 0; }
+.speed-report-summary > div:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
+.speed-report-summary span { color: #7d8796; font-size: 13px; }
+.speed-report-summary b { margin-top: 8px; font: 900 42px var(--font-display); }
+.speed-report-chart, .speed-report-ranking { margin-top: 32px; }
+.speed-report-section-title { display: flex; align-items: baseline; gap: 16px; margin-bottom: 15px; }
+.speed-report-section-title span { color: #ff493d; font-size: 12px; font-weight: 900; letter-spacing: 3px; }
+.speed-report-section-title b { font-size: 18px; }
+.speed-report-chart .speed-line-chart { border: 1px solid #262e3a; border-radius: 16px; }
+.speed-report-top-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.speed-report-top-grid > div { min-height: 108px; display: flex; flex-direction: column; justify-content: center; padding: 16px; background: #0d1219; border: 1px solid #252e3a; border-radius: 11px; }
+.speed-report-top-grid span { color: #697586; font-size: 12px; font-weight: 900; }
+.speed-report-top-grid b { margin-top: 6px; font: 900 29px var(--font-display); }
+.speed-report-top-grid i { color: #687384; font-size: 9px; font-style: normal; font-weight: 900; }
+.speed-report-top-grid .is-first { border-color: #ff493d55; background: #ff493d0c; }
+.speed-report-top-grid .is-first span, .speed-report-top-grid .is-first b { color: #ff8179; }
+.speed-report-note { position: absolute; right: 74px; bottom: 58px; left: 74px; margin: 0; color: #5f6978; font-size: 11px; line-height: 1.7; }
+.speed-report-log-heading, .speed-report-log > div { display: grid; grid-template-columns: 70px 1.2fr 1fr 1fr; align-items: center; }
+.speed-report-log-heading { margin-top: 42px; padding: 0 22px 15px; color: #6f7988; border-bottom: 1px solid #303846; font-size: 11px; font-weight: 900; letter-spacing: 1px; }
+.speed-report-log-heading span:not(:first-child) { text-align: right; }
+.speed-report-log > div { min-height: 48px; padding: 0 22px; border-bottom: 1px solid #1e2530; color: #9aa4b1; font-size: 12px; }
+.speed-report-log > div > span:not(:first-child), .speed-report-log strong { text-align: right; }
+.speed-report-log strong { color: #f2f4f8; font: 900 20px var(--font-display); }
+.speed-report-log strong i { color: #ff645a; font-size: 9px; font-style: normal; }
+.speed-report-list-footer { position: absolute; right: 74px; bottom: 58px; left: 74px; display: flex; justify-content: space-between; padding-top: 18px; color: #647081; border-top: 1px solid #242b36; font-size: 11px; }
+.speed-analysis-card { width: 1080px; height: 1350px; position: relative; display: grid; grid-template-columns: 1.35fr .65fr; grid-template-rows: auto 355px 1fr auto; gap: 28px; padding: 70px; overflow: hidden; }
+.speed-analysis-card header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 30px; border-bottom: 2px solid #29313d; }
+.speed-analysis-card header span { color: #ff493d; font-size: 13px; font-weight: 900; letter-spacing: 3px; }
+.speed-analysis-card header h1 { margin: 11px 0 0; font: 900 55px/.84 var(--font-display); letter-spacing: 1px; }
+.speed-analysis-card header h1 em { color: #ff493d; font-style: normal; }
+.speed-analysis-session { color: #7f8998; font: 800 15px/1.7 var(--font-display); text-align: right; letter-spacing: 1px; }
+.speed-analysis-peak { display: flex; flex-direction: column; justify-content: center; padding: 34px; background: linear-gradient(140deg, #141a23, #0b0f15); border: 1px solid #303847; border-radius: 18px; }
+.speed-analysis-peak span { color: #8792a1; font-size: 14px; font-weight: 900; letter-spacing: 3px; }
+.speed-analysis-peak strong { margin-top: 14px; font: 900 135px/.72 var(--font-display); letter-spacing: -5px; }
+.speed-analysis-peak b { margin-top: 20px; color: #ff493d; font: 900 25px var(--font-display); letter-spacing: 2px; }
+.speed-analysis-top { padding: 24px; background: #0d1219; border: 1px solid #2b3441; border-radius: 18px; }
+.speed-analysis-top > div { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #252d38; }
+.speed-analysis-top > div span { color: #ff493d; font-size: 10px; font-weight: 900; letter-spacing: 2px; }
+.speed-analysis-top > div b { font-size: 12px; }
+.speed-analysis-top p { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 8px; margin: 0; padding: 13px 0; border-bottom: 1px solid #202731; }
+.speed-analysis-top p:last-child { border-bottom: 0; }
+.speed-analysis-top p i { color: #697586; font-style: normal; font-weight: 900; }
+.speed-analysis-top p strong { font: 900 28px var(--font-display); text-align: right; }
+.speed-analysis-top p span { color: #667184; font-size: 9px; }
+.speed-analysis-trend { grid-column: 1 / -1; padding: 24px; background: #0c1117; border: 1px solid #29313d; border-radius: 18px; }
+.speed-analysis-trend > div { display: flex; justify-content: space-between; margin-bottom: 15px; color: #8590a0; font-size: 12px; font-weight: 900; letter-spacing: 2px; }
+.speed-analysis-trend > div b { color: #ff8179; }
+.speed-analysis-card footer { grid-column: 1 / -1; min-height: auto; display: flex; justify-content: space-between; padding: 18px 0 0; color: #657081; border-top: 1px solid #29313d; font-size: 11px; }
+.speed-analysis-card footer b { color: #a8b0bc; letter-spacing: 2px; }
+
+@media (max-width: 1080px) {
+  .speed-live-grid { grid-template-columns: 1fr; }
+  .speed-spinlab-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .speed-stats-card { min-height: auto; }
+  .speed-stats-grid { grid-template-columns: repeat(4, 1fr); }
+  .speed-stats-grid > div { min-height: 118px; border-bottom: 0; }
+  .speed-stats-grid > div:nth-child(2) { border-right: 1px solid var(--line); }
+  .speed-analysis-grid { grid-template-columns: 1fr; }
+  .speed-ranking-list { grid-template-columns: repeat(5, 1fr); }
+  .speed-ranking-list > div { min-height: 86px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+  .speed-ranking-list strong { font-size: 28px; text-align: left; }
+  .speed-ranking-list .is-first { min-height: 86px; }
+}
+
+@media (max-width: 760px) {
+  .speed-connect-panel, .speed-history-heading { align-items: stretch; flex-direction: column; }
+  .speed-connect-actions, .speed-export-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .speed-connect-actions .button:first-child { grid-column: 1 / -1; }
+  .speed-wake-toggle { grid-column: 1 / -1; justify-content: center; }
+  .speed-live-card { min-height: 315px; padding: 22px; }
+  .speed-live-value strong { font-size: clamp(88px, 28vw, 150px); letter-spacing: -3px; }
+  .speed-live-value b { margin-bottom: 8px; font-size: 22px; }
+  .speed-stats-grid { grid-template-columns: 1fr 1fr; }
+  .speed-stats-grid > div { border-bottom: 1px solid var(--line); }
+  .speed-stats-grid > div:nth-child(2) { border-right: 0; }
+  .speed-stats-grid > div:nth-last-child(-n+2) { border-bottom: 0; }
+  .speed-ranking-list { grid-template-columns: 1fr; }
+  .speed-ranking-list > div, .speed-ranking-list .is-first { min-height: 52px; display: grid; grid-template-columns: 44px 1fr auto; }
+  .speed-ranking-list strong, .speed-ranking-list .is-first strong { font-size: 25px; text-align: right; }
+  .speed-browser-warning { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 620px) {
+  nav { overflow-x: auto; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  .nav-item { min-width: 72px; flex: 0 0 auto; white-space: nowrap; }
+  .speed-connect-actions, .speed-export-actions { grid-template-columns: 1fr; }
+  .speed-connect-actions .button:first-child { grid-column: auto; }
+  .speed-wake-toggle { grid-column: auto; justify-content: flex-start; }
+  .speed-live-meta { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .speed-spinlab-detail { grid-template-columns: 1fr; }
+  .speed-panel, .speed-stats-card { padding: 20px; }
+  .speed-history-heading { padding: 20px; }
+}
+

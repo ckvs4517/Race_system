@@ -1,8 +1,8 @@
 /** 產生 Sites 部署目錄；使用 Node fs，確保 Windows 與 CI 的檔案複製結果一致。 */
-import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveSourceVersion, sourceVersionToken } from './lib/source-version.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(projectRoot, 'dist');
@@ -11,26 +11,26 @@ if (!dist.startsWith(`${projectRoot}${sep}`)) throw new Error('Invalid build out
 const serverDir = join(dist, 'server');
 const clientDir = join(dist, 'client');
 const drizzleDir = join(dist, '.openai', 'drizzle');
-const buildVersion = resolveBuildVersion();
+const sourceVersion = await resolveSourceVersion({ cwd: projectRoot });
+const buildVersion = sourceVersionToken(sourceVersion);
 
 await rm(dist, { recursive: true, force: true });
 await Promise.all([
   mkdir(serverDir, { recursive: true }),
+  mkdir(join(serverDir, 'routes'), { recursive: true }),
+  mkdir(join(serverDir, 'services'), { recursive: true }),
+  mkdir(join(serverDir, 'db'), { recursive: true }),
   mkdir(clientDir, { recursive: true }),
   mkdir(drizzleDir, { recursive: true }),
   mkdir(join(clientDir, 'node_modules', 'html-to-image', 'dist'), { recursive: true }),
 ]);
 
-const workerPath = join(projectRoot, 'worker', 'index.js');
-const workerSource = await readFile(workerPath, 'utf8');
-const packagedWorker = workerSource.replace(
-  "from '../src/domain/tournament.js'",
-  "from './domain/tournament.js'",
-);
-if (packagedWorker === workerSource) throw new Error('Worker shared-module import was not found.');
-
 await Promise.all([
-  writeFile(join(serverDir, 'index.js'), packagedWorker, 'utf8'),
+  cp(join(projectRoot, 'worker', 'index.js'), join(serverDir, 'index.js')),
+  cp(join(projectRoot, 'worker', 'routes'), join(serverDir, 'routes'), { recursive: true }),
+  cp(join(projectRoot, 'worker', 'services'), join(serverDir, 'services'), { recursive: true }),
+  cp(join(projectRoot, 'worker', 'db'), join(serverDir, 'db'), { recursive: true }),
+  cp(join(projectRoot, 'worker', 'tournament-domain.js'), join(serverDir, 'tournament-domain.js')),
   cp(join(projectRoot, 'src', 'domain'), join(serverDir, 'domain'), { recursive: true }),
   cp(join(projectRoot, 'src', 'formats'), join(serverDir, 'formats'), { recursive: true }),
   cp(join(projectRoot, 'index.html'), join(clientDir, 'index.html')),
@@ -39,57 +39,69 @@ await Promise.all([
   cp(join(projectRoot, '.openai', 'hosting.json'), join(dist, '.openai', 'hosting.json')),
 ]);
 
+const domainBridgePath = join(serverDir, 'tournament-domain.js');
+const domainBridgeSource = await readFile(domainBridgePath, 'utf8');
+const packagedDomainBridge = domainBridgeSource.replace("from '../src/domain/tournament.js'", "from './domain/tournament.js'");
+if (packagedDomainBridge === domainBridgeSource) throw new Error('Worker tournament domain bridge import was not found.');
+await writeFile(domainBridgePath, packagedDomainBridge, 'utf8');
+
 const buildInfoPath = join(clientDir, 'src', 'core', 'build-info.js');
 const buildInfoToken = '__SPIN_BUILD_VERSION__';
 const buildInfoSource = await readFile(buildInfoPath, 'utf8');
 if (!buildInfoSource.includes(buildInfoToken)) throw new Error('Build version token was not found.');
 await writeFile(buildInfoPath, buildInfoSource.replace(buildInfoToken, buildVersion), 'utf8');
 
-const migrationNames = (await readdir(join(projectRoot, '.openai', 'drizzle')))
-  .filter((name) => name.endsWith('.sql'));
-await Promise.all(migrationNames.map((name) =>
-  cp(join(projectRoot, '.openai', 'drizzle', name), join(drizzleDir, name))));
+// Source styles stay split for ownership, but the deployed artifact uses one stylesheet.
+// This preserves the Phase 5 cascade without adding a dozen network round-trips at event venues.
+const clientStylesDir = join(clientDir, 'src', 'styles');
+const clientAppCssPath = join(clientStylesDir, 'app.css');
+const clientStyleManifest = await readFile(clientAppCssPath, 'utf8');
+const styleImports = [...clientStyleManifest.matchAll(/@import\s+url\(['"]([^'"]+)['"]\);/g)].map((match) => match[1]);
+if (!styleImports.length) throw new Error('Phase 5 style manifest has no ordered imports.');
+const flattenedStyles = [];
+for (const specifier of styleImports) {
+  if (!specifier.startsWith('./')) throw new Error(`Unsupported style import in app.css: ${specifier}`);
+  const target = resolve(clientStylesDir, specifier.slice(2));
+  if (!target.startsWith(`${clientStylesDir}${sep}`)) throw new Error(`Style import escapes src/styles: ${specifier}`);
+  const moduleSource = await readFile(target, 'utf8');
+  if (/@import\s/.test(moduleSource)) throw new Error(`Nested style imports are not deployable: ${specifier}`);
+  flattenedStyles.push(moduleSource);
+}
+await writeFile(clientAppCssPath, flattenedStyles.join(''), 'utf8');
+
+const migrationNames = (await readdir(join(projectRoot, '.openai', 'drizzle'))).filter((name) => name.endsWith('.sql'));
+await Promise.all(migrationNames.map((name) => cp(join(projectRoot, '.openai', 'drizzle', name), join(drizzleDir, name))));
 
 const requiredFiles = [
-  [join(serverDir, 'index.js'), 20_000],
-  [join(serverDir, 'domain', 'tournament.js'), 20_000],
+  [join(serverDir, 'index.js'), 300],
+  [join(serverDir, 'routes', 'api.js'), 5_000],
+  [join(serverDir, 'services', 'tournament-actions.js'), 2_000],
+  [join(serverDir, 'db', 'tournaments.js'), 1_000],
+  [join(serverDir, 'tournament-domain.js'), 300],
+  [join(serverDir, 'domain', 'tournament.js'), 50],
+  [join(serverDir, 'domain', 'tournament', 'index.js'), 500],
+  [join(serverDir, 'domain', 'tournament', 'lifecycle.js'), 3_000],
+  [join(serverDir, 'domain', 'tournament', 'matches.js'), 2_000],
+  [join(serverDir, 'domain', 'tournament', 'visibility.js'), 300],
   [join(serverDir, 'formats', 'registry.js'), 100],
   [join(clientDir, 'index.html'), 500],
-  [join(clientDir, 'src', 'main.js'), 10_000],
+  [join(clientDir, 'src', 'main.js'), 4_000],
+  [join(clientDir, 'src', 'features', 'schedule', 'controller.js'), 8_000],
+  [join(clientDir, 'src', 'features', 'registration', 'controller.js'), 2_000],
+  [join(clientDir, 'src', 'views', 'schedule', 'tournament-detail.js'), 3_000],
+  [join(clientDir, 'src', 'views', 'schedule', 'rounds.js'), 4_000],
+  [clientAppCssPath, 100_000],
   [buildInfoPath, 100],
   [join(dist, '.openai', 'hosting.json'), 20],
 ];
 for (const [path, minimumBytes] of requiredFiles) {
   const info = await stat(path);
-  if (!info.isFile() || info.size < minimumBytes) {
-    throw new Error(`Invalid build artifact: ${path}`);
-  }
+  if (!info.isFile() || info.size < minimumBytes) throw new Error(`Invalid build artifact: ${path}`);
 }
 
 const packagedBuildInfo = await readFile(buildInfoPath, 'utf8');
 if (packagedBuildInfo.includes(buildInfoToken)) throw new Error('Build version token was not replaced.');
+const packagedAppCss = await readFile(clientAppCssPath, 'utf8');
+if (/@import\s/.test(packagedAppCss)) throw new Error('Deployable app.css must be flattened to a single stylesheet.');
 
-console.log(`Build completed (${buildVersion}).`);
-
-function resolveBuildVersion() {
-  const environmentSha = [process.env.GITHUB_SHA, process.env.SOURCE_COMMIT, process.env.COMMIT_SHA]
-    .map((value) => String(value || '').trim())
-    .find((value) => /^[0-9a-f]{7,40}$/i.test(value));
-  if (environmentSha) return environmentSha.slice(0, 7).toLowerCase();
-
-  try {
-    const sha = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    const dirty = execFileSync('git', ['status', '--porcelain'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    return dirty ? `${sha}+dirty` : sha;
-  } catch {
-    return 'UNKNOWN';
-  }
-}
+console.log(`Build completed (${buildVersion}, resolved via ${sourceVersion.source}; ${styleImports.length} style modules flattened).`);

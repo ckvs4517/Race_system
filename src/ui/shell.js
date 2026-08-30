@@ -1,5 +1,5 @@
 /** 所有頁面共用的導覽、同步狀態、主內容與頁尾框架。 */
-import { buildVersionLabel } from '../core/build-info.js';
+import { buildVersionInfo } from '../core/build-info.js';
 import { icons } from './icons.js';
 
 export function shell(route, content, state = {}) {
@@ -18,6 +18,7 @@ export function shell(route, content, state = {}) {
     ['schedule', '賽程表'],
     ...(state.isAdmin ? [['control', '管理後台'], ['registration', '參賽資料'], ['data', '資料管理']] : [['control', '主辦方登入']]),
   ];
+  const buildVersion = buildVersionInfo();
   return `
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>
@@ -37,7 +38,7 @@ export function shell(route, content, state = {}) {
       <div class="footer-links">
         <a class="footer-github" href="https://github.com/ckvs4517/Race_system" target="_blank" rel="noopener noreferrer" aria-label="在新分頁開啟 GitHub 專案">GitHub 專案 ↗</a>
         <span>CLOUD SYNC · ${icons.bolt} READY</span>
-        <span class="build-version" title="部署來源版本">${buildVersionLabel()}</span>
+        <a class="build-version" href="${buildVersion.href}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(buildVersion.title)}">${buildVersion.label}</a>
       </div>
     </footer>
   `;
@@ -49,4 +50,8 @@ export function pageHeader(kicker, title, description, action = '') {
 
 function escapeText(value) {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function escapeAttribute(value) {
+  return escapeText(value).replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }

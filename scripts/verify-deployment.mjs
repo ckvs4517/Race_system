@@ -1,4 +1,4 @@
-/** 部署後 smoke test：確認公開網站、關鍵記分規則與賽事 API 可讀取。 */
+/** 部署後 smoke test：確認公開網站、關鍵記分規則、賽事 API 與個資邊界可使用。 */
 const siteUrl = process.argv[2] || process.env.SITE_URL;
 
 if (!siteUrl) throw new Error('請提供公開網站網址，例如：node scripts/verify-deployment.mjs https://example.com');
@@ -15,6 +15,10 @@ assert(scoreboard.includes('data-forfeit-player'), '公開記分板缺少棄賽�
 
 const tournaments = await readJson(`/api/tournaments?smoke=${cacheBust}`);
 assert(Array.isArray(tournaments.tournaments), '賽事 API 沒有回傳 tournaments 陣列');
+for (const tournament of tournaments.tournaments) {
+  assert(!('participantDetails' in tournament), `公開賽事 API 洩漏 participantDetails：${tournament.id}`);
+  assert(!tournament.registrationSettings || !('token' in tournament.registrationSettings), `公開賽事 API 洩漏報名 token：${tournament.id}`);
+}
 
 console.log(`PASS production smoke: ${baseUrl.origin}`);
 

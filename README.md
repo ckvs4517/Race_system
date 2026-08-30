@@ -1,158 +1,195 @@
 # Spin League
 
-Spin League 是一套為戰鬥陀螺活動設計的網頁賽事管理系統。主辦方可以從報名、報到、排程一路管理到記分與完賽；選手與觀眾則不需登入，就能查看活動資訊、目前賽程、比分與排行榜。
+Spin League 是一套為戰鬥陀螺活動設計的網頁賽事管理系統。主辦方可以從參賽資料、報到、排程一路管理到記分與完賽；選手與觀眾不需登入即可查看公開活動、賽程、比分與排行榜。
 
-## 這套系統可以做什麼
+目前 codebase 已完成 V2 架構重構 Phase 0–5。重構目標是降低大型單檔耦合，不改變既有賽事資料格式或 D1 schema；正式功能的下一個主要開發項目是 Scoring V2。
 
-### 給主辦方與裁判
+## 主要功能
+
+### 主辦方／裁判
 
 - 建立、編輯、複製與刪除賽事
-- 填寫日期、時間、地點、地圖、原始貼文與活動備註
-- 手動建立名單，或產生只交給已確認參賽者的私密資料填寫連結
-- 選手送出後直接加入正式名單，主辦方可編輯名稱、電話與飲品
-- 每場賽事可設定必填的單一飲品菜單；選手一次選一個品項，主辦方可查看統計並複製採購清單
-- 現場搜尋名單、勾選報到、快速新增選手與批次移除名單
-- 報到完成後隨機分組，並在開賽前手動調整首輪對戰
-- 使用 1～8 台戰鬥台安排同一輪比賽
-- 輸入正式比分、判定棄賽、標記未出席或中途退賽
-- 對已完成的比賽執行重賽，讓後續賽程重新計算
-- 匯出 JSON 備份、賽事總覽 CSV、參賽者與飲品 CSV、對戰明細 CSV
-- 完賽後可從排行榜展開任一選手，下載固定 1080 × 1350 的個人戰績 PNG
+- 活動日期、時間、地點、地圖、貼文與備註
+- 手動建立名單，或建立只交給已確認參賽者的私密資料填寫連結
+- 編輯參賽者名稱、電話、飲品與參賽資料
+- 現場搜尋／篩選、單人或全員報到、快速新增選手
+- 產生排程並在正式開始前調整首輪配對
+- 支援 1～8 台戰鬥台安排一般輪次
+- 正式比分、快速登分、棄賽、未出席、中途退賽、重賽
+- 瑞士制 Top 4 / Top 8 與第二階段模式選擇
+- JSON 備份、CSV 匯出與個人戰績 PNG
 
-### 給選手與觀眾
+### 選手／觀眾
 
-- 不需登入即可查看公開賽事
-- 查看活動時間、地點與注意事項
-- 查看目前輪次、戰鬥台、比分、晉級結果與冠軍
-- 查看排行榜，並展開個別選手的歷史對戰紀錄
-- 使用不會影響正式賽事的獨立記分板
-- 在支援 Web Bluetooth 的瀏覽器連接 SpinLab 或 Battle Pass，查看發射數據；SpinLab 連線時也會顯示 GPIO1 陀螺安裝狀態
+- 不登入查看公開賽事、時間地點與注意事項
+- 查看目前輪次、比分、晉級結果、排行榜與歷史對戰
+- 使用不影響正式賽事的獨立記分板
+- 在支援 Web Bluetooth 的瀏覽器使用 SpinLab / Battle Pass 相關功能
 
 ## 支援賽制
 
-### 循環賽與連勝制
+### 單淘汰
 
-- 循環賽支援 3～8 位已報到選手；每人互打一次，依勝場、總得分排名。
-- 勝場與總得分都相同時顯示並列名次；若第一名並列，主辦方可建立冠軍循環加賽決定唯一冠軍。
-- 連勝制支援 3～8 位已報到選手；勝者守擂、敗者排到隊尾，先連勝兩場者奪冠。
+- 2～48 位已報到選手
+- 輸一場淘汰
+- 奇數人／奇數輪支援輪空處理
 
-### 單淘汰賽
+### 瑞士制
 
-- 支援 2～48 位已報到選手
-- 輸掉一場即淘汰，勝者持續晉級直到產生冠軍
-- 奇數人時安排一位選手輪空
-- 後續奇數輪會依表現選擇輪空種子
+- 4～48 位已報到選手
+- 第一階段固定四輪
+- 可使用傳統排名或對手強度（Buchholz）排名規則
+- 建立賽事時先選 Top 4 / Top 8 晉級人數
+- 資格線同分時可建立 qualification 決定賽
+- 第一階段結束後再決定第二階段模式
+- Top 4 可使用循環賽或單淘汰
+- Top 8 可使用循環賽、單淘汰或另一組瑞士輪
+- 第二階段瑞士輪可在開始前設定輪數
+- 未晉級選手仍保留完整第一階段成績與歷史對戰
 
-### 瑞士制：四輪預賽＋彈性結算
+### 循環賽
 
-- 支援 4～48 位已報到選手
-- 固定進行四輪瑞士制預賽
-- 優先安排勝場接近、且尚未交手的選手對戰
-- 建立賽事時先決定第二階段晉級 Top 4 或 Top 8；第二階段實際賽制在四輪完成、晉級名單確認後才選擇並鎖定
-- Top 4 第二階段可選循環賽或單淘汰；Top 8 可選循環賽、單淘汰或重新開始一組瑞士輪
-- 晉級資格線出現多人同分時，只針對跨越 Top 4／Top 8 切線的同分群建立資格加賽
-- 進入第二階段後，未晉級選手仍保留在排行榜下方的第一階段止步區，可查看完整成績與戰績圖
+- 3～8 位已報到選手
+- 每人互打一次
+- 並列第一可建立冠軍 tie-break series
 
-## 主辦方操作流程
+### 連勝制
 
-1. **登入主辦方後台**  
-   輸入主辦方 PIN，進入管理模式。
+- 3～8 位已報到選手
+- 勝者守擂、敗者回到隊尾
+- 依目前規則達到目標連勝者奪冠
 
-2. **建立賽事**  
-   填寫賽事名稱、賽制、戰鬥台數與活動資訊。選手名單可以先留空。
+## 主辦方基本流程
 
-3. **招募選手**  
-   私下確認參賽資格與付款後，建立「參賽資料填寫連結」交給選手，或直接在後台手動加入名單。
+1. 輸入主辦方 PIN 登入管理模式。
+2. 建立賽事並設定賽制、活動資訊與戰鬥台數。
+3. 手動加入選手，或將私密參賽資料連結交給已確認資格的選手。
+4. 現場搜尋、確認名單並完成報到。
+5. 進入排程；未報到者會標記 `no_show` 且不進正式賽程。
+6. 隨機產生排程，需要時調整首輪配對，再正式確認開賽。
+7. 只對「可開始」的 match 記分；平手不能送出，勝方至少 4 分。
+8. 完賽後確認排行榜、匯出備份／CSV／戰績圖。
 
-4. **審核與報到**  
-   選手送出後會直接加入正式名單，並必須選擇一項飲品。公開填寫網址會同步讀取該場賽事目前啟用的飲品菜單；主辦方可在報到頁修改名稱、電話、飲品，並使用名稱搜尋與「全部／未報到／已報到」篩選。
+## 多裝置與同步
 
-   已送出的飲品會保留當下的顯示名稱，因此後續改名或停用品項不會改寫歷史統計。
+不同裁判裝置可以操作同一場賽事。每次正式寫入都帶 tournament revision；如果另一台裝置已先更新，舊 revision 不會直接覆蓋新版資料。
 
-5. **確認報到並進入排程**  
-   未報到者會保留在完整名單中並標記為未出席，但不會被排入正式賽程。公開報名連結也會在此時失效。
+前端也使用 ETag 輪詢減少未變更資料的重複傳輸。這不是 WebSocket realtime push，因此多人同時操作時仍建議每位裁判處理自己負責的 match，並確認儲存成功。
 
-6. **產生與確認賽程**  
-   先隨機分組，再視現場需求逐場調整首輪對戰。確認後才正式開放記分。
+目前所有管理者仍共用同一組 PIN，尚未提供個別裁判帳號、每台戰鬥台權限或操作 audit log。
 
-7. **進行比賽**  
-   點選「可開始」的比賽節點進入記分板。勝方至少需要 4 分，平手不能送出。
+## 個資與公開資料
 
-8. **完賽與備份**  
-   賽事結束後確認排行榜；展開選手可下載戰績圖，並下載 JSON 或 CSV 保存完整紀錄。
+Tournament 內部資料可能包含：
 
-網站導覽列中的「使用說明」也提供同一套操作流程。
+- 參賽者電話
+- 私人備註
+- 自訂欄位答案
+- 私密參賽資料連結 token
 
-## 排名與歷史紀錄說明
+這些不是公開資料。未登入的 `/api/tournaments` 與 `/api/tournaments/:id` 只回傳 public-safe tournament，不包含 `participantDetails` 或 `registrationSettings.token`。
 
-- 未報到者不會進入賽程，而且一定排在所有實際報到參賽者之後。
-- 有報到但全敗的選手，仍會排在未報到者前面。
-- 瑞士制進入四強決賽後，前四名的排行榜會改顯示「決賽階段戰績」；單淘汰完成後固定依冠軍、亞軍、季軍、殿軍排序。
-- 四強選手先前的預賽與資格加賽紀錄不會被刪除，可從「對戰紀錄」、備份、CSV 與個人戰績圖查看。
-- 已完成的歷史輪次不會一直佔用主賽程畫面；賽程區主要顯示目前需要進行的輪次。
-- 重賽會清除該場及其後受影響的賽程結果，避免舊勝者繼續留在晉級路線中。
+登入管理模式後，系統才重新取得完整資料；登出時會立即從目前瀏覽器記憶體移除上述私密欄位。
 
-## 多裝置使用
+JSON 備份與部分管理用 CSV 仍可能包含電話等個資，下載後請限制存取。
 
-公開賽程會自動檢查最新資料，主辦方與裁判也可以在不同裝置操作。系統使用版本衝突保護，避免較舊的畫面直接覆蓋較新的賽果。
+## V2 Codebase
 
-目前所有管理者共用同一組主辦方 PIN，尚未提供個別裁判帳號、戰鬥台權限或操作紀錄。多人操作時，仍建議每位裁判只處理自己負責的比賽，並確認畫面顯示已儲存後再離開。
+V2 不改成大型前端框架，而是保留 browser-native ES Modules，將原本大型檔案依責任拆開：
 
-## 資料備份注意事項
+```text
+src/main.js                         thin coordinator
+src/features/*                     interactions/controllers
+src/views/schedule/*               schedule rendering
+src/domain/tournament.js           stable facade
+src/domain/tournament/*            tournament business modules
+src/data/store.js                  browser API/state/revision/ETag
+worker/index.js                    thin Worker entry
+worker/routes/*                    HTTP coordination
+worker/services/*                  server validation/actions/auth
+worker/db/*                        D1 persistence
+src/styles/app.css                 ordered source manifest
+src/styles/base|features|responsive/*
+```
 
-- JSON 備份包含正式賽事、正式名單、賽程、比分、統計與冠軍。
-- JSON 備份與「參賽者與飲品 CSV」包含電話等個資，下載後請限制存取並妥善保管。
-- 舊版 `registrations` 待審核資料仍留在既有 D1 資料表；新版填寫流程不新增或清除這些紀錄。
-- 建議每次正式活動結束後下載一份 JSON 備份。
+Source CSS 是模組化的；Sites build 會重新合成單一 deployed `app.css`，避免活動現場因樣式分檔增加多次 network request。
 
-## 給開發者
+完整技術文件：
 
-本專案使用原生 HTML、CSS 與 JavaScript ES Modules，後端使用 Cloudflare Worker，正式資料儲存在 Cloudflare D1。專案不依賴 React、Vue 或前端打包框架。
+- [DEVELOPMENT.md](DEVELOPMENT.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [V2_RELEASE_REVIEW.md](V2_RELEASE_REVIEW.md)
 
-完整的架構、資料模型、API、同步機制、測試與部署方式請閱讀 [DEVELOPMENT.md](DEVELOPMENT.md)。
+## 本機開發
 
 ```bash
 git clone https://github.com/ckvs4517/Race_system.git
 cd Race_system
-```
-
-完整的隔離式本機測試環境可直接執行：
-
-```bash
+npm install
 node scripts/preview-local.mjs
 ```
 
-接著開啟 `http://127.0.0.1:8765/`。這個預覽會執行實際 Worker 程式，並使用 `.dev-data/` 內的本機檔案型資料庫，不會連線或修改正式 D1。預設本機管理 PIN 為 `2468`，可透過 `LOCAL_ADMIN_PIN` 環境變數更換。
+預設開啟：
 
-需要先帶入一份正式備份做隔離測試時：
+```text
+http://127.0.0.1:8765/
+```
+
+本機預覽使用 `.dev-data/` 隔離資料，不會連線或修改 production D1。
+
+帶入一份備份到本機：
 
 ```bash
 node scripts/preview-local.mjs --reset --backup path/to/backup.json
 ```
 
-快速測試與完整測試：
+## 測試
+
+常用：
 
 ```bash
+npm run health
 node scripts/test-fast.mjs
-node scripts/test-full.mjs
+node scripts/test-full.mjs --browser=required
 ```
 
-Repository 也包含 `AGENTS.md`、`.agents/skills/` 與任務對照腳本，讓 Codex 或其他 AI 維護工具先讀取最小必要的架構、業務規則與測試範圍：
+測試包含：
 
-```bash
-node scripts/agent-context.mjs "瑞士制 排名 未報到"
+- V2 architecture boundaries
+- tournament formats / ranking / Stage 2
+- API / authorization / revision conflict
+- public/private data boundary
+- registration / check-in / quick score
+- HTML escaping
+- responsive/browser flows
+- Sites build/source Git marker
+
+### Staging release gate
+
+永久測試站：
+
+```text
+https://spin-league-test.ckvs4517.chatgpt.site/
 ```
+
+正式候選版需先部署到 staging，再手動執行 GitHub Actions `Staging E2E`，並填入「測試站實際部署的 exact Git SHA」。Workflow 會拒絕非 staging host，使用獨立 Test D1，測試完成後只清理自己的 `[E2E]` 賽事。
+
+CI／Staging E2E 通過代表目前自動化範圍沒有發現問題，不代表所有真實手機、弱網路、D1 故障或惡意流量情境都已被模擬。
+
+## 目前已知限制
+
+- 主辦方／裁判共用 PIN，尚無個人帳號與 audit log。
+- Login 與私密參賽資料提交尚無平台 rate limit / Turnstile。
+- 同步是 polling + optimistic revision lock，不是 realtime push。
+- Live staging E2E 是單一 browser session，不是真正多裝置長時間 soak test。
+- 歷史賽事大量增加後，公開 tournament collection 可能需要 summary/pagination 優化。
+- JSON restore 是破壞性的整批 tournament replacement，正式使用前必須確認備份。
+- Web Bluetooth 支援度依瀏覽器與平台而異。
 
 ## 賽事規則參考
 
-專案內附 [Beyblade X 賽事規則 v12（2026）](beyblade-x-rules-v12-2026.pdf)。網站實際行為以目前程式碼已實作的規則為準，不代表 PDF 內所有細節都已自動化。
-
-## 測試狀態
-
-每次 Push 或 Pull Request 都會透過 GitHub Actions 執行賽制、報名、報到、API、同步、響應式介面、瀏覽器流程與 Sites 建置測試。正式網站另有每日 smoke test。
-
-[查看 GitHub Actions](https://github.com/ckvs4517/Race_system/actions)
+Repository 內附 Beyblade X 賽事規則 PDF。網站實際行為以目前 code 與 tests 已實作的規則為準，不代表官方規則的所有細節都已自動判定。
 
 ## 授權
 
-目前 repository 尚未附加明確的開源 `LICENSE`。公開可讀不等於自動允許修改、再散布或商業使用；後續若要正式開放使用，請由 repository 擁有者選擇並加入授權條款。
+Repository 目前沒有明確 `LICENSE`。公開可讀不等於自動允許修改、再散布或商業使用。

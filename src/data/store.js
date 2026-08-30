@@ -2,6 +2,8 @@
  * 前端唯一狀態來源與雲端 API 存取層。
  * UI 不直接呼叫 fetch；畫面只讀取淺層狀態快照，寫入一律經過 store API。
  */
+import { toPublicTournament } from '../domain/tournament.js';
+
 const AUTH_KEY = 'spin-admin-token';
 const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 
@@ -353,18 +355,30 @@ export async function submitPublicRegistration(tournamentId, token, registration
 export async function loginAdmin(pin) {
   const result = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ pin }) });
   sessionStorage.setItem(AUTH_KEY, result.token);
-  state.isAdmin = true;
-  state.error = null;
-  notify();
+  clearTournamentEtags();
+  try {
+    const data = await api('/api/tournaments');
+    state.tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+    reconcileSelections();
+    state.isAdmin = true;
+    state.error = null;
+    notify();
+  } catch (error) {
+    sessionStorage.removeItem(AUTH_KEY);
+    clearTournamentEtags();
+    throw error;
+  }
 }
 
 export function logoutAdmin() {
   sessionStorage.removeItem(AUTH_KEY);
+  state.tournaments = state.tournaments.map(toPublicTournament);
   state.isAdmin = false;
   state.editingTournamentId = null;
   state.registrationTournamentId = null;
   state.registrations = [];
   responseEtags.delete('/api/admin/session');
+  clearTournamentEtags();
   notify();
 }
 
@@ -427,4 +441,10 @@ function sameTournamentVersions(current, incoming) {
   if (current.length !== incoming.length) return false;
   const currentVersions = new Map(current.map((item) => [String(item.id), Number(item.revision) || 0]));
   return incoming.every((item) => currentVersions.get(String(item.id)) === (Number(item.revision) || 0));
+}
+
+function clearTournamentEtags() {
+  for (const path of [...responseEtags.keys()]) {
+    if (path === '/api/tournaments' || /^\/api\/tournaments\/[^/]+$/.test(path)) responseEtags.delete(path);
+  }
 }

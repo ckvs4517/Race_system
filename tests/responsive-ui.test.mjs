@@ -1,8 +1,9 @@
 /** 靜態檢查手機優先 UI 的字級、觸控範圍與主要響應式重排規則。 */
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readAppStyles } from './lib/style-source.mjs';
 
-const css = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8');
+const css = await readAppStyles();
 const scheduleResponsiveCss = await readFile(new URL('../src/styles/schedule-responsive.css', import.meta.url), 'utf8');
 const indexHtml = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
