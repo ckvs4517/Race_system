@@ -51,6 +51,24 @@ const buildInfoSource = await readFile(buildInfoPath, 'utf8');
 if (!buildInfoSource.includes(buildInfoToken)) throw new Error('Build version token was not found.');
 await writeFile(buildInfoPath, buildInfoSource.replace(buildInfoToken, buildVersion), 'utf8');
 
+// Source styles stay split for ownership, but the deployed artifact uses one stylesheet.
+// This preserves the Phase 5 cascade without adding a dozen network round-trips at event venues.
+const clientStylesDir = join(clientDir, 'src', 'styles');
+const clientAppCssPath = join(clientStylesDir, 'app.css');
+const clientStyleManifest = await readFile(clientAppCssPath, 'utf8');
+const styleImports = [...clientStyleManifest.matchAll(/@import\s+url\(['"]([^'"]+)['"]\);/g)].map((match) => match[1]);
+if (!styleImports.length) throw new Error('Phase 5 style manifest has no ordered imports.');
+const flattenedStyles = [];
+for (const specifier of styleImports) {
+  if (!specifier.startsWith('./')) throw new Error(`Unsupported style import in app.css: ${specifier}`);
+  const target = resolve(clientStylesDir, specifier.slice(2));
+  if (!target.startsWith(`${clientStylesDir}${sep}`)) throw new Error(`Style import escapes src/styles: ${specifier}`);
+  const moduleSource = await readFile(target, 'utf8');
+  if (/@import\s/.test(moduleSource)) throw new Error(`Nested style imports are not deployable: ${specifier}`);
+  flattenedStyles.push(moduleSource);
+}
+await writeFile(clientAppCssPath, flattenedStyles.join(''), 'utf8');
+
 const migrationNames = (await readdir(join(projectRoot, '.openai', 'drizzle'))).filter((name) => name.endsWith('.sql'));
 await Promise.all(migrationNames.map((name) => cp(join(projectRoot, '.openai', 'drizzle', name), join(drizzleDir, name))));
 
@@ -64,6 +82,7 @@ const requiredFiles = [
   [join(serverDir, 'domain', 'tournament', 'index.js'), 500],
   [join(serverDir, 'domain', 'tournament', 'lifecycle.js'), 3_000],
   [join(serverDir, 'domain', 'tournament', 'matches.js'), 2_000],
+  [join(serverDir, 'domain', 'tournament', 'visibility.js'), 300],
   [join(serverDir, 'formats', 'registry.js'), 100],
   [join(clientDir, 'index.html'), 500],
   [join(clientDir, 'src', 'main.js'), 4_000],
@@ -71,6 +90,7 @@ const requiredFiles = [
   [join(clientDir, 'src', 'features', 'registration', 'controller.js'), 2_000],
   [join(clientDir, 'src', 'views', 'schedule', 'tournament-detail.js'), 3_000],
   [join(clientDir, 'src', 'views', 'schedule', 'rounds.js'), 4_000],
+  [clientAppCssPath, 100_000],
   [buildInfoPath, 100],
   [join(dist, '.openai', 'hosting.json'), 20],
 ];
@@ -81,5 +101,7 @@ for (const [path, minimumBytes] of requiredFiles) {
 
 const packagedBuildInfo = await readFile(buildInfoPath, 'utf8');
 if (packagedBuildInfo.includes(buildInfoToken)) throw new Error('Build version token was not replaced.');
+const packagedAppCss = await readFile(clientAppCssPath, 'utf8');
+if (/@import\s/.test(packagedAppCss)) throw new Error('Deployable app.css must be flattened to a single stylesheet.');
 
-console.log(`Build completed (${buildVersion}, resolved via ${sourceVersion.source}).`);
+console.log(`Build completed (${buildVersion}, resolved via ${sourceVersion.source}; ${styleImports.length} style modules flattened).`);
