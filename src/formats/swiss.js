@@ -6,6 +6,7 @@ import {
 } from '../domain/ranking/swiss-ranking.js';
 const BYE = '輪空';
 const PRELIMINARY_ROUNDS = 4;
+const SWISS_BYE_POINTS = 4;
 
 export const swiss = {
   id: 'swiss',
@@ -357,6 +358,8 @@ function createSwissRound(orderedPlayers, roundNumber, history, stats = null, op
     seriesPlayers: phase === 'preliminary' ? undefined : [...orderedPlayers],
     seedPlayer: byePlayer,
     seedReason: byePlayer ? 'swiss-bye' : null,
+    // 新產生的瑞士輪明確記錄輪空排名積分，讓舊 round 缺少欄位時仍維持歷史 0 分。
+    byePoints: SWISS_BYE_POINTS,
     matches: pairs.map(([playerA, playerB], index) => createMatch(`${idPrefix}-r${roundNumber}m${index + 1}`, playerA, playerB)),
   };
 }
@@ -490,7 +493,7 @@ function applyBye(round, stats) {
   // 輪空不是實際出賽，因此不增加 matchesPlayed；但傳統排名會比較總得分，
   // 現場規則將輪空視為一場 4 分勝利的排名積分，避免輪空者在同勝敗下吃虧。
   stats[byeMatch.playerA].wins += 1;
-  stats[byeMatch.playerA].pointsFor += 4;
+  stats[byeMatch.playerA].pointsFor += Number(round.byePoints) || 0;
   stats[byeMatch.playerA].byeCount += 1;
 }
 
@@ -498,7 +501,7 @@ function deriveStats(players = [], rounds = []) {
   const stats = Object.fromEntries(players.map((player) => [player, emptyStats()]));
   rounds.forEach((round) => round.matches.forEach((match) => {
     if (match.playerB === BYE) {
-      applyBye({ matches: [match] }, stats);
+      applyBye({ matches: [match], byePoints: round.byePoints }, stats);
       return;
     }
     if (match.status !== '已完成' || match.scoreA == null || match.scoreB == null) return;

@@ -174,12 +174,38 @@ assert.equal(reset.rounds[0].matches[0].status, '可開始');
 let odd = startTournament(checkInAll(createTournament('五人瑞士賽', ['A', 'B', 'C', 'D', 'E'], 'swiss')));
 const firstBye = odd.rounds[0].seedPlayer;
 assert.ok(firstBye);
+assert.equal(odd.rounds[0].byePoints, 4, '新產生的瑞士輪應記錄輪空 4 分規則');
 assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
 assert.equal(odd.playerStats[firstBye].pointsFor, 4, '輪空應同時取得 4 分排名積分');
 assert.equal(odd.playerStats[firstBye].pointsAgainst, 0, '輪空不應增加失分');
 assert.equal(odd.playerStats[firstBye].matchesPlayed, 0, '輪空不是實際出賽，不應增加出賽場次');
 odd = finishCurrentRound(odd);
 assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
+
+const historicalByeProbe = {
+  ...createTournament('舊輪空資料', ['舊A', '舊B', '舊C'], 'swiss'),
+  status: '進行中',
+  participantStates: {
+    '舊A': { status: 'active', checkedIn: true },
+    '舊B': { status: 'active', checkedIn: true },
+    '舊C': { status: 'active', checkedIn: true },
+  },
+  rounds: [{
+    name: '瑞士制第 1 輪',
+    phase: 'preliminary',
+    phaseRound: 1,
+    seriesId: 'preliminary',
+    // 舊資料沒有 byePoints，必須維持當時只加勝場、不加總得分的語意。
+    matches: [
+      { id: 'legacy-bye', playerA: '舊A', playerB: '輪空', scoreA: null, scoreB: null, winner: '舊A', status: '輪空晉級' },
+      completedMatch('legacy-played', '舊B', '舊C', 4, 1),
+    ],
+  }],
+};
+const historicalByeRows = getSwissPhaseStandings(historicalByeProbe, 'preliminary');
+const historicalByePlayer = historicalByeRows.find((row) => row.player === '舊A');
+assert.equal(historicalByePlayer.wins, 1, '舊輪空仍應保留一勝');
+assert.equal(historicalByePlayer.totalPoints, 0, '舊 round 沒有 byePoints 時不可回溯增加 4 分');
 
 let swissWithdrawal = startTournament(checkInAll(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss')));
 const withdrawalMatch = swissWithdrawal.rounds[0].matches[0];
