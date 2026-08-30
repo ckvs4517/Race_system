@@ -179,6 +179,12 @@ assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
 assert.equal(odd.playerStats[firstBye].pointsFor, 4, '輪空應同時取得 4 分排名積分');
 assert.equal(odd.playerStats[firstBye].pointsAgainst, 0, '輪空不應增加失分');
 assert.equal(odd.playerStats[firstBye].matchesPlayed, 0, '輪空不是實際出賽，不應增加出賽場次');
+const oddLeaderboard = scheduleView([odd], odd.id, true);
+const oddPlayerStart = oddLeaderboard.indexOf(`<strong>${firstBye}`);
+const oddPlayerEnd = oddLeaderboard.indexOf('</details>', oddPlayerStart);
+const oddPlayerSection = oddLeaderboard.slice(oddPlayerStart, oddPlayerEnd);
+assert.match(oddPlayerSection, /<span>1<\/span><span>0<\/span><b>4<\/b>/, '排行榜勝敗與總得分必須包含輪空');
+assert.match(oddPlayerSection, /<b>瑞士輪<\/b><i>1 勝 0 敗 · 4 分/, '排行榜展開的階段成績也必須把輪空算成勝場');
 odd = finishCurrentRound(odd);
 assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
 
@@ -206,6 +212,12 @@ const historicalByeRows = getSwissPhaseStandings(historicalByeProbe, 'preliminar
 const historicalByePlayer = historicalByeRows.find((row) => row.player === '舊A');
 assert.equal(historicalByePlayer.wins, 1, '舊輪空仍應保留一勝');
 assert.equal(historicalByePlayer.totalPoints, 0, '舊 round 沒有 byePoints 時不可回溯增加 4 分');
+const historicalByeView = scheduleView([historicalByeProbe], historicalByeProbe.id, true);
+const historicalPlayerStart = historicalByeView.indexOf('<strong>舊A');
+const historicalPlayerEnd = historicalByeView.indexOf('</details>', historicalPlayerStart);
+const historicalPlayerSection = historicalByeView.slice(historicalPlayerStart, historicalPlayerEnd);
+assert.match(historicalPlayerSection, /<span>1<\/span><span>0<\/span><b>0<\/b>/, '舊輪空在排行榜仍應顯示一勝但不回溯補分');
+assert.match(historicalPlayerSection, /<b>瑞士輪<\/b><i>1 勝 0 敗 · 0 分/, '舊輪空的階段成績要顯示勝場且維持歷史 0 分');
 
 let swissWithdrawal = startTournament(checkInAll(createTournament('瑞士退賽測試', ['W1', 'W2', 'W3', 'W4'], 'swiss')));
 const withdrawalMatch = swissWithdrawal.rounds[0].matches[0];

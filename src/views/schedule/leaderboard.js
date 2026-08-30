@@ -106,9 +106,15 @@ function stageSummaryView(tournament, player) {
       final: tournament.swissStage2Config ? '第二階段' : '四強／決賽',
     }[key];
     if (!groups.has(key)) groups.set(key, { label, wins: 0, losses: 0, points: 0, opponentWins: null });
-    round.matches.filter((match) => match.status === '已完成' && [match.playerA, match.playerB].includes(player)).forEach((match) => {
+    round.matches.filter((match) => ['已完成', '輪空晉級'].includes(match.status) && [match.playerA, match.playerB].includes(player)).forEach((match) => {
       const group = groups.get(key);
       const isA = match.playerA === player;
+      const opponent = isA ? match.playerB : match.playerA;
+      if (opponent === '輪空') {
+        group.wins += 1;
+        group.points += Number(round.byePoints) || 0;
+        return;
+      }
       group.points += Number(isA ? match.scoreA : match.scoreB) || 0;
       if (match.winner === player) group.wins += 1; else group.losses += 1;
     });
