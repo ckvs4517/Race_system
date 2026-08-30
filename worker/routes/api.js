@@ -9,7 +9,7 @@ import {
   replaceAllTournaments,
   updateTournamentIfRevision,
 } from '../db/tournaments.js';
-import { createToken, isAuthorized, safeEqual } from '../services/admin-auth.js';
+import { createToken, isAuthorized, isBackupAuthorized, safeEqual } from '../services/admin-auth.js';
 import { validatePublicRegistrationAccess, publicRegistrationSummary, validateRegistration } from '../services/registration-validation.js';
 import { applyTournamentAction } from '../services/tournament-actions.js';
 import { withRevision, withoutRevision } from '../services/tournament-record.js';
@@ -122,6 +122,17 @@ export async function handleApiRequest(request, env, url) {
       return json({ error: '資料已由其他裁判更新。', tournament: await readTournament(env.DB, actionTournamentId) }, 409);
     }
     return json({ tournament: nextTournament });
+  }
+
+  if (url.pathname === '/api/backup' && request.method === 'GET') {
+    if (!(await isBackupAuthorized(request, env))) return json({ error: '備份憑證無效。' }, 401);
+    const tournaments = await listTournaments(env.DB);
+    return json({
+      format: 'spin-league-backup',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      tournaments,
+    }, 200, { 'cache-control': 'no-store' });
   }
 
   if (url.pathname === '/api/tournaments' && request.method === 'GET') {
