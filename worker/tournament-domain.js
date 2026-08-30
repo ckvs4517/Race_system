@@ -20,6 +20,7 @@ export {
   startSwissQualifier,
   startRoundRobinTieBreak,
   startTournament,
+  toPublicTournament,
   updateOpeningPairings,
   updateDraftParticipant,
   updateRegistrationSettings,
