@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: '預期已部署的 Git SHA，可填 7～40 碼；留空只驗證網站有合法 GIT marker'
-        required: false
+        description: '測試站已部署的 Git SHA（7～40 碼）；release acceptance 必須精確指定版本'
+        required: true
         type: string
 
 permissions:
@@ -36,11 +36,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Require staging admin secret
+      - name: Require staging release inputs
         shell: bash
         run: |
           if [ -z "${STAGING_ADMIN_PIN}" ]; then
             echo "Missing repository secret STAGING_ADMIN_PIN."
+            exit 1
+          fi
+          if ! [[ "${EXPECTED_GIT_SHA}" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+            echo "expected_sha is required and must be a 7-40 character Git SHA."
             exit 1
           fi
 
