@@ -143,13 +143,28 @@ const invalidDrink = await request(publicPath, {
 });
 assert.equal(invalidDrink.status, 400, '後端拒絕菜單中不存在的飲品組合');
 
-const latestResponse = await request('/api/tournaments/901');
-const latest = (await latestResponse.json()).tournament;
-assert.deepEqual(latest.players, ['選手甲'], '送出後直接加入正式名單');
+const publicLatestResponse = await request('/api/tournaments/901');
+const publicLatest = (await publicLatestResponse.json()).tournament;
+assert.deepEqual(publicLatest.players, ['選手甲'], '公開賽事仍可讀取正式名單與賽程所需資料');
+assert.equal('participantDetails' in publicLatest, false, '公開單場 API 不回傳電話、備註與自訂答案');
+assert.equal('token' in (publicLatest.registrationSettings || {}), false, '公開單場 API 不回傳私密報名 token');
+const publicEtag = publicLatestResponse.headers.get('etag');
+
+const publicList = await request('/api/tournaments');
+const publicListData = await publicList.json();
+const publicListedTournament = publicListData.tournaments.find((item) => item.id === 901);
+assert.equal('participantDetails' in publicListedTournament, false, '公開賽事清單不回傳 participantDetails');
+assert.equal('token' in (publicListedTournament.registrationSettings || {}), false, '公開賽事清單不回傳私密報名 token');
+
+const adminLatestResponse = await request('/api/tournaments/901', { headers: { authorization: `Bearer ${token}`, 'if-none-match': publicEtag } });
+const latest = (await adminLatestResponse.json()).tournament;
+assert.equal(adminLatestResponse.status, 200, '管理端不會誤用公開 ETag 而收到 304');
 assert.equal(latest.participantStates['選手甲'].checkedIn, false);
-assert.equal(latest.participantDetails['選手甲'].phone, '0912-345-678', '個資只存在後台賽事資料');
-assert.equal(latest.participantDetails['選手甲'].answers.teamName, '烈焰隊', '自訂欄位答案保留擴充性');
+assert.equal(latest.participantDetails['選手甲'].phone, '0912-345-678', '登入管理端仍可取得聯絡電話');
+assert.equal(latest.participantDetails['選手甲'].notes, '第一次參賽', '登入管理端仍可取得私人備註');
+assert.equal(latest.participantDetails['選手甲'].answers.teamName, '烈焰隊', '登入管理端仍可取得自訂欄位答案');
 assert.equal(latest.participantDetails['選手甲'].drink.displayName, '椰子美式加汽水', '後端驗證並保存飲品顯示名稱');
+assert.equal(latest.registrationSettings.token, 'public-registration-token-901', '登入管理端仍可取得私密報名 token');
 
 const scheduleEntryView = registrationAdminView([latest], latest.id, [], true);
 assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');
