@@ -487,7 +487,10 @@ function completeMatch(match, stats, scoreA, scoreB) {
 function applyBye(round, stats) {
   const byeMatch = round.matches.find((match) => match.playerB === BYE);
   if (!byeMatch) return;
+  // 輪空不是實際出賽，因此不增加 matchesPlayed；但傳統排名會比較總得分，
+  // 現場規則將輪空視為一場 4 分勝利的排名積分，避免輪空者在同勝敗下吃虧。
   stats[byeMatch.playerA].wins += 1;
+  stats[byeMatch.playerA].pointsFor += 4;
   stats[byeMatch.playerA].byeCount += 1;
 }
 

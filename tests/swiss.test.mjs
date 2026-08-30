@@ -121,7 +121,7 @@ assert.match(qualificationView, /瑞士輪結算方式/);
 
 const preliminary = getTournamentStandings(tournament);
 assert.ok(preliminary.every((row) => Number.isInteger(row.totalPoints)), '排行榜列出總得分');
-assertBuchholzOrder(preliminary);
+assertLegacySwissOrder(preliminary);
 const initialFinalForm = qualificationView.match(/<form data-swiss-final-form>[\s\S]*?<\/form>/)?.[0] || '';
 assert.equal((initialFinalForm.match(/name="finalist"/g) || []).length, 4, '直接確認四強只列排行榜前四名');
 assert.ok(preliminary.slice(0, 4).every((row) => initialFinalForm.includes(row.player)), '直接四強包含排行榜前四名');
@@ -175,6 +175,9 @@ let odd = startTournament(checkInAll(createTournament('五人瑞士賽', ['A', '
 const firstBye = odd.rounds[0].seedPlayer;
 assert.ok(firstBye);
 assert.equal(odd.playerStats[firstBye].wins, 1, '輪空應計為一勝');
+assert.equal(odd.playerStats[firstBye].pointsFor, 4, '輪空應同時取得 4 分排名積分');
+assert.equal(odd.playerStats[firstBye].pointsAgainst, 0, '輪空不應增加失分');
+assert.equal(odd.playerStats[firstBye].matchesPlayed, 0, '輪空不是實際出賽，不應增加出賽場次');
 odd = finishCurrentRound(odd);
 assert.notEqual(odd.rounds[1].seedPlayer, firstBye, '有其他選擇時不可連續輪空');
 
@@ -334,14 +337,18 @@ function assertNoRepeatedPairings(rounds) {
   }));
 }
 
-function assertBuchholzOrder(rows) {
+function assertLegacySwissOrder(rows) {
   rows.slice(1).forEach((row, index) => {
     const previous = rows[index];
-    if (previous.wins !== row.wins) return;
-    assert.ok(previous.opponentWins >= row.opponentWins, '勝場相同時對手勝場總和較高者排前面');
-    if (previous.opponentWins === row.opponentWins) {
-      assert.ok(previous.totalPoints >= row.totalPoints, '勝場與對手勝場相同時總得分較高者排前面');
+    if (previous.wins !== row.wins) {
+      assert.ok(previous.wins >= row.wins, '傳統排名應先依勝場排序');
+      return;
     }
+    if (previous.losses !== row.losses) {
+      assert.ok(previous.losses <= row.losses, '勝場相同時敗場較少者排前面');
+      return;
+    }
+    assert.ok(previous.totalPoints >= row.totalPoints, '勝敗相同時總得分較高者排前面');
   });
 }
 

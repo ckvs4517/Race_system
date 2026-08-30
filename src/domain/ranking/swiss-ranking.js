@@ -8,7 +8,8 @@ const BYE = '輪空';
 
 export const SWISS_RANKING_RULE_LEGACY = 'legacy_v1';
 export const SWISS_RANKING_RULE_BUCHHOLZ = 'buchholz_v1';
-export const DEFAULT_SWISS_RANKING_RULE = SWISS_RANKING_RULE_BUCHHOLZ;
+// 8/30 現場回饋後，新瑞士賽改回容易理解的傳統排名；Buchholz 僅保留既有賽事相容。
+export const DEFAULT_SWISS_RANKING_RULE = SWISS_RANKING_RULE_LEGACY;
 
 export function normalizeSwissRankingRule(value, fallback = SWISS_RANKING_RULE_LEGACY) {
   if (value === SWISS_RANKING_RULE_BUCHHOLZ) return SWISS_RANKING_RULE_BUCHHOLZ;
