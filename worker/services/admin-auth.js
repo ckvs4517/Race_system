@@ -15,6 +15,13 @@ export async function isAuthorized(request, env) {
   }
 }
 
+export async function isBackupAuthorized(request, env) {
+  if (!env.BACKUP_TOKEN) return false;
+  const authorization = request.headers.get('authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  return Boolean(token) && safeEqual(token, env.BACKUP_TOKEN);
+}
+
 export async function createToken(secret) {
   const payload = encodeBase64Url(JSON.stringify({ role: 'admin', exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12 }));
   return `${payload}.${await sign(payload, secret)}`;
