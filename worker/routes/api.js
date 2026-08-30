@@ -1,5 +1,5 @@
 /** API routing/coordination. Business rules and D1 statements live outside this module. */
-import { addConfirmedParticipant, MAX_TOURNAMENT_PLAYERS, randomizeDraftTournament } from '../tournament-domain.js';
+import { addConfirmedParticipant, MAX_TOURNAMENT_PLAYERS, randomizeDraftTournament, toPublicTournament } from '../tournament-domain.js';
 import { listRegistrations, markRegistrationApproved, readRegistration, updateRegistrationStatus } from '../db/registrations.js';
 import {
   deleteTournamentIfRevision,
@@ -126,18 +126,20 @@ export async function handleApiRequest(request, env, url) {
 
   if (url.pathname === '/api/tournaments' && request.method === 'GET') {
     const tournaments = await listTournaments(env.DB);
-    const etag = collectionEtag(tournaments);
+    const admin = await isAuthorized(request, env);
+    const etag = collectionEtag(tournaments, admin ? 'admin' : 'public');
     if (request.headers.get('if-none-match') === etag) return notModified(etag);
-    return json({ tournaments }, 200, { etag });
+    return json({ tournaments: admin ? tournaments : tournaments.map(toPublicTournament) }, 200, { etag });
   }
 
   const tournamentId = tournamentIdFromPath(url.pathname);
   if (tournamentId && request.method === 'GET') {
     const tournament = await readTournament(env.DB, tournamentId);
     if (!tournament) return json({ error: '找不到這場賽事。' }, 404);
-    const etag = tournamentEtag(tournament);
+    const admin = await isAuthorized(request, env);
+    const etag = tournamentEtag(tournament, admin ? 'admin' : 'public');
     if (request.headers.get('if-none-match') === etag) return notModified(etag);
-    return json({ tournament }, 200, { etag });
+    return json({ tournament: admin ? tournament : toPublicTournament(tournament) }, 200, { etag });
   }
 
   if (url.pathname === '/api/admin/login' && request.method === 'POST') {
