@@ -41,6 +41,8 @@ for (const [label, runner] of [['browser', browserRunner], ['legacy', legacyRunn
 const workflow = await readFile(new URL('../.github/workflows/staging-e2e.yml', import.meta.url), 'utf8');
 assert.match(workflow, /STAGING_SITE_URL: https:\/\/spin-league-test\.ckvs4517\.chatgpt\.site\//, 'workflow 固定指向測試站');
 assert.match(workflow, /STAGING_ADMIN_PIN: \$\{\{ secrets\.STAGING_ADMIN_PIN \}\}/, 'PIN 只能從 GitHub Actions secret 讀取');
+assert.match(workflow, /expected_sha:[\s\S]*?required:\s*true/, 'release acceptance 必須要求預期部署 SHA');
+assert.match(workflow, /EXPECTED_GIT_SHA/, 'workflow 必須把預期 SHA 傳給 live runner');
 assert.doesNotMatch(workflow, /spin-league-tournament\.ckvs4517\.chatgpt\.site/, 'workflow 不得包含正式站目標');
 
 console.log('PASS staging E2E safety guard');
