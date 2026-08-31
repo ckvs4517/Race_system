@@ -1,5 +1,6 @@
 /** 主控快速登分的本機模式與輸入驗證；正式賽果仍由 tournament domain / Worker 驗證。 */
 export const QUICK_SCORE_MODE_KEY = 'spin-quick-score-mode';
+export const QUICK_SCORE_CHOICES = Object.freeze([0, 1, 2, 3, 4, 5, 6]);
 
 export function readQuickScoreMode(storage = globalThis.sessionStorage) {
   try {
@@ -17,6 +18,47 @@ export function writeQuickScoreMode(enabled, storage = globalThis.sessionStorage
     // 部分隱私模式可能封鎖 sessionStorage；此時只是不保留模式，不影響正式記分。
   }
   return Boolean(enabled);
+}
+
+export function createQuickScoreSelection() {
+  return { scoreA: null, scoreB: null, activeSide: 'a' };
+}
+
+export function selectQuickScoreSide(selection, side) {
+  if (!['a', 'b'].includes(side)) throw new Error('快速登分選手位置無效。');
+  return { ...selection, activeSide: side };
+}
+
+export function applyQuickScoreChoice(selection, value) {
+  const side = selection?.activeSide === 'b' ? 'b' : 'a';
+  const score = Number(value);
+  if (!QUICK_SCORE_CHOICES.includes(score)) throw new Error('快速登分只接受 0～6 分。');
+  const next = {
+    ...selection,
+    activeSide: side,
+    [side === 'a' ? 'scoreA' : 'scoreB']: score,
+  };
+  if (side === 'a' && next.scoreB === null) next.activeSide = 'b';
+  else if (side === 'b' && next.scoreA === null) next.activeSide = 'a';
+  return next;
+}
+
+export function quickScoreSelectionStatus(selection) {
+  if (selection?.scoreA === null || selection?.scoreA === undefined || selection?.scoreB === null || selection?.scoreB === undefined) {
+    return { complete: false, valid: false, scoreA: selection?.scoreA ?? null, scoreB: selection?.scoreB ?? null, error: '' };
+  }
+  try {
+    const score = validateQuickScoreInput(selection.scoreA, selection.scoreB);
+    return { complete: true, valid: true, ...score, error: '' };
+  } catch (error) {
+    return {
+      complete: true,
+      valid: false,
+      scoreA: Number(selection.scoreA),
+      scoreB: Number(selection.scoreB),
+      error: error.message,
+    };
+  }
 }
 
 export function validateQuickScoreInput(scoreA, scoreB) {
