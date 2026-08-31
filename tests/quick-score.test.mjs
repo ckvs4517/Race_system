@@ -69,7 +69,8 @@ expect(!pickerSource.includes('type="text" inputmode="numeric"'), '快速登分�
 expect(pickerSource.includes('submit.disabled = Boolean(quickScoreDraft.submitting) || !status.valid'), '不完整或不合法比分無法按確認送出');
 
 const pickerCss = readFileSync(new URL('../src/styles/quick-score-inline.css', import.meta.url), 'utf8');
-expect(pickerCss.includes('grid-template-columns: repeat(7') && pickerCss.includes('min-height: 48px'), '0～6 分按鈕提供適合觸控的固定分數區');
+expect(pickerCss.includes('repeat(auto-fit, minmax(42px') && pickerCss.includes('min-height: 48px'), '0～6 分按鈕依可用寬度自動換列且保持觸控尺寸');
+expect(pickerCss.includes('white-space: nowrap') && pickerCss.includes('text-overflow: ellipsis'), '窄欄位的確認按鈕不會被擠成多行');
 expect(pickerCss.includes('.quick-score-player-row.is-active') && pickerCss.includes('.quick-score-choice-grid button.is-selected'), '目前選手與已選分數都有明顯視覺狀態');
 
 let tournament = createTournament('快速登分測試賽', ['A', 'B', 'C', 'D']);
