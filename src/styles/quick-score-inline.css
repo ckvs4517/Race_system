@@ -1,4 +1,4 @@
-/* 主控快速登分：手機卡片內展開；桌機改用寬版浮動面板，避免受單場對戰欄寬限制。 */
+/* 主控快速登分：手機 inline、平板置中浮層、桌機右側浮層；依可用寬度切換呈現。 */
 .match-card.is-quick-scoring {
   border-color: #f2c94c;
   box-shadow: 0 0 0 1px #f2c94c28 inset, 0 10px 24px #0005;
@@ -62,8 +62,31 @@
 .quick-score-inline .quick-score-help { margin: 0; font-size: 10px; line-height: 1.5; }
 .quick-score-inline .quick-score-error { margin: 0; padding: 8px 10px; font-size: 11px; }
 
-/* 桌機不沿用 match card 的窄欄寬，改成右側非阻塞式浮動面板。 */
-@media (min-width: 900px) {
+/* 平板：不用 match card 的窄欄，改成畫面中央的 compact 浮層。 */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .quick-score-inline {
+    position: fixed;
+    top: 96px;
+    left: 50%;
+    z-index: 80;
+    width: min(680px, calc(100vw - 48px));
+    max-height: calc(100vh - 128px);
+    margin: 0;
+    overflow-y: auto;
+    padding: 14px;
+    transform: translateX(-50%);
+    box-shadow: 0 22px 55px #000b, 0 0 0 1px #f2c94c18 inset;
+  }
+  .quick-score-inline-form { gap: 13px; }
+  .quick-score-player-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .quick-score-player-row { min-height: 60px; padding: 9px 11px; }
+  .quick-score-choice-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+  .quick-score-choice-grid button { min-height: 52px; font-size: 24px; }
+  .quick-score-submit { min-height: 50px; }
+}
+
+/* 桌機：右側非阻塞式浮動面板，保留賽程同時可見。 */
+@media (min-width: 1200px) {
   .quick-score-inline {
     position: fixed;
     top: 92px;
