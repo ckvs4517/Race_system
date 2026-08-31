@@ -309,7 +309,10 @@ async function browserFlow(pin, e2eName, tempPlayer) {
     fill('[data-tournament-form] [name="name"]', e2eName);
     fill('[data-tournament-form] [name="format"]', 'single_elimination');
     fill('[data-tournament-form] [name="arenaCount"]', '1');
-    fill('[data-tournament-form] [name="players"]', 'E2E Alpha\nE2E Bravo\nE2E Charlie\nE2E Delta');
+    fill('[data-manage-bulk-players]', 'E2E Alpha\nE2E Bravo\nE2E Charlie\nE2E Delta');
+    click('[data-manage-apply-bulk]');
+    await waitUntil(() => document.querySelectorAll('[data-manage-participant-row]').length === 4, 'bulk add participant rows');
+    fill('[data-manage-participant-row] [name="participantNotes"]', 'E2E roster note');
     submit('[data-tournament-form]');
     await waitUntil(() => textIncludes(e2eName) && q('[data-action="prepare-tournament-schedule"]'), 'create tournament');
     record('create 4-player tournament through UI');
