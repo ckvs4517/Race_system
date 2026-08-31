@@ -6,6 +6,7 @@ on:
       - fix/participant-notes-workflow
     paths:
       - scripts/apply-participant-notes-feedback.mjs
+      - scripts/fix-participant-notes-regressions.mjs
       - .github/workflows/apply-participant-notes-feedback.yml
 
 permissions:
@@ -27,7 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Apply feedback patch
-        run: node scripts/apply-participant-notes-feedback.mjs
+        run: |
+          node scripts/apply-participant-notes-feedback.mjs
+          node scripts/fix-participant-notes-regressions.mjs
       - name: Run focused regressions
         run: |
           node tests/check-in.test.mjs
