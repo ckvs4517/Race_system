@@ -134,7 +134,7 @@ function draftCheckInView(tournament, canManage) {
       <form method="dialog" class="mobile-sheet-card" data-add-draft-player-form>
         <div class="mobile-sheet-heading"><div><p class="kicker">ADD PLAYER</p><h2>新增現場選手</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
         <label><span>選手名稱</span><input name="playerName" maxlength="60" autocomplete="off" placeholder="輸入選手名稱" aria-label="現場報名選手名稱" required></label>
-        <label><span>聯絡電話（選填）</span><input name="phone" type="tel" maxlength="40" autocomplete="tel"></label>
+        <input type="hidden" name="phone" value="">
         <label><span>備註（選填）</span><textarea name="notes" maxlength="500" placeholder="例如：12345 · 無糖綠茶 · 已付款"></textarea></label>
         <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button class="button button-primary" type="submit">新增到名單</button></div>
       </form>
@@ -144,7 +144,7 @@ function draftCheckInView(tournament, canManage) {
         <div class="mobile-sheet-heading"><div><p class="kicker">EDIT PLAYER</p><h2>編輯參賽資料</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
         <input type="hidden" name="originalName">
         <label><span>選手名稱</span><input name="playerName" maxlength="60" required></label>
-        <label><span>聯絡電話</span><input name="phone" type="tel" maxlength="40"></label>
+        <input type="hidden" name="phone">
         <label><span>備註</span><textarea name="notes" maxlength="500" placeholder="例如：12345 · 無糖綠茶 · 已付款"></textarea></label>
         <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button class="button button-primary" type="submit">儲存變更</button></div>
       </form>
@@ -162,4 +162,3 @@ function draftCheckInView(tournament, canManage) {
     ${dialogs}
   </section>`;
 }
-
