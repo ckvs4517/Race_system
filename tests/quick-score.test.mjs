@@ -61,7 +61,7 @@ for (const [a, b, label] of [['2', '1', '勝方未達 4 分'], ['4', '4', '平�
   expect(rejected, `${label}會被快速登分前端拒絕`);
 }
 
-const pickerSource = readFileSync(new URL('../src/features/schedule/quick-score-picker.js', import.meta.url), 'utf8');
+const pickerSource = readFileSync(new URL('../src/features/schedule/quick-score.js', import.meta.url), 'utf8');
 expect(pickerSource.includes('data-quick-score-player="a"') && pickerSource.includes('data-quick-score-player="b"'), '快速登分 UI 固定顯示兩位選手列');
 expect(pickerSource.includes('data-quick-score-value='), '快速登分 UI 使用視覺分數按鈕');
 expect(pickerSource.includes('type="hidden" name="score"'), '舊文字 parser 僅保留隱藏相容入口供底層能力使用');
