@@ -51,7 +51,8 @@ assert.match(summary.copyText, /尚未選擇：1 人/);
 assert.equal(normalizePhone('+886 912-345-678'), '0912345678');
 assert.equal(normalizePhone('0912 345 678'), '0912345678');
 
-let menuTournament = createTournament('菜單保護測試', []);
+// 新賽事已不再預設啟用飲品；這裡明確建立舊式 drink-enabled 草稿，持續驗證歷史資料保護。
+let menuTournament = createTournament('菜單保護測試', [], 'single_elimination', 1, {}, createDefaultDrinkSettings());
 menuTournament = addDraftPlayer(menuTournament, '甲', { drink: { itemId: 'juice' } });
 const removedSelectedOption = {
   ...menuTournament.drinkSettings,
