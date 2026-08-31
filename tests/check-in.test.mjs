@@ -14,11 +14,13 @@ import {
   updateRegistrationSettings,
   updateDraftParticipant,
 } from '../src/domain/tournament.js';
+import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { scheduleView } from '../src/views/schedule.js';
 
 let tournament = createTournament('報到流程測試', ['甲', '乙', '丙', '丁'], 'swiss');
 assert.equal(tournament.rounds.length, 0);
 assert.ok(tournament.players.every((player) => tournament.participantStates[player].checkedIn === false));
+assert.equal(tournament.drinkSettings.enabled, false, '新賽事預設不啟用飲品菜單');
 assert.throws(() => startTournament(tournament), new RegExp(`2 至 ${MAX_TOURNAMENT_PLAYERS}`));
 
 let view = scheduleView([tournament], tournament.id, true);
@@ -32,9 +34,11 @@ assert.match(view, /data-remove-player-select="甲"/);
 assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯示單列移除按鈕');
 assert.match(view, /data-roster-search/);
 assert.match(view, /data-roster-filter="unchecked"/);
-assert.match(view, /建立私密填寫連結/);
-assert.match(view, new RegExp(`max=\"${MAX_TOURNAMENT_PLAYERS}\"`), '賽事頁快速報名設定沿用共用人數上限');
-assert.match(view, /飲品統計/);
+assert.match(view, /schedule-more-menu[\s\S]*data-manage-registration>私密參賽資料/, '私密參賽資料入口收進更多選單');
+assert.doesNotMatch(view, /registration-quick/, '報到頁不再顯示高權重私密參賽資料面板');
+assert.doesNotMatch(view, /data-open-registration-setup/, '報到頁不再提供主要區塊快速啟用入口');
+assert.doesNotMatch(view, /飲品統計/, '新賽事報到頁不再顯示飲品統計');
+assert.doesNotMatch(view, /尚未選擇飲品/, '名單不再用飲品 placeholder 佔據備註位置');
 assert.match(view, /data-edit-player="甲"/);
 assert.match(view, /data-action="prepare-tournament-schedule" disabled/);
 assert.match(view, /完成報到後再產生賽程/);
@@ -42,19 +46,22 @@ assert.doesNotMatch(view, /data-action="randomize-schedule"/);
 
 const registrationOpen = updateRegistrationSettings(tournament, { enabled: true });
 view = scheduleView([registrationOpen], registrationOpen.id, true);
-assert.match(view, /參賽資料填寫連結已啟用/);
-assert.match(view, /data-share-registration/);
-assert.match(view, /data-manage-registration/);
+assert.match(view, /data-manage-registration>私密參賽資料/, '已啟用私密資料功能仍從更多選單進入');
+assert.doesNotMatch(view, /參賽資料填寫連結已啟用/, '已啟用狀態也不重新提高賽事頁入口權重');
+assert.doesNotMatch(view, /data-share-registration/, '分享私密連結改由參賽資料管理頁處理');
 
 tournament = addDraftPlayer(tournament, '現場選手', {
   phone: '0912345678',
-  drink: { itemId: 'juice' },
+  notes: '12345 · 果汁 · 現場付款',
 });
 assert.equal(tournament.players.length, 5);
 assert.equal(tournament.participantStates['現場選手'].checkedIn, false);
-assert.equal(tournament.participantDetails['現場選手'].drink.displayName, '果汁(無咖啡因)');
+assert.equal(tournament.participantDetails['現場選手'].notes, '12345 · 果汁 · 現場付款');
+view = scheduleView([tournament], tournament.id, true);
+assert.match(view, /12345 · 果汁 · 現場付款/, '管理者報到名單直接顯示備註');
+assert.doesNotMatch(scheduleView([tournament], tournament.id, false), /12345 · 果汁 · 現場付款/, '公開頁不顯示私人備註');
 tournament = updateDraftParticipant(tournament, '現場選手', '現場選手（已確認）', { phone: '0987654321' });
-assert.equal(tournament.participantDetails['現場選手（已確認）'].drink.displayName, '果汁(無咖啡因)', '編輯聯絡資料時保留原飲品');
+assert.equal(tournament.participantDetails['現場選手（已確認）'].notes, '12345 · 果汁 · 現場付款', '改名或更新聯絡資料時保留原備註');
 assert.throws(() => addDraftPlayer(tournament, '現場選手（已確認）'), /不可重複/);
 tournament = removeDraftPlayer(tournament, '現場選手（已確認）');
 assert.equal(tournament.players.length, 4);
@@ -87,6 +94,11 @@ assert.equal(started.rounds[0].matches.length, 2, '只有四位已報到選手�
 assert.throws(() => addDraftPlayer(started, '太晚加入'), /開始後/);
 assert.throws(() => setDraftPlayerCheckedIn(started, '甲', false), /開始後/);
 assert.throws(() => setAllDraftPlayersCheckedIn(started), /開始後/);
+
+let legacyDrinkTournament = createTournament('舊飲品相容', ['舊A', '舊B'], 'single_elimination', 1, {}, createDefaultDrinkSettings());
+legacyDrinkTournament = updateDraftParticipant(legacyDrinkTournament, '舊A', '舊A', { drink: { itemId: 'juice' } });
+assert.equal(legacyDrinkTournament.participantDetails['舊A'].drink.displayName, '果汁(無咖啡因)', '舊賽事既有飲品資料仍可保留');
+assert.ok(scheduleView([legacyDrinkTournament], legacyDrinkTournament.id, true).includes('舊飲品：果汁(無咖啡因)'), '舊飲品在無備註時保留唯讀提示');
 
 const storeSource = readFileSync(new URL('../src/data/store.js', import.meta.url), 'utf8');
 const checkInSource = readFileSync(new URL('../src/features/schedule/check-in.js', import.meta.url), 'utf8');

@@ -2,7 +2,7 @@
 import { pageHeader } from '../ui/shell.js';
 import { icons } from '../ui/icons.js';
 import { MAX_TOURNAMENT_PLAYERS, createTournament, updateDraftTournament } from '../domain/tournament.js';
-import { createDefaultDrinkSettings, normalizeDrinkSettings } from '../domain/drinks.js';
+import { createEmptyDrinkSettings } from '../domain/drinks.js';
 import { listTournamentFormats } from '../formats/registry.js';
 import {
   DEFAULT_SWISS_RANKING_RULE,
@@ -25,7 +25,7 @@ export function manageView(tournament = null) {
     ? '賽事開始前可以修改名稱、賽制、戰鬥台數與參賽者；儲存後會重新產生預覽賽程。'
     : '先建立準備中的賽事，確認參賽名單後再正式開始。';
   const backButton = `<div class="header-actions">${isEditing ? '<button class="button button-secondary" data-action="cancel-edit">← 返回賽程</button>' : ''}<button class="button button-secondary" data-route="guide">查看操作說明</button></div>`;
-  const playerText = tournament?.players?.join('\n') || '';
+  const participantRows = (tournament?.players || []).map((player) => participantEditorRow(player, tournament?.participantDetails?.[player]?.notes || '', player)).join('');
   const eventInfo = tournament?.eventInfo || { ...DEFAULT_EVENT_INFO_for_88cafe, ...defaultEventSchedule() };
   const selectedFormat = tournament?.format || 'single_elimination';
   const formatOptions = listTournamentFormats().map((format) => `<option value="${format.id}" ${format.id === selectedFormat ? 'selected' : ''}>${format.name}</option>`).join('');
@@ -37,7 +37,6 @@ export function manageView(tournament = null) {
   const swissRankingOptions = swissRankingRule === SWISS_RANKING_RULE_BUCHHOLZ
     ? `<option value="${SWISS_RANKING_RULE_BUCHHOLZ}" selected>對手強度排名（既有賽事相容）</option><option value="${SWISS_RANKING_RULE_LEGACY}">傳統排名</option>`
     : `<option value="${SWISS_RANKING_RULE_LEGACY}" selected>傳統排名</option>`;
-  const drinkSettings = normalizeDrinkSettings(tournament?.drinkSettings || createDefaultDrinkSettings(), createDefaultDrinkSettings());
 
   return `<section class="section-wrap page-section">
     ${pageHeader(isEditing ? 'EDIT TOURNAMENT' : 'TOURNAMENT SETUP', title, description, backButton)}
@@ -68,15 +67,28 @@ export function manageView(tournament = null) {
           <label class="field"><span>原始貼文連結</span><input name="postUrl" type="url" maxlength="500" value="${escapeAttribute(eventInfo.postUrl || '')}" placeholder="https://www.instagram.com/..."></label>
         </div>
         <label class="field"><span>活動備註</span><textarea class="event-notes" name="notes" maxlength="2000" placeholder="可貼上禁用清單、報名費、參賽規則、獎品及其他注意事項。">${escapeText(eventInfo.notes || '')}</textarea><small>保留換行，最多 2,000 字。</small></label>
-        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>可先留空再建立私密填寫連結，或一行手動輸入一位，最多 ${MAX_TOURNAMENT_PLAYERS} 位</small></div></div>
-        <label class="field"><span>選手名稱</span><textarea name="players" placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼">${escapeText(playerText)}</textarea></label>
-        <div class="step-heading"><span>04</span><div><b>飲品菜單</b><small>每場賽事可獨立啟用、改名、停用與排序。</small></div></div>
-        ${drinkSettingsEditor(drinkSettings)}
+        <div class="step-heading"><span>03</span><div><b>參賽者名單</b><small>逐筆可記錄備註；大量名單仍可一次貼上，最多 ${MAX_TOURNAMENT_PLAYERS} 位</small></div></div>
+        <div class="manage-participant-list" data-manage-participant-list>${participantRows}</div>
+        <div class="manage-participant-actions">
+          <button type="button" class="button button-secondary" data-manage-add-player>＋ 新增選手</button>
+          <details class="manage-participant-bulk"><summary>批次貼上選手名稱</summary><div>
+            <label class="field"><span>一行一位</span><textarea data-manage-bulk-players placeholder="小明&#10;阿龍&#10;Spin Master&#10;烈焰之翼"></textarea><small>只加入尚未存在的名稱；加入後可逐筆補上電話末五碼、飲品或其他備註。</small></label>
+            <button type="button" class="button button-secondary" data-manage-apply-bulk>加入名單</button>
+          </div></details>
+        </div>
         <div class="form-footer"><span data-player-count>目前 ${tournament?.players?.length || 0} 位參賽者</span><button class="button button-primary" type="submit">${isEditing ? '儲存變更' : '建立賽事與報到名單'} ${icons.arrow}</button></div>
       </div>
-      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽並先設定 Top 4／Top 8 晉級人數；第一階段完成後再選擇第二階段賽制。Top 4 可用循環／單淘汰，Top 8 另可使用瑞士輪。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>保留手動輸入名單</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
+      <aside class="setup-aside"><div class="aside-icon">${icons.trophy}</div><p class="kicker">FORMAT</p><h2>四種賽制</h2><p><b>單淘汰賽</b>：輸掉一場即淘汰，勝者持續晉級。</p><p><b>瑞士制</b>：固定四輪預賽並先設定 Top 4／Top 8 晉級人數；第一階段完成後再選擇第二階段賽制。Top 4 可用循環／單淘汰，Top 8 另可使用瑞士輪。</p><p><b>循環賽</b>：3～8 人每人互打一次，依勝場與總得分排名。</p><p><b>連勝制</b>：3～8 人守擂，先連勝兩場者奪冠。</p><ul><li><i></i>建立時可先不填選手</li><li><i></i>依賽制限制報到人數</li><li><i></i>支援 1–8 台戰鬥台</li><li><i></i>支援批次貼上與逐筆備註</li><li><i></i>開始後鎖定全部設定</li></ul></aside>
     </form>
   </section>`;
+}
+
+function participantEditorRow(player = '', notes = '', originalName = '') {
+  return `<div class="manage-participant-row" data-manage-participant-row data-original-name="${escapeAttribute(originalName)}">
+    <label class="field"><span>選手名稱</span><input name="participantName" maxlength="60" autocomplete="off" value="${escapeAttribute(player)}" placeholder="輸入選手名稱"></label>
+    <label class="field"><span>備註</span><input name="participantNotes" maxlength="500" value="${escapeAttribute(notes)}" placeholder="例如：12345 · 無糖綠茶 · 已付款"></label>
+    <button type="button" class="button button-secondary button-danger-quiet" data-manage-remove-player>移除</button>
+  </div>`;
 }
 
 function defaultEventSchedule(now = new Date()) {
@@ -95,9 +107,18 @@ function defaultEventSchedule(now = new Date()) {
 
 export function bindManage(root, options) {
   const form = root.querySelector('[data-tournament-form]');
-  const players = form.elements.players;
+  const participantList = root.querySelector('[data-manage-participant-list]');
   const count = root.querySelector('[data-player-count]');
-  const getPlayers = () => players.value.split('\n').map((value) => value.trim()).filter(Boolean);
+  const getParticipants = () => [...participantList.querySelectorAll('[data-manage-participant-row]')].map((row) => ({
+    name: row.querySelector('[name="participantName"]').value.trim(),
+    notes: row.querySelector('[name="participantNotes"]').value.trim(),
+    originalName: row.dataset.originalName || '',
+  })).filter((item) => item.name);
+  const syncParticipantCount = () => { count.textContent = `目前 ${getParticipants().length} 位參賽者`; };
+  const appendParticipant = (name = '', notes = '', originalName = '') => {
+    participantList.insertAdjacentHTML('beforeend', participantEditorRow(name, notes, originalName));
+    syncParticipantCount();
+  };
   const syncSwissStage2Fields = () => {
     const panel = root.querySelector('[data-swiss-stage2-settings]');
     if (panel) panel.hidden = form.elements.format.value !== 'swiss';
@@ -106,30 +127,39 @@ export function bindManage(root, options) {
     const description = root.querySelector('[data-swiss-ranking-description]');
     if (description) description.textContent = swissRankingRuleDescription(form.elements.swissRankingRule?.value);
   };
-  players.addEventListener('input', () => { count.textContent = `目前 ${getPlayers().length} 位參賽者`; });
+  participantList.addEventListener('input', syncParticipantCount);
   form.elements.format.addEventListener('change', syncSwissStage2Fields);
   form.elements.swissRankingRule?.addEventListener('change', syncSwissRankingDescription);
   syncSwissStage2Fields();
   syncSwissRankingDescription();
   root.querySelector('[data-action="cancel-edit"]')?.addEventListener('click', () => options.onCancel?.());
-  root.querySelector('[data-drink-enabled]')?.addEventListener('change', (event) => {
-    root.querySelector('[data-drink-menu]').hidden = !event.currentTarget.checked;
-  });
-  root.querySelector('[data-drink-menu]')?.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-menu-action]');
+  participantList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-manage-remove-player]');
     if (!button) return;
-    const row = button.closest('[data-menu-row]');
-    const list = row?.parentElement;
-    if (button.dataset.menuAction === 'remove' && row) row.remove();
-    if (button.dataset.menuAction === 'up' && row?.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
-    if (button.dataset.menuAction === 'down' && row?.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
-    if (button.dataset.menuAction === 'add-drink') root.querySelector('[data-drink-list]').insertAdjacentHTML('beforeend', optionRow({ id: uniqueId('drink'), name: '', active: true }));
+    button.closest('[data-manage-participant-row]')?.remove();
+    syncParticipantCount();
+  });
+  root.querySelector('[data-manage-add-player]')?.addEventListener('click', () => appendParticipant());
+  root.querySelector('[data-manage-apply-bulk]')?.addEventListener('click', () => {
+    const bulk = root.querySelector('[data-manage-bulk-players]');
+    const existing = new Set(getParticipants().map((item) => item.name));
+    bulk.value.split('\n').map((value) => value.trim()).filter(Boolean).forEach((name) => {
+      if (existing.has(name)) return;
+      appendParticipant(name);
+      existing.add(name);
+    });
+    bulk.value = '';
   });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const playerList = getPlayers();
+    const participants = getParticipants();
+    const playerList = participants.map((item) => item.name);
     if (playerList.length > MAX_TOURNAMENT_PLAYERS) return alert(`參賽者人數不可超過 ${MAX_TOURNAMENT_PLAYERS} 位。`);
     try {
+      const participantDetails = Object.fromEntries(participants.map(({ name, notes, originalName }) => {
+        const previous = options.tournament?.participantDetails?.[originalName] || {};
+        return [name, { ...previous, notes }];
+      }));
       const eventInfo = {
         date: form.elements.eventDate.value,
         checkInStart: form.elements.checkInStart.value,
@@ -141,10 +171,11 @@ export function bindManage(root, options) {
         postUrl: form.elements.postUrl.value,
         notes: form.elements.notes.value,
       };
-      const drinkSettings = readDrinkSettings(form);
+      // 編輯舊賽事時原樣保留 legacy drink data；新賽事預設使用停用的空飲品設定。
+      const drinkSettings = options.tournament?.drinkSettings || createEmptyDrinkSettings();
       let result = options.tournament
-        ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings)
-        : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings);
+        ? updateDraftTournament(options.tournament, form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings, participantDetails)
+        : createTournament(form.elements.name.value, playerList, form.elements.format.value, form.elements.arenaCount.value, eventInfo, drinkSettings, participantDetails);
       result = applySwissStage2Config(result, form);
       result = applySwissRankingRule(result, form);
       options.onSubmit(result);
@@ -152,41 +183,6 @@ export function bindManage(root, options) {
       alert(error.message);
     }
   });
-}
-
-function drinkSettingsEditor(settings) {
-  return `<div class="drink-menu-editor">
-    <label class="registration-checkbox"><input type="checkbox" data-drink-enabled ${settings.enabled ? 'checked' : ''}><span>此賽事提供飲品選擇</span></label>
-    <div data-drink-menu ${settings.enabled ? '' : 'hidden'}>
-      <label class="field"><span>填寫頁提示</span><textarea name="drinkNotice" maxlength="500">${escapeText(settings.notice)}</textarea></label>
-      <label class="field"><span>修改說明</span><textarea name="drinkChangeNotice" maxlength="500">${escapeText(settings.changeNotice)}</textarea></label>
-      <div class="drink-menu-heading"><b>飲品項目</b><button type="button" class="button button-secondary" data-menu-action="add-drink">＋ 新增飲品</button></div>
-      <p class="drink-menu-help">一個飲品就是一個選項，例如「椰子咖啡／拿鐵」；選手必須從清單選擇一項。</p>
-      <div data-drink-list>${settings.items.map(optionRow).join('')}</div>
-    </div>
-  </div>`;
-}
-
-function optionRow(item) {
-  return `<div class="drink-menu-row" data-menu-row data-id="${escapeAttribute(item.id)}"><div class="drink-menu-row-main"><input maxlength="100" value="${escapeAttribute(item.name)}" placeholder="例如：椰子咖啡／拿鐵"><label><input type="checkbox" data-active ${item.active !== false ? 'checked' : ''}> 啟用</label>${rowButtons()}</div></div>`;
-}
-
-function rowButtons() {
-  return '<button type="button" title="上移" data-menu-action="up">↑</button><button type="button" title="下移" data-menu-action="down">↓</button><button type="button" title="移除" data-menu-action="remove">移除</button>';
-}
-
-function readDrinkSettings(form) {
-  return {
-    enabled: form.querySelector('[data-drink-enabled]').checked,
-    notice: form.elements.drinkNotice?.value || '',
-    changeNotice: form.elements.drinkChangeNotice?.value || '',
-    items: [...form.querySelectorAll('[data-drink-list] > .drink-menu-row')].map((row, index) => ({
-      id: row.dataset.id,
-      name: row.querySelector('.drink-menu-row-main > input').value,
-      active: row.querySelector('[data-active]').checked,
-      order: index + 1,
-    })),
-  };
 }
 
 function swissRankingRuleDescription(rule) {
@@ -220,10 +216,6 @@ function applySwissRankingRule(tournament, form) {
     DEFAULT_SWISS_RANKING_RULE,
   );
   return next;
-}
-
-function uniqueId(prefix) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function escapeAttribute(value) {

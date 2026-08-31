@@ -4,6 +4,7 @@ import worker from '../worker/index.js';
 import { MAX_TOURNAMENT_PLAYERS, createTournament, prepareTournamentSchedule, setDraftPlayerCheckedIn, updateRegistrationSettings } from '../src/domain/tournament.js';
 import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { registrationAdminView } from '../src/views/registration-admin.js';
+import { registrationView } from '../src/views/registration.js';
 
 globalThis.location = new URL('https://example.com/');
 
@@ -119,11 +120,14 @@ const publicData = await publicInfo.json();
 assert.equal(publicInfo.status, 200);
 assert.equal(publicData.tournament.name, tournament.name);
 assert.equal('phone' in publicData, false, '公開報名資訊不包含報名者個資');
+const publicRegistrationPage = registrationView({ data: publicData });
+assert.doesNotMatch(publicRegistrationPage, /data-drink-fields/, '新的私密填寫頁不再顯示飲品選擇');
+assert.doesNotMatch(publicRegistrationPage, /確認名稱、電話與飲品/, '新的私密填寫流程不再要求飲品');
 
 const submitted = await request(publicPath, {
   method: 'POST',
   headers: jsonHeaders(),
-  body: JSON.stringify({ displayName: '選手甲', phone: '0912-345-678', notes: '第一次參賽', answers: { teamName: '烈焰隊' }, drink: { itemId: 'coffee-coconut-cola' } }),
+  body: JSON.stringify({ displayName: '選手甲', phone: '0912-345-678', notes: '第一次參賽 · 12345 · 無糖綠茶', answers: { teamName: '烈焰隊' } }),
 });
 const submittedData = await submitted.json();
 assert.equal(submitted.status, 201);
@@ -161,14 +165,16 @@ const latest = (await adminLatestResponse.json()).tournament;
 assert.equal(adminLatestResponse.status, 200, '管理端不會誤用公開 ETag 而收到 304');
 assert.equal(latest.participantStates['選手甲'].checkedIn, false);
 assert.equal(latest.participantDetails['選手甲'].phone, '0912-345-678', '登入管理端仍可取得聯絡電話');
-assert.equal(latest.participantDetails['選手甲'].notes, '第一次參賽', '登入管理端仍可取得私人備註');
+assert.equal(latest.participantDetails['選手甲'].notes, '第一次參賽 · 12345 · 無糖綠茶', '登入管理端仍可取得私人備註');
 assert.equal(latest.participantDetails['選手甲'].answers.teamName, '烈焰隊', '登入管理端仍可取得自訂欄位答案');
-assert.equal(latest.participantDetails['選手甲'].drink.displayName, '椰子美式加汽水', '後端驗證並保存飲品顯示名稱');
+assert.equal(latest.participantDetails['選手甲'].drink, null, '即使舊賽事仍有 drinkSettings，新填寫也不再被要求選飲品');
 assert.equal(latest.registrationSettings.token, 'public-registration-token-901', '登入管理端仍可取得私密報名 token');
 
 const scheduleEntryView = registrationAdminView([latest], latest.id, [], true);
 assert.match(scheduleEntryView, /← 返回賽事後台/, '從賽事頁進入時提供返回原賽事按鈕');
 assert.match(scheduleEntryView, new RegExp(`max=\"${MAX_TOURNAMENT_PLAYERS}\"`), '報名管理畫面沿用共用人數上限');
+assert.match(scheduleEntryView, /第一次參賽 · 12345 · 無糖綠茶/, '報名管理總覽直接顯示備註');
+assert.doesNotMatch(scheduleEntryView, /飲品統計/, '報名管理不再提供飲品統計');
 const navigationEntryView = registrationAdminView([latest], latest.id, [], false);
 assert.match(navigationEntryView, /← 選擇其他賽事/, '從上方報名管理進入時提供選擇其他賽事按鈕');
 

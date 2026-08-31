@@ -6,7 +6,7 @@ import { pageHeader } from '../../ui/shell.js';
 import { roundRobinTieBreakPanel, swissChampionLabel, swissDecisionPanel, swissStageGuide } from './decision-panels.js';
 import { escapeText } from './html-escape.js';
 import { leaderboardView, swissLiveLeaderboardRows } from './leaderboard.js';
-import { eventInfoView, pairingEditorView, participantManagementView, registrationQuickView, tournamentWorkflowView } from './participant-panels.js';
+import { eventInfoView, pairingEditorView, participantManagementView, tournamentWorkflowView } from './participant-panels.js';
 import { currentRoundEntries, roundColumnView, swissRoundArenaCount } from './rounds.js';
 
 export function tournamentDetailView(tournament, canManage, quickScoreMode = false) {
@@ -25,7 +25,6 @@ export function tournamentDetailView(tournament, canManage, quickScoreMode = fal
   const champion = tournament.champion ? `<div class="champion-banner">${icons.trophy}<span>${isSwiss ? swissChampionLabel(tournament) : '本屆冠軍'}</span><b>${escapeText(tournament.champion)}</b></div>` : '';
   const eventInfoPanel = eventInfoView(tournament.eventInfo);
   const workflowPanel = tournamentWorkflowView(tournament, canManage, { checkedInCount, minimumPlayers });
-  const registrationPanel = isDraft ? registrationQuickView(tournament, canManage) : '';
   const participantPanel = participantManagementView(tournament, canManage);
   const pairingPanel = format.supportsOpeningPairingEdit === false ? '' : pairingEditorView(tournament, canManage);
   const primaryAction = isDraft
@@ -35,8 +34,9 @@ export function tournamentDetailView(tournament, canManage, quickScoreMode = fal
       : isScheduling
         ? '<button class="button button-primary" data-action="confirm-tournament-schedule">確認賽程並開始</button>'
         : '';
+  const participantDataAction = isDraft ? '<button class="button button-secondary" data-manage-registration>私密參賽資料</button>' : '';
   const moreActions = canManage
-    ? `<details class="schedule-more"><summary class="button button-secondary">⋯ 更多</summary><div class="schedule-more-menu">${isDraft ? '<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>' : ''}${isScheduling && rounds.length ? '<button class="button button-secondary" data-action="randomize-schedule">重新隨機分組</button>' : ''}<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button></div></details>`
+    ? `<details class="schedule-more"><summary class="button button-secondary">⋯ 更多</summary><div class="schedule-more-menu">${isDraft ? '<button class="button button-secondary" data-action="edit-tournament">編輯賽事</button>' : ''}${participantDataAction}${isScheduling && rounds.length ? '<button class="button button-secondary" data-action="randomize-schedule">重新隨機分組</button>' : ''}<button class="button button-secondary" data-action="copy-current-tournament">複製賽事</button></div></details>`
     : '';
   const earlyFinish = canManage && tournament.status === '進行中' ? '<button class="button button-danger" data-action="complete-tournament-early">提前結束比賽</button>' : '';
   const quickScoreAction = canManage && tournament.status === '進行中'
@@ -57,5 +57,5 @@ export function tournamentDetailView(tournament, canManage, quickScoreMode = fal
   const quickScoreNotice = canManage && tournament.status === '進行中' && quickScoreMode
     ? '<div class="quick-score-notice"><b>⚡ 快速登分模式已開啟</b><span>點擊未完成對局會直接在本頁輸入裁判回報的最終比分。</span></div>'
     : '';
-  return `<section class="section-wrap page-section${canManage && tournament.status === '進行中' && quickScoreMode ? ' quick-score-active' : ''}">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${registrationPanel}${participantPanel}<div class="bracket-guide">${guide}</div>${quickScoreNotice}${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}</section>`;
+  return `<section class="section-wrap page-section${canManage && tournament.status === '進行中' && quickScoreMode ? ' quick-score-active' : ''}">${pageHeader(isDraft ? 'PLAYER CHECK-IN' : isScheduling ? 'SCHEDULE SETUP' : 'LIVE SCHEDULE', tournament.name, `${tournament.players.length} 位報名 · ${isDraft ? `${checkedInCount} 位已報到 · ` : `${activePlayerCount} 位參賽 · `}${format.name} · ${activeArenaCount} 台戰鬥台 · ${isSwiss && !isScheduling ? `瑞士預賽 ${Math.min(preliminaryCount, 4)}/4 輪 · ` : ''}${tournament.status} · 建立於 ${tournament.created}`, headerActions)}${workflowPanel}${eventInfoPanel}${champion}${participantPanel}<div class="bracket-guide">${guide}</div>${quickScoreNotice}${pairingPanel}${swissDecision}${roundRobinDecision}${bracket}${leaderboard}</section>`;
 }

@@ -1,8 +1,6 @@
 /** 報到、參賽名單、報名捷徑、賽事資訊與首輪調整面板。 */
 import { MAX_TOURNAMENT_PLAYERS } from '../../domain/tournament.js';
-import { createDrinkSummary } from '../../domain/drinks.js';
 import { getTournamentFormat } from '../../formats/registry.js';
-import { drinkSelectionFields } from '../drink-fields.js';
 import { formatEventDate } from './event-date.js';
 import { escapeAttribute, escapeText } from './html-escape.js';
 
@@ -24,14 +22,14 @@ export function registrationQuickView(tournament, canManage) {
   const settings = tournament.registrationSettings || {};
   if (settings.enabled) {
     return `<section class="registration-quick is-open">
-      <div><p class="kicker">PARTICIPANT INFORMATION</p><h2>參賽資料填寫連結已啟用</h2><p>請只傳給已確認資格的參賽者；送出後會直接加入正式名單。</p></div>
+      <div><p class="kicker">PARTICIPANT INFORMATION</p><h2>參賽資料填寫連結已啟用</h2><p>請只傳給已確認資格的參賽者；送出後會直接加入正式名單，備註可用來記錄電話末五碼、飲品或現場事項。</p></div>
       <div class="registration-quick-actions"><button class="button button-primary" data-share-registration data-registration-token="${escapeAttribute(settings.token || '')}">分享私密連結</button><button class="button button-secondary" data-manage-registration>管理填寫資料</button></div>
     </section>`;
   }
   const capacity = Math.max(tournament.players.length, Number(settings.capacity) || MAX_TOURNAMENT_PLAYERS);
   const deadline = String(settings.deadline || '').slice(0, 16);
   return `<section class="registration-quick">
-    <div><p class="kicker">PARTICIPANT INFORMATION</p><h2>建立私密參賽資料連結</h2><p>主辦方確認參賽資格與付款後，再把連結交給選手填寫聯絡與飲品資料。</p></div>
+    <div><p class="kicker">PARTICIPANT INFORMATION</p><h2>建立私密參賽資料連結</h2><p>主辦方確認參賽資格與付款後，再把連結交給選手填寫聯絡與備註資料。</p></div>
     <button class="button button-primary" data-open-registration-setup>建立私密填寫連結</button>
     <dialog class="mobile-sheet" data-registration-setup-dialog>
       <form method="dialog" class="mobile-sheet-card" data-quick-registration-form>
@@ -119,8 +117,9 @@ function draftCheckInView(tournament, canManage) {
   const rows = tournament.players.map((player) => {
     const checkedIn = Boolean(tournament.participantStates?.[player]?.checkedIn);
     const details = tournament.participantDetails?.[player] || {};
+    const rosterNote = String(details.notes || '').trim() || (details.drink?.displayName ? `舊飲品：${details.drink.displayName}` : '');
     return `<div class="check-in-row ${checkedIn ? 'is-checked-in' : ''}" data-roster-player="${escapeAttribute(player)}" data-checked-in="${checkedIn}">
-      <label class="check-in-choice"><input type="checkbox" data-check-in-player="${escapeAttribute(player)}" ${checkedIn ? 'checked' : ''} ${canManage ? '' : 'disabled'}><span><b>${escapeText(player)}</b>${canManage ? `<small>${escapeText(details.drink?.displayName || '尚未選擇飲品')}</small>` : ''}</span></label>
+      <label class="check-in-choice"><input type="checkbox" data-check-in-player="${escapeAttribute(player)}" ${checkedIn ? 'checked' : ''} ${canManage ? '' : 'disabled'}><span><b>${escapeText(player)}</b>${canManage && rosterNote ? `<small>${escapeText(rosterNote)}</small>` : ''}</span></label>
       <i>${checkedIn ? '已報到' : '尚未報到'}</i>
       ${canManage ? `<button type="button" class="roster-edit-button" data-edit-player="${escapeAttribute(player)}">編輯</button>` : ''}
       ${canManage ? `<label class="roster-remove-choice"><input type="checkbox" data-remove-player-select="${escapeAttribute(player)}"><span>選取 ${escapeText(player)}</span></label>` : ''}
@@ -136,7 +135,7 @@ function draftCheckInView(tournament, canManage) {
         <div class="mobile-sheet-heading"><div><p class="kicker">ADD PLAYER</p><h2>新增現場選手</h2></div><button type="button" data-close-dialog aria-label="關閉">×</button></div>
         <label><span>選手名稱</span><input name="playerName" maxlength="60" autocomplete="off" placeholder="輸入選手名稱" aria-label="現場報名選手名稱" required></label>
         <label><span>聯絡電話（選填）</span><input name="phone" type="tel" maxlength="40" autocomplete="tel"></label>
-        ${drinkSelectionFields(tournament.drinkSettings, null, { prefix: 'addDrink' })}
+        <label><span>備註（選填）</span><textarea name="notes" maxlength="500" placeholder="例如：12345 · 無糖綠茶 · 已付款"></textarea></label>
         <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button class="button button-primary" type="submit">新增到名單</button></div>
       </form>
     </dialog>
@@ -146,7 +145,7 @@ function draftCheckInView(tournament, canManage) {
         <input type="hidden" name="originalName">
         <label><span>選手名稱</span><input name="playerName" maxlength="60" required></label>
         <label><span>聯絡電話</span><input name="phone" type="tel" maxlength="40"></label>
-        <div data-edit-drink-slot></div>
+        <label><span>備註</span><textarea name="notes" maxlength="500" placeholder="例如：12345 · 無糖綠茶 · 已付款"></textarea></label>
         <div class="mobile-sheet-actions"><button type="button" class="button button-secondary" data-close-dialog>取消</button><button class="button button-primary" type="submit">儲存變更</button></div>
       </form>
     </dialog>
@@ -158,15 +157,9 @@ function draftCheckInView(tournament, canManage) {
     <div class="check-in-heading"><div><p class="kicker">PLAYER CHECK-IN</p><h2>參賽選手名單</h2></div><strong data-check-in-summary>已報到 ${checkedInCount}／報名 ${tournament.players.length} 人</strong></div>
     <p class="check-in-guidance" data-check-in-guidance>${guidance}</p>
     ${tools}
-    ${canManage ? drinkSummaryView(tournament) : ''}
     <div class="check-in-list">${rows || '<div class="check-in-empty">目前沒有參賽選手，可分享私密填寫連結或新增現場選手。</div>'}</div>
     <div class="check-in-empty roster-filter-empty" hidden>找不到符合條件的選手。</div>
     ${dialogs}
   </section>`;
 }
 
-function drinkSummaryView(tournament) {
-  if (!tournament.drinkSettings?.enabled) return '';
-  const summary = createDrinkSummary(tournament);
-  return `<details class="drink-summary"><summary>飲品統計 · 已選 ${summary.selectedCount}／${tournament.players.length}</summary><pre>${escapeText(summary.copyText)}</pre><button type="button" class="button button-secondary" data-copy-drink-summary="${escapeAttribute(summary.copyText)}">複製飲品統計</button></details>`;
-}

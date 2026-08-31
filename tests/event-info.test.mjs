@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createTournament, duplicateTournament, normalizeTournament, updateDraftTournament } from '../src/domain/tournament.js';
+import { createTournament, duplicateTournament, normalizeTournament, updateDraftParticipant, updateDraftTournament } from '../src/domain/tournament.js';
+import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { createOverviewCsv } from '../src/views/data-management.js';
 import { manageView } from '../src/views/manage.js';
 import { scheduleView } from '../src/views/schedule.js';
@@ -35,11 +36,27 @@ const editView = manageView(tournament);
 assert.match(editView, /name="eventDate" type="date" value="2026-07-25"/);
 assert.match(editView, /name="venueName"[^>]+88coffee&amp;tarttoo/);
 assert.match(editView, /name="notes"/);
+assert.match(editView, /data-manage-participant-list/);
+assert.match(editView, /name="participantNotes"/);
+assert.doesNotMatch(editView, /飲品菜單/, '建立／編輯賽事不再提供飲品菜單');
 
 const newTournamentView = manageView();
 assert.match(newTournamentView, /name="venueName"[^>]+88coffee&amp;tattoo/);
 assert.match(newTournamentView, /name="address"[^>]+臺北市中山區中吉里松江路170巷9之5號/);
 assert.match(newTournamentView, /name="mapUrl"[^>]+https:\/\/maps\.app\.goo\.gl\/xtbmRtKcF84CCBec6/);
+assert.match(newTournamentView, /data-manage-bulk-players/, '建立賽事保留批次貼上名單能力');
+assert.doesNotMatch(newTournamentView, /飲品菜單/);
+
+let noteDraft = updateDraftParticipant(tournament, 'A', 'A', { notes: '12345 · 無糖綠茶' });
+assert.match(manageView(noteDraft), /value="12345 · 無糖綠茶"/, '編輯準備中賽事會帶回既有 participant notes');
+
+let legacyDrinkDraft = createTournament('舊飲品草稿', ['A', 'B'], 'single_elimination', 1, {}, createDefaultDrinkSettings());
+legacyDrinkDraft = updateDraftParticipant(legacyDrinkDraft, 'A', 'A', { drink: { itemId: 'juice' }, notes: '保留備註' });
+legacyDrinkDraft = updateDraftTournament(legacyDrinkDraft, legacyDrinkDraft.name, ['A', 'B']);
+assert.equal(legacyDrinkDraft.drinkSettings.enabled, true, '編輯舊草稿不會清掉既有 drinkSettings');
+assert.equal(legacyDrinkDraft.participantDetails.A.drink.displayName, '果汁(無咖啡因)', '編輯舊草稿不會清掉既有 participant drink');
+assert.equal(legacyDrinkDraft.participantDetails.A.notes, '保留備註');
+assert.doesNotMatch(manageView(legacyDrinkDraft), /飲品菜單/, '舊飲品資料保留但不再提供編輯 UI');
 
 const updated = updateDraftTournament(tournament, tournament.name, tournament.players, tournament.format, tournament.arenaCount, { ...eventInfo, startTime: '14:00' });
 assert.equal(updated.eventInfo.startTime, '14:00');

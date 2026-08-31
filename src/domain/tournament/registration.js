@@ -13,7 +13,7 @@ export function addConfirmedParticipant(tournament, registration) {
   if (normalized.players.length >= normalized.registrationSettings.capacity) throw new Error('這場賽事的名額已滿。');
   const phone = String(registration?.phone || '').trim();
   if (!normalizePhone(phone)) throw new Error('請輸入聯絡電話。');
-  const drink = resolveDrinkSelection(normalized.drinkSettings, registration?.drink);
+  const drink = resolveDrinkSelection(normalized.drinkSettings, registration?.drink, { allowMissing: true });
   const players = [...normalized.players, name];
   validateDraftPlayers(players);
   const participantStates = {
