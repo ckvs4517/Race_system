@@ -298,7 +298,7 @@ function applyAction(tournament, type, payload) {
   const actions = {
     set_check_in: () => setDraftPlayerCheckedIn(source, payload.player, payload.checkedIn),
     set_all_check_in: () => setAllDraftPlayersCheckedIn(source),
-    add_player: () => addDraftPlayer(source, payload.player),
+    add_player: () => addDraftPlayer(source, payload.player, payload.details || {}),
     remove_player: () => removeDraftPlayer(source, payload.player),
     remove_players: () => payload.players.reduce((current, player) => removeDraftPlayer(current, player), source),
     draw_seeds: () => drawRandomSeeds(source),
