@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createTournament, duplicateTournament, normalizeTournament, updateDraftParticipant, updateDraftTournament } from '../src/domain/tournament.js';
 import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { createOverviewCsv } from '../src/views/data-management.js';
@@ -46,6 +47,11 @@ assert.match(newTournamentView, /name="address"[^>]+臺北市中山區中吉里�
 assert.match(newTournamentView, /name="mapUrl"[^>]+https:\/\/maps\.app\.goo\.gl\/xtbmRtKcF84CCBec6/);
 assert.match(newTournamentView, /data-manage-bulk-players/, '建立賽事保留批次貼上名單能力');
 assert.doesNotMatch(newTournamentView, /飲品菜單/);
+
+const stagingE2ESource = readFileSync(new URL('../scripts/verify-staging-browser-e2e.mjs', import.meta.url), 'utf8');
+assert.match(stagingE2ESource, /data-manage-bulk-players/, 'Staging E2E 使用目前的批次名單輸入');
+assert.match(stagingE2ESource, /data-manage-apply-bulk/, 'Staging E2E 會把批次名單加入逐筆選手列');
+assert.doesNotMatch(stagingE2ESource, /\[name="players"\]/, 'Staging E2E 不再依賴已移除的舊 players textarea');
 
 let noteDraft = updateDraftParticipant(tournament, 'A', 'A', { notes: '12345 · 無糖綠茶' });
 assert.match(manageView(noteDraft), /value="12345 · 無糖綠茶"/, '編輯準備中賽事會帶回既有 participant notes');
