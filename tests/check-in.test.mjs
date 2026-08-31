@@ -34,8 +34,9 @@ assert.match(view, /data-remove-player-select="甲"/);
 assert.doesNotMatch(view, /data-remove-draft-player/, '一般報到畫面不顯示單列移除按鈕');
 assert.match(view, /data-roster-search/);
 assert.match(view, /data-roster-filter="unchecked"/);
-assert.match(view, /建立私密填寫連結/);
-assert.match(view, new RegExp(`max=\"${MAX_TOURNAMENT_PLAYERS}\"`), '賽事頁快速報名設定沿用共用人數上限');
+assert.match(view, /schedule-more-menu[\s\S]*data-manage-registration>私密參賽資料/, '私密參賽資料入口收進更多選單');
+assert.doesNotMatch(view, /registration-quick/, '報到頁不再顯示高權重私密參賽資料面板');
+assert.doesNotMatch(view, /data-open-registration-setup/, '報到頁不再提供主要區塊快速啟用入口');
 assert.doesNotMatch(view, /飲品統計/, '新賽事報到頁不再顯示飲品統計');
 assert.doesNotMatch(view, /尚未選擇飲品/, '名單不再用飲品 placeholder 佔據備註位置');
 assert.match(view, /data-edit-player="甲"/);
@@ -45,9 +46,9 @@ assert.doesNotMatch(view, /data-action="randomize-schedule"/);
 
 const registrationOpen = updateRegistrationSettings(tournament, { enabled: true });
 view = scheduleView([registrationOpen], registrationOpen.id, true);
-assert.match(view, /參賽資料填寫連結已啟用/);
-assert.match(view, /data-share-registration/);
-assert.match(view, /data-manage-registration/);
+assert.match(view, /data-manage-registration>私密參賽資料/, '已啟用私密資料功能仍從更多選單進入');
+assert.doesNotMatch(view, /參賽資料填寫連結已啟用/, '已啟用狀態也不重新提高賽事頁入口權重');
+assert.doesNotMatch(view, /data-share-registration/, '分享私密連結改由參賽資料管理頁處理');
 
 tournament = addDraftPlayer(tournament, '現場選手', {
   phone: '0912345678',
