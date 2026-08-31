@@ -17,6 +17,17 @@
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .field-grid-time { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .field textarea.event-notes { min-height: 145px; }
+
+.manage-participant-list { display: flex; flex-direction: column; gap: 10px; }
+.manage-participant-row { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 12px; background: #080b10; border: 1px solid var(--line); border-radius: 8px; }
+.manage-participant-row .field { flex: 1 1 220px; margin: 0; }
+.manage-participant-row .field > span { margin-bottom: 6px; }
+.manage-participant-row .button { flex: 0 0 auto; min-height: 45px; }
+.manage-participant-actions { display: flex; flex-wrap: wrap; align-items: start; gap: 10px; margin-top: 12px; }
+.manage-participant-bulk { flex: 1 1 320px; background: #0b1017; border: 1px solid var(--line); border-radius: 8px; }
+.manage-participant-bulk summary { padding: 12px 14px; color: #c6cbd3; font-size: 11px; font-weight: 800; cursor: pointer; }
+.manage-participant-bulk > div { padding: 0 14px 14px; }
+.manage-participant-bulk textarea { min-height: 110px; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 25px; padding-top: 22px; border-top: 1px solid var(--line); }
 .form-footer > span { color: var(--muted); font-size: 11px; }
 .setup-aside { position: relative; overflow: hidden; }.setup-aside::after { content: ''; position: absolute; right: -90px; bottom: -80px; width: 200px; height: 200px; background: var(--red); border-radius: 50%; filter: blur(90px); opacity: .13; }

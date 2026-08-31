@@ -1,12 +1,12 @@
 /** Low-level tournament record factory shared by creation and legacy normalization. */
 import { getTournamentFormat } from '../../formats/registry.js';
 import { DEFAULT_SWISS_RANKING_RULE } from '../ranking/swiss-ranking.js';
-import { createDefaultDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
+import { createEmptyDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
 import { normalizeEventInfo, validateArenaCount } from './metadata.js';
 import { createParticipantStates, validateDraftPlayers } from './participant-model.js';
 import { createRegistrationSettings } from './registration-settings.js';
 
-export function createTournamentRecord(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}, drinkSettings = createDefaultDrinkSettings()) {
+export function createTournamentRecord(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}, drinkSettings = createEmptyDrinkSettings(), participantDetailsValue = {}) {
   // 奇數單淘汰需先抽種子，因此建立時暫不產生首輪；其他情況可立即預覽。
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
   validateDraftPlayers(cleanPlayers);
@@ -26,10 +26,10 @@ export function createTournamentRecord(name, players, formatId = 'single_elimina
     checkInVersion: 1,
     totalRounds: format.totalRounds?.(cleanPlayers) || null,
     participantStates: createParticipantStates(cleanPlayers, false),
-    participantDetails: normalizeParticipantDetails(cleanPlayers),
+    participantDetails: normalizeParticipantDetails(cleanPlayers, participantDetailsValue),
     rounds: [],
     registrationSettings: createRegistrationSettings(),
-    drinkSettings: normalizeDrinkSettings(drinkSettings, createDefaultDrinkSettings()),
+    drinkSettings: normalizeDrinkSettings(drinkSettings, createEmptyDrinkSettings()),
     ...(format.initialState?.() || {}),
     ...(format.id === 'swiss' ? { swissRankingRule: DEFAULT_SWISS_RANKING_RULE } : {}),
   };

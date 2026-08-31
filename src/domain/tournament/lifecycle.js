@@ -1,7 +1,7 @@
 /** Tournament creation, draft setup, scheduling, and top-level lifecycle transitions. */
 import { getTournamentFormat } from '../../formats/registry.js';
 import { DEFAULT_SWISS_RANKING_RULE, SWISS_RANKING_RULE_LEGACY, normalizeSwissRankingRule } from '../ranking/swiss-ranking.js';
-import { createDefaultDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
+import { createEmptyDrinkSettings, normalizeDrinkSettings, normalizeParticipantDetails } from '../drinks.js';
 import { BYE } from './constants.js';
 import { createTournamentRecord } from './factory.js';
 import { normalizeEventInfo, validateArenaCount } from './metadata.js';
@@ -17,8 +17,8 @@ import {
 import { revokeRegistrationSettings } from './registration-settings.js';
 import { getTournamentStandings } from './standings.js';
 
-export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}, drinkSettings = createDefaultDrinkSettings()) {
-  return createTournamentRecord(name, players, formatId, arenaCount, eventInfo, drinkSettings);
+export function createTournament(name, players, formatId = 'single_elimination', arenaCount = 1, eventInfo = {}, drinkSettings = createEmptyDrinkSettings(), participantDetailsValue = {}) {
+  return createTournamentRecord(name, players, formatId, arenaCount, eventInfo, drinkSettings, participantDetailsValue);
 }
 
 export function requiredSeedCount(tournamentOrPlayers) {
@@ -43,7 +43,7 @@ export function duplicateTournament(tournament) {
   return duplicated;
 }
 
-export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}, drinkSettings = tournament.drinkSettings) {
+export function updateDraftTournament(tournament, name, players, formatId = tournament.format, arenaCount = tournament.arenaCount || 1, eventInfo = tournament.eventInfo || {}, drinkSettings = tournament.drinkSettings, participantDetailsValue = null) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '準備中') throw new Error('賽事開始後不能再修改參賽名單。');
   const cleanPlayers = players.map((player) => player.trim()).filter(Boolean);
@@ -51,7 +51,7 @@ export function updateDraftTournament(tournament, name, players, formatId = tour
   const cleanArenaCount = validateArenaCount(arenaCount);
   const format = getTournamentFormat(formatId);
   const participantStates = normalizeParticipantStates(cleanPlayers, normalized.participantStates, false);
-  const participantDetails = normalizeParticipantDetails(cleanPlayers, normalized.participantDetails);
+  const participantDetails = normalizeParticipantDetails(cleanPlayers, participantDetailsValue || normalized.participantDetails);
   const normalizedDrinkSettings = normalizeDrinkSettings(drinkSettings, normalized.drinkSettings);
   const swissRankingRule = format.id === 'swiss'
     ? normalized.format === 'swiss'

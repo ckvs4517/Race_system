@@ -19,6 +19,8 @@ assert.match(guide, /逐場更換誰對誰/, '說明頁包含手動調整對戰�
 assert.match(guide, /舊網址會撤銷/, '說明頁包含報名網址撤銷規則');
 assert.match(guide, /建立私密填寫連結/, '說明頁包含私密參賽資料流程');
 assert.match(guide, /管理名單/, '說明頁說明安全移除模式');
+assert.match(guide, /確認名單與備註/, '說明頁以備註取代飲品工作流');
+assert.doesNotMatch(guide, /飲品統計/, '說明頁不再引導使用飲品統計');
 assert.match(guide, /進入排程時舊網址會撤銷/, '說明頁解釋未填截止時間的關閉規則');
 assert.match(guide, /送出後會直接加入正式名單/, '說明頁解釋填寫後不需核准');
 const guideShell = shell('guide', guide, { isAdmin: false });

@@ -1,5 +1,4 @@
-/** 主辦方參賽資料填寫管理：私密連結、正式名單與飲品統計。 */
-import { createDrinkSummary } from '../domain/drinks.js';
+/** 主辦方參賽資料填寫管理：私密連結、正式名單與參賽備註。 */
 import { MAX_TOURNAMENT_PLAYERS } from '../domain/tournament.js';
 import { pageHeader } from '../ui/shell.js';
 
@@ -13,10 +12,10 @@ export function registrationAdminView(tournaments, selectedId, legacyRegistratio
 
   const settings = selected.registrationSettings || {};
   const link = `${location.origin}${location.pathname}#register/${selected.id}/${settings.token || ''}`;
-  const summary = createDrinkSummary(selected);
   const participantRows = selected.players.map((player) => {
     const details = selected.participantDetails?.[player] || {};
-    return `<article class="registration-row"><div><b>${escapeText(player)}</b><span>${escapeText(details.phone || '未填電話')}</span><small>${escapeText(details.drink?.displayName || '尚未選擇飲品')}</small></div></article>`;
+    const note = String(details.notes || '').trim() || (details.drink?.displayName ? `舊飲品：${details.drink.displayName}` : '');
+    return `<article class="registration-row"><div><b>${escapeText(player)}</b><span>${escapeText(details.phone || '未填電話')}</span>${note ? `<small>${escapeText(note)}</small>` : ''}</div></article>`;
   }).join('');
 
   return `<section class="section-wrap page-section">
@@ -35,7 +34,6 @@ export function registrationAdminView(tournaments, selectedId, legacyRegistratio
       </form>
       <div class="registration-list-panel">
         <div class="registration-list-heading"><div><p class="kicker">CONFIRMED ROSTER</p><h2>正式參賽名單</h2></div><b>${selected.players.length} 人</b></div>
-        ${selected.drinkSettings?.enabled ? `<div class="drink-summary"><b>飲品統計</b><pre>${escapeText(summary.copyText)}</pre><button class="button button-secondary" data-copy-drink-summary="${escapeAttribute(summary.copyText)}">複製統計</button></div>` : ''}
         ${participantRows || '<div class="empty-state"><p>目前還沒有正式參賽者。</p></div>'}
         ${legacyRegistrations.length ? `<p class="legacy-registration-note">另有 ${legacyRegistrations.length} 筆舊版待審核資料保留於資料庫；新填寫資料不再進入待審核區。</p>` : ''}
       </div>
@@ -56,7 +54,6 @@ export function bindRegistrationAdmin(root, actions) {
     });
   });
   root.querySelector('[data-copy-registration-link]')?.addEventListener('click', async (event) => copyButton(event.currentTarget, event.currentTarget.dataset.copyRegistrationLink));
-  root.querySelector('[data-copy-drink-summary]')?.addEventListener('click', async (event) => copyButton(event.currentTarget, event.currentTarget.dataset.copyDrinkSummary));
 }
 
 async function copyButton(button, value) {

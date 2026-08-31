@@ -45,12 +45,15 @@ try {
   await waitFor('[data-tournament-form]');
 
   fill('[name="name"]', '完整流程測試賽');
-  fill('[name="players"]', '旋風\n烈焰\n銀河\n雷霆');
+  fill('[data-manage-bulk-players]', '旋風\n烈焰\n銀河\n雷霆');
+  click('[data-manage-apply-bulk]');
+  fill('[data-manage-participant-row] [name="participantNotes"]', '12345 · 無糖綠茶');
   fill('[name="arenaCount"]', '2');
   submit('[data-tournament-form]');
   await waitFor('[data-action="prepare-tournament-schedule"]');
   expectText('完整流程測試賽', '可以從表單建立賽事並開啟預覽賽程');
   expectText('已報到 0／報名 4 人', '建立賽事後先顯示報到名單');
+  expectText('12345 · 無糖綠茶', '建立賽事時輸入的選手備註會直接顯示在報到名單');
   expect(document.querySelector('[data-action="edit-tournament"]'), '開始前顯示編輯賽事按鈕');
 
   click('[data-action="edit-tournament"]');
@@ -60,9 +63,11 @@ try {
   await waitFor('[data-action="prepare-tournament-schedule"]');
   expectText('完整流程測試賽（已編輯）', '開始前可以儲存賽事修改');
   fill('[data-add-draft-player-form] [name="playerName"]', '現場測試選手');
+  fill('[data-add-draft-player-form] [name="notes"]', '54321 · 可樂');
   submit('[data-add-draft-player-form]');
   await waitFor('[data-remove-player-select="現場測試選手"]');
   expectText('報名 5 人', '報到名單可以新增現場選手');
+  expectText('54321 · 可樂', '新增現場選手可同時記錄備註');
   click('[data-enter-remove-mode]');
   click('[data-remove-player-select="現場測試選手"]');
   click('[data-confirm-remove-players]');
