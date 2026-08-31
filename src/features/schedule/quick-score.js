@@ -1,5 +1,14 @@
 /** 主控快速登分 interaction；正式賽果仍透過 Worker/domain 驗證。 */
-import { parseQuickScoreText, readQuickScoreMode, writeQuickScoreMode } from '../../core/quick-score.js';
+import {
+  applyQuickScoreChoice,
+  createQuickScoreSelection,
+  parseQuickScoreText,
+  QUICK_SCORE_CHOICES,
+  quickScoreSelectionStatus,
+  readQuickScoreMode,
+  selectQuickScoreSide,
+  writeQuickScoreMode,
+} from '../../core/quick-score.js';
 import { executeTournamentAction, getState, selectMatch } from '../../data/store.js';
 import { showToast } from '../../ui/toast.js';
 
@@ -38,24 +47,23 @@ function quickScoreMatch(draft, state = getState()) {
   return { tournament, round, match };
 }
 
-function updateQuickScoreInlineSubmitLabel(form) {
-  const submit = form.querySelector('[data-quick-score-submit]');
-  const input = form.querySelector('[name="score"]');
-  if (!submit) return;
-  const prefix = quickScoreDraft?.error ? '重新送出' : '確認登分';
-  try {
-    const score = parseQuickScoreText(input?.value || '');
-    submit.textContent = `${prefix} ${score.scoreA} : ${score.scoreB}`;
-  } catch {
-    submit.textContent = prefix;
-  }
+function quickScoreChoiceButtons() {
+  return QUICK_SCORE_CHOICES.map((value) => `<button type="button" data-quick-score-value="${value}" aria-pressed="false">${value}</button>`).join('');
 }
 
 function quickScoreInlineMarkup() {
   return `<form class="quick-score-inline-form" data-quick-score-form novalidate>
     <div class="quick-score-inline-heading"><span data-quick-score-context>快速登分</span><button type="button" data-quick-score-close>取消</button></div>
-    <div class="quick-score-inline-entry"><label><span class="sr-only">最終比分</span><input type="text" inputmode="numeric" autocomplete="off" enterkeyhint="done" name="score" placeholder="例如 42" aria-label="最終比分" required></label><button type="submit" class="button button-primary" data-quick-score-submit>確認登分</button></div>
-    <p class="quick-score-help">可輸入 42、4:2、4 2 或 4-2；任一方達到或超過 4 分即結束，敗方必須低於 4 分。</p>
+    <div class="quick-score-player-list" aria-label="選擇要輸入比分的選手">
+      <button type="button" class="quick-score-player-row" data-quick-score-player="a" aria-pressed="true"><span data-quick-score-player-label="a">選手 A</span><strong data-quick-score-player-score="a">—</strong></button>
+      <button type="button" class="quick-score-player-row" data-quick-score-player="b" aria-pressed="false"><span data-quick-score-player-label="b">選手 B</span><strong data-quick-score-player-score="b">—</strong></button>
+    </div>
+    <p class="quick-score-active-player">目前輸入：<b data-quick-score-active-player>選手 A</b></p>
+    <div class="quick-score-choice-grid" role="group" aria-label="選擇最終分數">${quickScoreChoiceButtons()}</div>
+    <p class="quick-score-result" data-quick-score-summary>請先選第一位選手的分數</p>
+    <input type="hidden" name="score" data-quick-score-legacy-input>
+    <button type="submit" class="button button-primary quick-score-submit" data-quick-score-submit disabled>選完兩邊比分後確認</button>
+    <p class="quick-score-help">先替第一位選手點選 0～6 分，系統會自動切到第二位；需要修改時直接點選手列再重新選分數。</p>
     <p class="quick-score-error" data-quick-score-error role="alert" hidden></p>
   </form>`;
 }
@@ -69,66 +77,119 @@ function hydrateQuickScoreInline(inline) {
   if (!quickScoreDraft) return false;
   const { tournament, round, match } = quickScoreMatch(quickScoreDraft);
   if (!tournament || !round || !match || tournament.status !== '進行中' || match.status !== '可開始') return false;
+
   const form = inline.querySelector('[data-quick-score-form]');
-  form.querySelector('[data-quick-score-context]').textContent = `${quickScoreDraft.arenaLabel || '戰鬥台 1'} · ${round.name} · ${match.playerA} vs ${match.playerB}`;
-  const input = form.querySelector('[name="score"]');
-  input.value = quickScoreDraft.scoreText ?? '';
+  const activeSide = quickScoreDraft.activeSide === 'b' ? 'b' : 'a';
+  const activeScore = activeSide === 'a' ? quickScoreDraft.scoreA : quickScoreDraft.scoreB;
+  const status = quickScoreSelectionStatus(quickScoreDraft);
+
+  form.querySelector('[data-quick-score-context]').textContent = `${quickScoreDraft.arenaLabel || '戰鬥台 1'} · ${round.name}`;
+  form.querySelector('[data-quick-score-player-label="a"]').textContent = match.playerA;
+  form.querySelector('[data-quick-score-player-label="b"]').textContent = match.playerB;
+  form.querySelector('[data-quick-score-player-score="a"]').textContent = quickScoreDraft.scoreA ?? '—';
+  form.querySelector('[data-quick-score-player-score="b"]').textContent = quickScoreDraft.scoreB ?? '—';
+  form.querySelector('[data-quick-score-active-player]').textContent = activeSide === 'a' ? match.playerA : match.playerB;
+
+  form.querySelectorAll('[data-quick-score-player]').forEach((button) => {
+    const selected = button.dataset.quickScorePlayer === activeSide;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    button.disabled = Boolean(quickScoreDraft.submitting);
+  });
+  form.querySelectorAll('[data-quick-score-value]').forEach((button) => {
+    const selected = Number(button.dataset.quickScoreValue) === activeScore;
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    button.disabled = Boolean(quickScoreDraft.submitting);
+  });
+
+  const summary = form.querySelector('[data-quick-score-summary]');
+  if (quickScoreDraft.scoreA === null && quickScoreDraft.scoreB === null) summary.textContent = '請先選第一位選手的分數';
+  else summary.textContent = `${match.playerA} ${quickScoreDraft.scoreA ?? '—'} : ${quickScoreDraft.scoreB ?? '—'} ${match.playerB}`;
+
+  const hiddenInput = form.querySelector('[name="score"]');
+  hiddenInput.value = quickScoreDraft.scoreText || (status.complete ? `${status.scoreA}:${status.scoreB}` : '');
+
   const errorNode = form.querySelector('[data-quick-score-error]');
-  errorNode.textContent = quickScoreDraft.error || '';
-  errorNode.hidden = !quickScoreDraft.error;
+  const displayError = quickScoreDraft.error || status.error;
+  errorNode.textContent = displayError || '';
+  errorNode.hidden = !displayError;
+
   const submit = form.querySelector('[data-quick-score-submit]');
-  submit.disabled = Boolean(quickScoreDraft.submitting);
+  submit.disabled = Boolean(quickScoreDraft.submitting) || !status.valid;
   if (quickScoreDraft.submitting) submit.textContent = '正在同步…';
-  else updateQuickScoreInlineSubmitLabel(form);
+  else if (status.valid) {
+    const prefix = quickScoreDraft.error ? '重新送出' : '確認';
+    submit.textContent = `${prefix} ${match.playerA} ${status.scoreA} : ${status.scoreB} ${match.playerB}`;
+  } else submit.textContent = '選完兩邊比分後確認';
+
+  form.querySelector('[data-quick-score-close]').disabled = Boolean(quickScoreDraft.submitting);
+  form.setAttribute('aria-busy', quickScoreDraft.submitting ? 'true' : 'false');
   return true;
 }
 
 function focusQuickScoreInline(inline) {
   if (!quickScoreDraft || quickScoreDraft.submitting) return;
-  const input = inline.querySelector('[name="score"]');
-  input?.focus();
-  input?.select?.();
+  inline.querySelector(`[data-quick-score-player="${quickScoreDraft.activeSide === 'b' ? 'b' : 'a'}"]`)?.focus();
 }
 
 function bindQuickScoreInlineForm(root, inline, { requestRender, rememberScroll }) {
   const form = inline.querySelector('[data-quick-score-form]');
-  const input = form.querySelector('[name="score"]');
-  const errorNode = form.querySelector('[data-quick-score-error]');
+  const hiddenInput = form.querySelector('[name="score"]');
 
-  const syncDraft = () => {
+  const syncLegacyTextDraft = () => {
     if (!quickScoreDraft) return;
-    quickScoreDraft.scoreText = input.value;
+    const text = hiddenInput.value.trim();
+    quickScoreDraft.scoreText = text;
     quickScoreDraft.error = '';
-    errorNode.textContent = '';
-    errorNode.hidden = true;
-    updateQuickScoreInlineSubmitLabel(form);
+    if (text) {
+      try {
+        const score = parseQuickScoreText(text);
+        quickScoreDraft.scoreA = score.scoreA;
+        quickScoreDraft.scoreB = score.scoreB;
+      } catch (error) {
+        quickScoreDraft.scoreA = null;
+        quickScoreDraft.scoreB = null;
+        quickScoreDraft.error = error.message;
+      }
+    }
+    hydrateQuickScoreInline(inline);
   };
-  input.addEventListener('input', syncDraft);
+
+  hiddenInput.addEventListener('input', syncLegacyTextDraft);
   form.querySelector('[data-quick-score-close]')?.addEventListener('click', () => {
     quickScoreDraft = null;
     removeQuickScoreInline(root);
   });
+  form.querySelectorAll('[data-quick-score-player]').forEach((button) => button.addEventListener('click', () => {
+    if (!quickScoreDraft || quickScoreDraft.submitting) return;
+    quickScoreDraft = { ...selectQuickScoreSide(quickScoreDraft, button.dataset.quickScorePlayer), error: '' };
+    hydrateQuickScoreInline(inline);
+  }));
+  form.querySelectorAll('[data-quick-score-value]').forEach((button) => button.addEventListener('click', () => {
+    if (!quickScoreDraft || quickScoreDraft.submitting) return;
+    quickScoreDraft = { ...applyQuickScoreChoice(quickScoreDraft, button.dataset.quickScoreValue), error: '', scoreText: '' };
+    const status = quickScoreSelectionStatus(quickScoreDraft);
+    if (status.complete) quickScoreDraft.scoreText = `${status.scoreA}:${status.scoreB}`;
+    hydrateQuickScoreInline(inline);
+  }));
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!quickScoreDraft || quickScoreDraft.submitting) return;
-    syncDraft();
-    let score;
-    try {
-      score = parseQuickScoreText(input.value);
-    } catch (error) {
-      quickScoreDraft.error = error.message;
-      errorNode.textContent = error.message;
-      errorNode.hidden = false;
-      updateQuickScoreInlineSubmitLabel(form);
+    if (hiddenInput.value.trim() && hiddenInput.value.trim() !== quickScoreDraft.scoreText) syncLegacyTextDraft();
+
+    const score = quickScoreSelectionStatus(quickScoreDraft);
+    if (!score.valid) {
+      quickScoreDraft.error = score.error || '請先選完兩邊比分。';
+      hydrateQuickScoreInline(inline);
       return;
     }
 
     const { tournament, match } = quickScoreMatch(quickScoreDraft);
     if (!tournament || match?.status !== '可開始') {
       quickScoreDraft.error = '這場對局已被更新，請確認最新賽程。';
-      errorNode.textContent = quickScoreDraft.error;
-      errorNode.hidden = false;
+      hydrateQuickScoreInline(inline);
       return;
     }
 
@@ -214,6 +275,7 @@ function openQuickScoreInline(root, state, card, callbacks) {
     roundIndex,
     matchIndex,
     arenaLabel,
+    ...createQuickScoreSelection(),
     scoreText: '',
     error: '',
     submitting: false,
