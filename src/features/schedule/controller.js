@@ -538,15 +538,9 @@ async function replayMatch(tournamentId, roundIndex, matchIndex, requestRender) 
 }
 
 async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB, requestRender) {
-  try {
-    await executeTournamentAction(tournamentId, 'record_match', { roundIndex, matchIndex, scoreA, scoreB });
-    selectMatch(null, null);
-    requestRender();
-  } catch (error) {
-    selectMatch(null, null);
-    requestRender();
-    alert(error.message);
-  }
+  await executeTournamentAction(tournamentId, 'record_match', { roundIndex, matchIndex, scoreA, scoreB });
+  selectMatch(null, null);
+  requestRender();
 }
 
 async function completeForfeit(tournamentId, roundIndex, matchIndex, player, requestRender) {
