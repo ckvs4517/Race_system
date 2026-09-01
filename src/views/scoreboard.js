@@ -67,16 +67,15 @@ export function bindScoreboard(root, options = {}) {
     const winner = score.a > score.b ? sidePlayers.a : sidePlayers.b;
     if (!confirm(`確定由「${winner}」獲勝並晉級嗎？`)) return;
     const button = event.currentTarget;
-    const originalText = button.textContent;
     button.disabled = true;
     button.textContent = '正在同步賽果…';
     try {
       await options.onComplete?.(sidePlayers.a === options.playerA ? score.a : score.b, sidePlayers.a === options.playerA ? score.b : score.a);
     } catch (error) {
-      // 若網路逾時或其他非預期錯誤沒有觸發整頁重繪，仍需恢復按鈕，避免只能靠重新整理解鎖。
+      // 一般同步失敗時保留目前 DOM 與比分；裁判可直接重新送出，不需要再次輸入。
       if (button.isConnected) {
         button.disabled = false;
-        button.textContent = originalText;
+        button.textContent = '重新送出比分';
       }
       reportScoreboardActionError(error);
     }
