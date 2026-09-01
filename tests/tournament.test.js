@@ -165,11 +165,11 @@ try {
     onForfeit: async () => { throw new Error('棄賽判定失敗'); },
   });
   const completeButton = scoreboardFixture.querySelector('[data-action="complete-match"]');
-  const originalCompleteLabel = completeButton.textContent;
   for (let index = 0; index < 4; index += 1) scoreboardFixture.querySelector('[data-target="a"][data-value="1"]').click();
   completeButton.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(!completeButton.disabled && completeButton.textContent === originalCompleteLabel, '賽果同步失敗後恢復完成按鈕');
+  expect(!completeButton.disabled && completeButton.textContent === '重新送出比分', '賽果同步失敗後提供明確重新送出按鈕');
+  expect(scoreboardFixture.querySelector('[data-score="a"]').textContent === '4' && scoreboardFixture.querySelector('[data-score="b"]').textContent === '0', '賽果同步失敗後保留目前未送出比分');
   scoreboardFixture.querySelector('[data-forfeit-player="A"]').click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect([...scoreboardFixture.querySelectorAll('[data-forfeit-player], [data-action="complete-match"]')].every((button) => !button.disabled), '棄賽判定失敗後恢復所有控制');
