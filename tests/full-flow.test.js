@@ -89,8 +89,22 @@ try {
   click('.match-card.is-ready');
   await waitFor('[data-scoreboard].match-mode');
   expect(scrollCalls.some((options) => options?.top === 0), '進入正式記分板會回到頁首');
-  click('[data-action="back-bracket"]');
+  for (let index = 0; index < 4; index += 1) click('[data-target="a"][data-value="1"]');
+  for (let index = 0; index < 2; index += 1) click('[data-target="b"][data-value="1"]');
+  failNextRecordMatch = true;
+  click('[data-action="complete-match"]');
+  await waitUntil(() => alerts.length > 0);
+  expect(document.querySelector('[data-scoreboard].match-mode'), '正式登分同步失敗後仍停留在目前記分板');
+  expect(document.querySelector('[data-score="a"]').textContent === '4' && document.querySelector('[data-score="b"]').textContent === '2', '正式登分同步失敗會保留尚未送出的 4:2 比分');
+  const retryScoreButton = document.querySelector('[data-action="complete-match"]');
+  expect(!retryScoreButton.disabled && retryScoreButton.textContent.includes('重新送出'), '同步失敗後會解鎖並提供明確重新送出入口');
+  expect(alerts.shift() === '模擬記分同步失敗', '同步失敗會顯示明確錯誤訊息');
+  click('[data-action="complete-match"]');
   await waitFor('.match-card.is-ready');
+  expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 4 && match.scoreB === 2))), '保留的正式比分可以直接重新送出成功');
+  click('[data-replay-round="0"]');
+  await waitUntil(() => document.querySelectorAll('.match-card.is-ready').length >= 2);
+  expect(document.querySelectorAll('.match-card.is-ready').length >= 2, '重開測試對局後可繼續後續完整流程');
 
   expect(document.querySelector('[data-action="toggle-quick-score"]'), '進行中的 Admin 賽程提供快速登分模式');
   click('[data-action="toggle-quick-score"]');
@@ -268,7 +282,7 @@ async function mockFetch(input, options = {}) {
     const { type, payload = {}, expectedRevision } = JSON.parse(options.body);
     if (type === 'record_match' && failNextRecordMatch) {
       failNextRecordMatch = false;
-      throw new Error('模擬快速登分同步失敗');
+      throw new Error('模擬記分同步失敗');
     }
     if (!current || current.revision !== expectedRevision) return json({ error: '資料衝突', tournament: current }, 409);
     const saved = { ...applyAction(current, type, payload), revision: current.revision + 1 };
