@@ -304,7 +304,13 @@ export async function executeTournamentAction(tournamentId, type, payload = {}, 
         notify();
         throw conflict;
       }
-      handleSaveError(error);
+      if (type === 'record_match') {
+        // 正式記分的未送出比分只存在目前 UI；一般網路錯誤不可先 notify 觸發重繪，否則草稿會被清成 0：0。
+        state.syncStatus = 'error';
+        state.error = error.message;
+      } else {
+        handleSaveError(error);
+      }
       throw error;
     }
   }
