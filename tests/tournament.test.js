@@ -165,15 +165,17 @@ try {
     onForfeit: async () => { throw new Error('棄賽判定失敗'); },
   });
   const completeButton = scoreboardFixture.querySelector('[data-action="complete-match"]');
-  const originalCompleteLabel = completeButton.textContent;
   for (let index = 0; index < 4; index += 1) scoreboardFixture.querySelector('[data-target="a"][data-value="1"]').click();
   completeButton.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(!completeButton.disabled && completeButton.textContent === originalCompleteLabel, '賽果同步失敗後恢復完成按鈕');
+  expect(!completeButton.disabled && completeButton.textContent === '重新送出比分', '賽果同步失敗後保留重新送出按鈕');
+  expect(scoreboardFixture.querySelector('[data-score="a"]').textContent === '4' && scoreboardFixture.querySelector('[data-score="b"]').textContent === '0', '賽果同步失敗後保留尚未送出的比分');
+  const syncError = scoreboardFixture.querySelector('[data-match-sync-error]');
+  expect(!syncError.hidden && syncError.textContent.includes('同步失敗'), '賽果同步失敗後顯示明確錯誤提示');
   scoreboardFixture.querySelector('[data-forfeit-player="A"]').click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect([...scoreboardFixture.querySelectorAll('[data-forfeit-player], [data-action="complete-match"]')].every((button) => !button.disabled), '棄賽判定失敗後恢復所有控制');
-  expect(notices.length === 2, '非同步失敗會向裁判顯示提示而非留下未處理錯誤');
+  expect(notices.length === 1, '比分同步失敗改由畫面提示，棄賽 fallback 仍會提示且不留下未處理錯誤');
   scoreboardFixture.remove();
   globalThis.confirm = originalConfirm;
   globalThis.alert = originalAlert;

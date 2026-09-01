@@ -26,6 +26,32 @@ import { bindStage2RoundsVisibility } from './stage2-controls.js';
 let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
 let tournamentListUiState = { tab: 'recent', query: '', year: 'all', format: 'all' };
 let scheduleScrollRestore = null;
+let formalScoreDraft = null;
+
+function formalScoreDraftFor(tournamentId, roundIndex, matchIndex) {
+  if (!formalScoreDraft) return null;
+  return formalScoreDraft.tournamentId === Number(tournamentId)
+    && formalScoreDraft.roundIndex === Number(roundIndex)
+    && formalScoreDraft.matchIndex === Number(matchIndex)
+    ? formalScoreDraft
+    : null;
+}
+
+function rememberFormalScoreDraft(tournamentId, roundIndex, matchIndex, scoreA, scoreB, error = '') {
+  formalScoreDraft = {
+    tournamentId: Number(tournamentId),
+    roundIndex: Number(roundIndex),
+    matchIndex: Number(matchIndex),
+    scoreA: Number(scoreA) || 0,
+    scoreB: Number(scoreB) || 0,
+    error,
+  };
+}
+
+function clearFormalScoreDraft(tournamentId, roundIndex, matchIndex) {
+  if (!formalScoreDraftFor(tournamentId, roundIndex, matchIndex)) return;
+  formalScoreDraft = null;
+}
 
 export function bindScheduleController(root, state, { requestRender, openRegistrationAdmin }) {
   // selectedMatch 存在時，schedule 路由會暫時顯示正式比賽記分板。
@@ -34,14 +60,24 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
     const { roundIndex, matchIndex } = state.selectedMatch;
     const match = tournament?.rounds?.[roundIndex]?.matches?.[matchIndex];
     if (!tournament || !match || tournament.status !== '進行中' || match.status !== '可開始') {
+      clearFormalScoreDraft(state.selectedTournamentId, roundIndex, matchIndex);
       selectMatch(null, null);
       requestRender();
       return;
     }
+    const draft = formalScoreDraftFor(tournament.id, roundIndex, matchIndex);
     bindScoreboard(root, {
       playerA: match.playerA,
       playerB: match.playerB,
-      onBack: () => { selectMatch(null, null); requestRender(); },
+      scoreA: draft?.scoreA ?? 0,
+      scoreB: draft?.scoreB ?? 0,
+      syncError: draft?.error || '',
+      onScoreChange: (scoreA, scoreB) => rememberFormalScoreDraft(tournament.id, roundIndex, matchIndex, scoreA, scoreB),
+      onBack: () => {
+        clearFormalScoreDraft(tournament.id, roundIndex, matchIndex);
+        selectMatch(null, null);
+        requestRender();
+      },
       onComplete: (scoreA, scoreB) => completeMatch(tournament.id, roundIndex, matchIndex, scoreA, scoreB, requestRender),
       onForfeit: (player) => completeForfeit(tournament.id, roundIndex, matchIndex, player, requestRender),
     });
@@ -538,20 +574,44 @@ async function replayMatch(tournamentId, roundIndex, matchIndex, requestRender) 
 }
 
 async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB, requestRender) {
+  rememberFormalScoreDraft(tournamentId, roundIndex, matchIndex, scoreA, scoreB);
   try {
-    await executeTournamentAction(tournamentId, 'record_match', { roundIndex, matchIndex, scoreA, scoreB });
+    await executeTournamentAction(
+      tournamentId,
+      'record_match',
+      { roundIndex, matchIndex, scoreA, scoreB },
+      { retryOnConflict: false },
+    );
+    clearFormalScoreDraft(tournamentId, roundIndex, matchIndex);
     selectMatch(null, null);
     requestRender();
   } catch (error) {
-    selectMatch(null, null);
+    const latest = getState();
+    const latestMatch = latest.tournaments.find((item) => item.id === Number(tournamentId))
+      ?.rounds?.[roundIndex]?.matches?.[matchIndex];
+    if (!latestMatch || latestMatch.status !== '可開始') {
+      clearFormalScoreDraft(tournamentId, roundIndex, matchIndex);
+      selectMatch(null, null);
+      requestRender();
+      showToast('這場對局已由其他裝置完成或變更，已載入最新賽果。', 'error');
+      return;
+    }
+    rememberFormalScoreDraft(
+      tournamentId,
+      roundIndex,
+      matchIndex,
+      scoreA,
+      scoreB,
+      `同步失敗：${error.message || '請確認網路後重新送出。'}`,
+    );
     requestRender();
-    alert(error.message);
   }
 }
 
 async function completeForfeit(tournamentId, roundIndex, matchIndex, player, requestRender) {
   try {
     await executeTournamentAction(tournamentId, 'forfeit_match', { roundIndex, matchIndex, player });
+    clearFormalScoreDraft(tournamentId, roundIndex, matchIndex);
     selectMatch(null, null);
     requestRender();
   } catch (error) {
