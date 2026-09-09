@@ -14,6 +14,7 @@ export function tournamentDetailView(tournament, canManage, quickScoreMode = fal
   const format = getTournamentFormat(tournament.format);
   const isSwiss = format.id === 'swiss';
   const visibleRoundEntries = generatedRoundEntries(tournament, rounds);
+  const primaryRoundIndex = visibleRoundEntries.at(-1)?.roundIndex ?? -1;
   const arenaCount = tournament.arenaCount || 1;
   const activeArenaCount = isSwiss && !tournament.swissStage2Config && ['final', 'completed'].includes(tournament.swissStage) ? 1 : arenaCount;
   const isDraft = tournament.status === '準備中';
@@ -48,7 +49,7 @@ export function tournamentDetailView(tournament, canManage, quickScoreMode = fal
     : isScheduling
       ? `<span><i class="draft-dot"></i>排程階段尚未開放記分</span><span>${rounds.length ? '可以重新隨機分組或自由調整首輪對戰' : '請按「隨機分組」產生第一版賽程'}</span>`
       : `<span><i class="ready-dot"></i>目前輪次預設展開；已完成輪次可展開追查歷史對戰</span><span>${isSwiss ? swissStageGuide(tournament) : '輪空選手已自動晉級'}</span>`;
-  const bracket = visibleRoundEntries.length && !isDraft ? `<div class="bracket-shell"><div class="bracket-flow">${visibleRoundEntries.map(({ round, roundIndex }) => roundColumnView(tournament, round, roundIndex, canManage, isDraft || isScheduling, allSeedNames, isSwiss, swissRoundArenaCount(tournament, round, arenaCount))).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${isDraft ? '完成報到後再產生賽程' : isScheduling ? '等待隨機分組' : '等待賽程產生'}</h2><p>${isDraft ? '這個階段不會顯示預排對戰，避免現場名單尚未確認就產生錯誤賽程。' : isScheduling ? '按下「隨機分組」後，仍可自由調整首輪誰對誰。' : '正式賽程會顯示在這裡。'}</p></div>`;
+  const bracket = visibleRoundEntries.length && !isDraft ? `<div class="bracket-shell"><div class="bracket-flow">${visibleRoundEntries.map(({ round, roundIndex }) => roundColumnView(tournament, round, roundIndex, canManage, isDraft || isScheduling, allSeedNames, isSwiss, swissRoundArenaCount(tournament, round, arenaCount), !isScheduling && roundIndex !== primaryRoundIndex)).join('')}</div></div>` : `<div class="bracket-pending">${icons.bracket}<h2>${isDraft ? '完成報到後再產生賽程' : isScheduling ? '等待隨機分組' : '等待賽程產生'}</h2><p>${isDraft ? '這個階段不會顯示預排對戰，避免現場名單尚未確認就產生錯誤賽程。' : isScheduling ? '按下「隨機分組」後，仍可自由調整首輪誰對誰。' : '正式賽程會顯示在這裡。'}</p></div>`;
   const swissDecision = isSwiss && !isDraft && !isScheduling ? swissDecisionPanel(tournament, canManage) : '';
   const roundRobinDecision = format.id === 'round_robin' && !isDraft && !isScheduling ? roundRobinTieBreakPanel(tournament, canManage) : '';
   const leaderboardRows = isSwiss ? swissLiveLeaderboardRows(tournament) : getTournamentStandings(tournament);
