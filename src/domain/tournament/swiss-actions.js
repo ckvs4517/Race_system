@@ -3,10 +3,15 @@ import { getTournamentFormat } from '../../formats/registry.js';
 import { startRoundRobinTieBreak as createRoundRobinTieBreak } from '../../formats/round-robin.js';
 import { normalizeTournament } from './normalization.js';
 
+function assertTournamentInProgress(tournament, actionLabel) {
+  if (tournament.status !== '進行中') throw new Error(`賽事已結束，不能再${actionLabel}。`);
+}
+
 export function startSwissQualifier(tournament, candidates) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (format.id !== 'swiss' || !format.startQualifier) throw new Error('這場賽事不支援資格加賽。');
+  assertTournamentInProgress(normalized, '建立資格加賽');
   return format.startQualifier(normalized, candidates);
 }
 
@@ -14,6 +19,7 @@ export function startSwissFinal(tournament, finalists, mode = 'round_robin', rou
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (format.id !== 'swiss' || !format.startFinal) throw new Error('這場賽事不支援第二階段。');
+  assertTournamentInProgress(normalized, '建立第二階段');
   return format.startFinal(normalized, finalists, mode, rounds);
 }
 
@@ -23,6 +29,7 @@ export function completeSwissByStandings(tournament) {
   const normalized = normalizeTournament(tournament);
   const format = getTournamentFormat(normalized.format);
   if (format.id !== 'swiss' || !format.completeByStandings) throw new Error('這場賽事不支援瑞士輪積分榜結算。');
+  assertTournamentInProgress(normalized, '以積分榜結算');
   return format.completeByStandings(normalized);
 }
 
