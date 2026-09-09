@@ -61,3 +61,16 @@
 .leaderboard-archive > summary small { color: var(--muted); font-weight: 500; }
 .leaderboard-archive .leaderboard-table { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
 @media (max-width: 720px) { .leaderboard-archive > summary { align-items: flex-start; flex-direction: column; gap: 4px; padding: 14px 16px; } }
+
+/* 歷史 Round 在手機上改成單欄 accordion，避免多輪次必須左右滑動。 */
+@media (max-width: 620px) {
+  .bracket-shell { overflow-x: hidden; }
+  .bracket-flow { min-width: 0; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .round-column,
+  .round-column.has-battle-stations,
+  .round-column.is-completed:not([open]),
+  .round-column.is-completed:not([open]).has-battle-stations { width: 100%; min-width: 0; }
+  .round-column:not(.has-battle-stations) .round-matches { grid-template-columns: 1fr; }
+  .battle-stations { grid-template-columns: 1fr; }
+  .match-card::after { display: none; }
+}
