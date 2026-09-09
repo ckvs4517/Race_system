@@ -151,7 +151,9 @@ tournament = startSwissFinal(tournament, finalists);
 assert.equal(tournament.swissStage, 'final');
 const finalView = scheduleView([tournament], tournament.id, true);
 assert.match(finalView, /1 台戰鬥台/, '四強頁面標示單一戰鬥台');
-assert.doesNotMatch(finalView, /戰鬥台 2|battle-stations/, '四強循環決賽固定使用一台戰鬥台');
+const activeFinalRound = finalView.match(/<details class="round-column is-current[^>]*>[\s\S]*?<\/details>/)?.[0] || '';
+assert.ok(activeFinalRound, '四強循環決賽應有目前進行中的 Round');
+assert.doesNotMatch(activeFinalRound, /戰鬥台 2|battle-stations/, '四強循環決賽目前輪次固定使用一台戰鬥台');
 while (tournament.swissStage === 'final') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '已完成');
 assert.equal(tournament.swissStage, 'completed');
@@ -237,7 +239,6 @@ assert.match(manageView(), /name="arenaCount"/);
 assert.match(manageView(), /name="swissAdvanceCount"/);
 assert.doesNotMatch(manageView(), /name="swissStage2Format"/, '建立賽事時不應先選第二階段賽制');
 assert.doesNotMatch(manageView(), /name="swissStage2Rounds"/, '建立賽事時不應先選第二階段瑞士輪輪數');
-
 const top8Players = Array.from({ length: 12 }, (_, index) => `Top8-${index + 1}`);
 let top8Stage = {
   ...createTournament('48人流程縮小驗證', top8Players, 'swiss', 2),
