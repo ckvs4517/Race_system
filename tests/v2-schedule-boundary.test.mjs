@@ -14,16 +14,25 @@ for (const forbidden of ['bracketView', 'matchCard', 'leaderboardView', 'draftCh
 
 const modules = [
   'tournament-list.js', 'tournament-detail.js', 'participant-panels.js',
-  'decision-panels.js', 'leaderboard.js', 'rounds.js', 'event-date.js', 'html-escape.js',
+  'decision-panels.js', 'swiss-decision-panel.js', 'stage2-decision-panel.js',
+  'round-robin-decision-panel.js', 'swiss-panel-elements.js',
+  'leaderboard.js', 'rounds.js', 'event-date.js', 'html-escape.js',
 ];
 for (const name of modules) {
   const info = await stat(new URL(`../src/views/schedule/${name}`, import.meta.url));
   assert.ok(info.size < 20_000, `${name} 不應成為新的 schedule monolith (${info.size} bytes)`);
 }
 
-const decisionPanels = await readFile(new URL('../src/views/schedule/decision-panels.js', import.meta.url), 'utf8');
+const decisionPanelPath = new URL('../src/views/schedule/decision-panels.js', import.meta.url);
+const decisionPanels = await readFile(decisionPanelPath, 'utf8');
+const decisionPanelInfo = await stat(decisionPanelPath);
 const leaderboard = await readFile(new URL('../src/views/schedule/leaderboard.js', import.meta.url), 'utf8');
+assert.ok(decisionPanelInfo.size < 2_000, `decision-panels.js 應維持薄相容 façade，目前 ${decisionPanelInfo.size} bytes`);
+assert.match(decisionPanels, /round-robin-decision-panel\.js/, 'Round Robin 決策面板必須由獨立模組負責');
+assert.match(decisionPanels, /swiss-decision-panel\.js/, 'Swiss 決策面板必須由獨立模組負責');
+assert.match(decisionPanels, /stage2-decision-panel\.js/, 'Stage 2 決策邏輯必須由獨立模組負責');
+assert.ok(!decisionPanels.includes('function swissDecisionPanel'), 'Swiss 決策面板實作不應回流 decision-panels.js façade');
 assert.match(decisionPanels, /export function readSwissStage2Config/, '跨 schedule 模組使用的第二階段設定 helper 必須維持明確 export');
-assert.match(leaderboard, /import \{ readSwissStage2Config \} from '\.\/decision-panels\.js'/, '排行榜必須透過模組依賴取得第二階段設定 helper');
+assert.match(leaderboard, /import \{ readSwissStage2Config \} from '\.\/decision-panels\.js'/, '排行榜必須透過相容 façade 取得第二階段設定 helper');
 
 console.log('PASS V2 schedule view boundary');
