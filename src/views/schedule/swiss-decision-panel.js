@@ -5,6 +5,7 @@ import { configuredSwissDecisionPanel, readSwissStage2Config } from './stage2-de
 import { swissMiniStandings, swissPlayerChoices } from './swiss-panel-elements.js';
 
 export function swissDecisionPanel(tournament, canManage) {
+  if (tournament.status !== '進行中') return '';
   const configuredStage2 = readSwissStage2Config(tournament);
   if (configuredStage2) return configuredSwissDecisionPanel(tournament, canManage, configuredStage2);
   const stage = tournament.swissStage || 'preliminary';
@@ -54,6 +55,7 @@ export function swissDecisionPanel(tournament, canManage) {
 }
 
 export function swissStageGuide(tournament) {
+  if (tournament.status === '已完成' && tournament.endedEarly) return '賽事已提前結束';
   const config = readSwissStage2Config(tournament);
   if (config) {
     const stage2Label = tournament.swissFinalMode === 'swiss'
