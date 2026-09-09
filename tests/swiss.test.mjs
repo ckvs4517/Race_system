@@ -160,9 +160,9 @@ assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
 const completedView = scheduleView([tournament], tournament.id, true);
 assert.match(completedView, /TOP 4 FINAL/);
 assert.match(completedView, /下載戰績圖/);
-assert.equal((completedView.match(/<details class="round-column/g) || []).length, 1, '賽程區只保留最後一個輪次，避免手機橫向滑動歷史輪次');
-assert.match(completedView, /player-history/, '歷史對戰改由排行榜展開查看');
-assert.match(completedView, /ROUND 01/, '排行榜保留前面輪次的對戰紀錄');
+assert.equal((completedView.match(/<details class="round-column/g) || []).length, tournament.rounds.length, '賽程區保留所有已產生輪次供回查');
+assert.match(completedView, /player-history/, '排行榜仍保留逐位選手歷史對戰入口');
+assert.match(completedView, /ROUND 01/, '第一輪歷史賽程仍可在賽程區展開查看');
 assert.match(completedView, /round-column is-completed/);
 assert.doesNotMatch(completedView, /round-column is-completed[^>]*\sopen/);
 
