@@ -1,27 +1,12 @@
 /** 輪次、戰鬥台分組與對戰卡片畫面。 */
 import { escapeText } from './html-escape.js';
 
-export function currentRoundEntries(tournament, projectedRounds, isSwiss) {
+export function visibleRoundEntries(tournament, projectedRounds) {
   const entries = projectedRounds.map((round, roundIndex) => ({ round, roundIndex }));
   if (tournament.status === '準備中' || tournament.status === '排程中') return entries;
 
-  if (isSwiss && tournament.swissStage === 'qualification') return [];
-
-  const activeEntry = entries.find(({ round }) => round.matches.some((match) => match.status === '可開始'));
-  if (activeEntry) return [activeEntry];
-
-  if (isSwiss) {
-    const phase = tournament.swissStage === 'qualifier'
-      ? 'qualifier'
-      : ['final', 'completed'].includes(tournament.swissStage) ? 'final' : 'preliminary';
-    const seriesId = phase === 'qualifier' ? tournament.activeQualifierSeriesId : null;
-    const phaseEntries = entries.filter(({ round }) => (round.phase || 'preliminary') === phase
-      && (!seriesId || round.seriesId === seriesId));
-    return phaseEntries.length ? [phaseEntries.at(-1)] : [];
-  }
-
-  const storedRounds = Array.isArray(tournament.rounds) ? tournament.rounds.length : 0;
-  return storedRounds ? [entries[Math.min(storedRounds - 1, entries.length - 1)]] : [];
+  // 正式賽事只顯示真正寫入 tournament.rounds 的歷史；單淘汰純預覽 projected round 不算已發生賽程。
+  return entries.filter(({ round }) => !round.projected);
 }
 
 export function roundPhaseLabel(round, roundIndex) {
@@ -35,8 +20,10 @@ export function roundPhaseLabel(round, roundIndex) {
 
 export function roundColumnView(tournament, round, roundIndex, canManage, isDraft, seedNames, isSwiss, arenaCount) {
   const completed = round.matches.every((match) => ['已完成', '輪空晉級'].includes(match.status));
-  const toggle = completed ? '<i class="round-toggle" aria-hidden="true"></i>' : '';
-  return `<details class="round-column ${completed ? 'is-completed' : ''} ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}" ${completed ? '' : 'open'}>
+  const current = round.matches.some((match) => match.status === '可開始');
+  const stateClass = completed ? 'is-completed' : current ? 'is-current' : 'is-pending';
+  const toggle = '<i class="round-toggle" aria-hidden="true"></i>';
+  return `<details class="round-column ${stateClass} ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}" ${current ? 'open' : ''}>
     <summary class="round-heading"><span>${roundPhaseLabel(round, roundIndex)}</span><b>${escapeText(round.name)}</b>${toggle}</summary>
     <div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, seedNames, isSwiss, arenaCount)}</div>
   </details>`;
