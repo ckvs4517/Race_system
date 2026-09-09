@@ -1,27 +1,14 @@
 /** 輪次、戰鬥台分組與對戰卡片畫面。 */
 import { escapeText } from './html-escape.js';
 
-export function currentRoundEntries(tournament, projectedRounds, isSwiss) {
+export function generatedRoundEntries(tournament, projectedRounds) {
   const entries = projectedRounds.map((round, roundIndex) => ({ round, roundIndex }));
   if (tournament.status === '準備中' || tournament.status === '排程中') return entries;
 
-  if (isSwiss && tournament.swissStage === 'qualification') return [];
-
-  const activeEntry = entries.find(({ round }) => round.matches.some((match) => match.status === '可開始'));
-  if (activeEntry) return [activeEntry];
-
-  if (isSwiss) {
-    const phase = tournament.swissStage === 'qualifier'
-      ? 'qualifier'
-      : ['final', 'completed'].includes(tournament.swissStage) ? 'final' : 'preliminary';
-    const seriesId = phase === 'qualifier' ? tournament.activeQualifierSeriesId : null;
-    const phaseEntries = entries.filter(({ round }) => (round.phase || 'preliminary') === phase
-      && (!seriesId || round.seriesId === seriesId));
-    return phaseEntries.length ? [phaseEntries.at(-1)] : [];
-  }
-
-  const storedRounds = Array.isArray(tournament.rounds) ? tournament.rounds.length : 0;
-  return storedRounds ? [entries[Math.min(storedRounds - 1, entries.length - 1)]] : [];
+  // 正式賽事只顯示已實際寫入 tournament.rounds 的輪次。
+  // Single Elimination 的 buildRounds() 會附加純預覽 projected rounds；它們不屬於賽事歷史。
+  const storedRoundCount = Array.isArray(tournament.rounds) ? tournament.rounds.length : 0;
+  return entries.slice(0, Math.min(storedRoundCount, entries.length));
 }
 
 export function roundPhaseLabel(round, roundIndex) {
