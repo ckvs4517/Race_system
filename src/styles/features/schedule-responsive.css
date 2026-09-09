@@ -38,6 +38,15 @@
   .pairing-editor-heading { align-items: stretch; flex-direction: column; }
   .pairing-editor-heading .button { width: 100%; }
   .pairing-editor-row { grid-template-columns: 42px minmax(0, 1fr) 24px minmax(0, 1fr); padding-inline: 8px; }
+
+  /* 歷史 Round 在手機改成單欄 accordion；多戰鬥台也在展開後垂直排列。 */
+  .bracket-shell { overflow-x: visible; scroll-snap-type: none; }
+  .bracket-flow { min-width: 0; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .round-column,
+  .round-column.has-battle-stations,
+  .round-column.is-completed:not([open]),
+  .round-column.is-completed:not([open]).has-battle-stations { width: 100%; min-width: 0; scroll-snap-align: none; }
+  .battle-stations { grid-template-columns: minmax(0, 1fr); }
 }
  .leaderboard-stage-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .leaderboard-stage-summary span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; background: #111a24; border: 1px solid #2a394a; border-radius: 6px; font-size: 11px; }
