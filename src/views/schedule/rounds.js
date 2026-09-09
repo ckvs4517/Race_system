@@ -20,10 +20,11 @@ export function roundPhaseLabel(round, roundIndex) {
   return `ROUND ${String(roundIndex + 1).padStart(2, '0')}`;
 }
 
-export function roundColumnView(tournament, round, roundIndex, canManage, isDraft, seedNames, isSwiss, arenaCount) {
+export function roundColumnView(tournament, round, roundIndex, canManage, isDraft, seedNames, isSwiss, arenaCount, isHistorical = false) {
   const completed = round.matches.every((match) => ['已完成', '輪空晉級'].includes(match.status));
   const toggle = completed ? '<i class="round-toggle" aria-hidden="true"></i>' : '';
-  return `<details class="round-column ${completed ? 'is-completed' : ''} ${arenaCount > 1 ? 'has-battle-stations' : ''}" style="--station-count:${arenaCount}" ${completed ? '' : 'open'}>
+  const classes = `${isHistorical ? 'round-history ' : ''}round-column ${completed ? 'is-completed' : ''} ${arenaCount > 1 ? 'has-battle-stations' : ''}`;
+  return `<details class="${classes}" style="--station-count:${arenaCount}" ${completed ? '' : 'open'}>
     <summary class="round-heading"><span>${roundPhaseLabel(round, roundIndex)}</span><b>${escapeText(round.name)}</b>${toggle}</summary>
     <div class="round-matches ${isSwiss && roundIndex > 0 ? 'has-score-groups' : ''}">${roundMatchesView(tournament, round, roundIndex, canManage && !isDraft, canManage && tournament.bracketVersion === 2, seedNames, isSwiss, arenaCount)}</div>
   </details>`;
