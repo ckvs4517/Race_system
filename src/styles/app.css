@@ -2,7 +2,9 @@
 @import url('./base/foundation.css');
 @import url('./features/scoreboard.css');
 @import url('./features/tournament-management.css');
+@import url('./features/schedule-list.css');
 @import url('./features/schedule.css');
+@import url('./features/schedule-leaderboard.css');
 @import url('./base/footer.css');
 @import url('./responsive/global.css');
 @import url('./features/quick-score.css');
