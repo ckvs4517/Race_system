@@ -11,6 +11,7 @@ export {
   randomizeDraftTournament,
   randomizeTournamentSchedule,
   recordMatchResult,
+  repairMatchScore,
   removeDraftPlayer,
   resetCompletedMatch,
   completeSwissByStandings,
