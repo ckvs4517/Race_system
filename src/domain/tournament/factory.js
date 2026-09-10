@@ -28,6 +28,7 @@ export function createTournamentRecord(name, players, formatId = 'single_elimina
     participantStates: createParticipantStates(cleanPlayers, false),
     participantDetails: normalizeParticipantDetails(cleanPlayers, participantDetailsValue),
     rounds: [],
+    repairHistory: [],
     registrationSettings: createRegistrationSettings(),
     drinkSettings: normalizeDrinkSettings(drinkSettings, createEmptyDrinkSettings()),
     ...(format.initialState?.() || {}),
