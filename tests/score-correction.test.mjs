@@ -122,7 +122,7 @@ assert.notEqual(remainingRound2Index, -1);
 const unrepairedNext = recordMatchResult(swissBeforeRepair, 1, remainingRound2Index, 4, 0, () => 0);
 const repairedNext = recordMatchResult(repairedSwiss, 1, remainingRound2Index, 4, 0, () => 0);
 assert.equal(repairedNext.rounds.length, 3, '修復後完成目前輪次仍正常產生下一輪');
-assert.deepEqual(repairedNext.rounds[1], repairedSwiss.rounds[1].map ? repairedSwiss.rounds[1] : repairedNext.rounds[1]);
+assert.deepEqual(pairingList(repairedNext.rounds[1]), pairingList(repairedSwiss.rounds[1]), '完成目前輪次不會回頭改寫已保留的 Round 2 pairing');
 assert.notDeepEqual(
   pairingList(repairedNext.rounds[2]),
   pairingList(unrepairedNext.rounds[2]),
