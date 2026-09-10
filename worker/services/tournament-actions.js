@@ -3,6 +3,7 @@ import {
   MAX_TOURNAMENT_PLAYERS,
   addDraftPlayer,
   confirmTournamentSchedule,
+  correctMatchScore,
   drawRandomSeeds,
   forfeitMatch,
   prepareTournamentSchedule,
@@ -45,6 +46,7 @@ export function applyTournamentAction(tournament, type, payload) {
     case 'update_opening_pairings': return updateOpeningPairings(tournament, Array.isArray(payload.pairs) ? payload.pairs : []);
     case 'confirm_tournament_schedule': return confirmTournamentSchedule(tournament);
     case 'record_match': return recordMatchResult(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
+    case 'correct_match_score': return correctMatchScore(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
     case 'forfeit_match': return forfeitMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex), String(payload.player || ''));
     case 'replay_match': return resetCompletedMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex));
     case 'withdraw_player': return withdrawPlayer(tournament, String(payload.player || ''), payload.status === 'no_show' ? 'no_show' : 'withdrawn');
