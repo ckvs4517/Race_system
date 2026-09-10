@@ -1,0 +1,17 @@
+/* Historical score correction dialog. Keep destructive replay visually secondary. */
+.score-correction-match { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 !important; padding: 12px; background: #090d13; border: 1px solid var(--line); border-radius: 8px; }
+.score-correction-match strong { color: #fff; font-size: 16px; overflow-wrap: anywhere; }
+.score-correction-match span { color: var(--red); font-size: 11px; font-weight: 900; letter-spacing: 1px; }
+.score-correction-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.score-correction-fields label { min-width: 0; display: grid; gap: 8px; color: #dce2ec; font-size: 12px; font-weight: 800; }
+.score-correction-fields input { min-width: 0; }
+.score-correction-help { margin: 0 !important; }
+.score-correction-error { margin: 0 !important; padding: 11px 12px; background: #ff493d10; color: #ff9d96 !important; border: 1px solid #ff493d66; border-radius: 7px; font-weight: 800; }
+.score-correction-advanced { padding: 12px; background: #090d13; border: 1px solid #3a2630; border-radius: 8px; }
+.score-correction-advanced summary { cursor: pointer; color: #d7b0ad; font-size: 12px; font-weight: 800; }
+.score-correction-advanced p { margin: 10px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.score-correction-advanced .button { width: 100%; }
+
+@media (max-width: 620px) {
+  .score-correction-fields { grid-template-columns: 1fr; }
+}
