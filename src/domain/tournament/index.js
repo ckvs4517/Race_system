@@ -27,3 +27,4 @@ export { toPublicTournament } from './visibility.js';
 export { buildRounds, getTournamentStandings, getSwissPhaseStandings } from './standings.js';
 export { startSwissQualifier, startSwissFinal, completeSwissByStandings, startRoundRobinTieBreak } from './swiss-actions.js';
 export { resetCompletedMatch, recordMatchResult, forfeitMatch, withdrawPlayer } from './matches.js';
+export { analyzeMatchScoreCorrection, correctMatchScore } from './score-correction.js';
