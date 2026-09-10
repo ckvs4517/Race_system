@@ -69,6 +69,7 @@ const tournament = {
   players: ['A', 'B'],
   rounds: [],
   participantDetails: { A: { phone: '0900000000' } },
+  repairHistory: [{ reason: 'admin-only repair audit' }],
 };
 const created = await request('/api/tournaments', { method: 'POST', headers: authorizedHeaders, body: JSON.stringify({ tournament }) });
 const createdData = await created.json();
@@ -106,6 +107,7 @@ assert(largeCheckInResponse.status === 200
 const listed = await request('/api/tournaments');
 const data = await listed.json();
 assert(data.tournaments.some((item) => item.name === tournament.name), '公開 API 可以讀取雲端賽事');
+assert(!data.tournaments.find((item) => item.name === tournament.name)?.repairHistory, '公開 API 不暴露管理者 Repair audit history');
 const listEtag = listed.headers.get('etag');
 const unchangedList = await request('/api/tournaments', { headers: { 'if-none-match': listEtag } });
 assert(Boolean(listEtag) && unchangedList.status === 304, '賽事清單未變時使用 ETag 省略重複資料');
