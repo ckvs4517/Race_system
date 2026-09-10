@@ -151,7 +151,9 @@ tournament = startSwissFinal(tournament, finalists);
 assert.equal(tournament.swissStage, 'final');
 const finalView = scheduleView([tournament], tournament.id, true);
 assert.match(finalView, /1 台戰鬥台/, '四強頁面標示單一戰鬥台');
-assert.doesNotMatch(finalView, /戰鬥台 2|battle-stations/, '四強循環決賽固定使用一台戰鬥台');
+const activeFinalRound = finalView.match(/<details class="round-column is-current[^>]*>[\s\S]*?<\/details>/)?.[0] || '';
+assert.ok(activeFinalRound, '四強循環決賽應有目前進行中的 Round');
+assert.doesNotMatch(activeFinalRound, /戰鬥台 2|battle-stations/, '四強循環決賽目前輪次固定使用一台戰鬥台');
 while (tournament.swissStage === 'final') tournament = finishCurrentRound(tournament);
 assert.equal(tournament.status, '已完成');
 assert.equal(tournament.swissStage, 'completed');
@@ -160,9 +162,9 @@ assert.equal(getTournamentStandings(tournament)[0].player, tournament.champion);
 const completedView = scheduleView([tournament], tournament.id, true);
 assert.match(completedView, /TOP 4 FINAL/);
 assert.match(completedView, /下載戰績圖/);
-assert.equal((completedView.match(/<details class="round-column/g) || []).length, 1, '賽程區只保留最後一個輪次，避免手機橫向滑動歷史輪次');
-assert.match(completedView, /player-history/, '歷史對戰改由排行榜展開查看');
-assert.match(completedView, /ROUND 01/, '排行榜保留前面輪次的對戰紀錄');
+assert.equal((completedView.match(/<details class="round-column/g) || []).length, tournament.rounds.length, '賽程區保留所有已產生輪次供回查');
+assert.match(completedView, /player-history/, '排行榜仍保留逐位選手歷史對戰入口');
+assert.match(completedView, /ROUND 01/, '第一輪歷史賽程仍可在賽程區展開查看');
 assert.match(completedView, /round-column is-completed/);
 assert.doesNotMatch(completedView, /round-column is-completed[^>]*\sopen/);
 
@@ -237,7 +239,6 @@ assert.match(manageView(), /name="arenaCount"/);
 assert.match(manageView(), /name="swissAdvanceCount"/);
 assert.doesNotMatch(manageView(), /name="swissStage2Format"/, '建立賽事時不應先選第二階段賽制');
 assert.doesNotMatch(manageView(), /name="swissStage2Rounds"/, '建立賽事時不應先選第二階段瑞士輪輪數');
-
 const top8Players = Array.from({ length: 12 }, (_, index) => `Top8-${index + 1}`);
 let top8Stage = {
   ...createTournament('48人流程縮小驗證', top8Players, 'swiss', 2),
