@@ -18,6 +18,7 @@ const publicTournament = {
 const adminTournament = {
   ...publicTournament,
   participantDetails: { A: { phone: '0912345678', notes: 'private', answers: { team: 'A' } } },
+  repairHistory: [{ reason: 'admin-only repair note' }],
   registrationSettings: { ...publicTournament.registrationSettings, token: 'private-token' },
 };
 const calls = [];
@@ -49,6 +50,7 @@ state = store.getState();
 assert.equal(state.isAdmin, true);
 assert.equal(state.tournaments[0].participantDetails.A.phone, '0912345678', 'login reloads the private admin representation');
 assert.equal(state.tournaments[0].registrationSettings.token, 'private-token', 'login reloads private registration token');
+assert.equal(state.tournaments[0].repairHistory[0].reason, 'admin-only repair note', 'login can load admin repair audit history');
 const adminListCall = calls.find((call) => call.path === '/api/tournaments' && call.authorization === 'Bearer admin-token');
 assert.ok(adminListCall, 'login explicitly reloads tournament data with admin authorization');
 assert.equal(adminListCall.ifNoneMatch, '', 'login does not reuse the public representation ETag');
@@ -57,6 +59,7 @@ store.logoutAdmin();
 state = store.getState();
 assert.equal(state.isAdmin, false);
 assert.equal('participantDetails' in state.tournaments[0], false, 'logout immediately drops private participant data from memory');
+assert.equal('repairHistory' in state.tournaments[0], false, 'logout immediately drops admin repair audit history from memory');
 assert.equal('token' in state.tournaments[0].registrationSettings, false, 'logout immediately drops private registration token from memory');
 assert.equal(storage.has('spin-admin-token'), false, 'logout removes the admin session token');
 
