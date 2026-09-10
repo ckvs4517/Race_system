@@ -19,7 +19,7 @@ export function scoreCorrectionDialogView(canManage) {
         <p data-repair-summary></p>
         <div class="score-repair-changes" data-repair-changes></div>
         <p class="score-repair-rounds" data-repair-rounds></p>
-        <label class="score-repair-reason"><span>修正原因</span><textarea name="repairReason" maxlength="300" placeholder="例如：裁判確認原始比分輸入反向" required></textarea></label>
+        <label class="score-repair-reason"><span>修正原因</span><textarea name="repairReason" maxlength="300" placeholder="例如：裁判確認原始比分輸入反向"></textarea></label>
         <div class="mobile-sheet-actions">
           <button type="button" class="button button-secondary" data-repair-back>返回修改</button>
           <button type="button" class="button button-danger" data-confirm-score-repair>確認修復</button>
