@@ -72,7 +72,7 @@ export function repairMatchScore(tournament, roundIndex, matchIndex, scoreA, sco
   if (!repairReason) throw new Error('請填寫比分修正原因。');
 
   // Full clone is the repair-before snapshot. Nothing is persisted until this
-  // function completes and the Worker commits the returned JSON document.
+  // function completes and the Worker commits the returned tournament record.
   const beforeSnapshot = structuredClone(normalizeTournament(tournament));
   const impact = analyzeMatchScoreCorrection(beforeSnapshot, roundIndex, matchIndex, scoreA, scoreB);
   if (impact.level !== 1 || !impact.repairable || !impact.tournament) throw new Error(impact.message);
