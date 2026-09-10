@@ -2,6 +2,7 @@
 import {
   addDraftPlayer,
   confirmTournamentSchedule,
+  correctMatchScore,
   drawRandomSeeds,
   forfeitMatch,
   randomizeDraftTournament,
@@ -122,9 +123,23 @@ try {
   await waitFor('.leaderboard');
   expectText('賽事排行榜', '完成全部對戰後顯示排行榜');
   expectText('CHAMPION', '完成賽事後顯示冠軍');
-  expect(document.querySelector('[data-replay-round="1"]'), '完成後可以選擇重新比賽');
+  expect(document.querySelector('[data-correct-round="1"]'), '完成後可以從單一入口修正比分');
+  click('[data-correct-round="1"]');
+  await waitFor('[data-score-correction-dialog][open]');
+  const correctionForm = document.querySelector('[data-score-correction-form]');
+  const originalCorrectionA = Number(correctionForm.elements.scoreA.value);
+  const originalCorrectionB = Number(correctionForm.elements.scoreB.value);
+  if (originalCorrectionA > originalCorrectionB) fill('[data-score-correction-form] [name="scoreA"]', String(originalCorrectionA + 1));
+  else fill('[data-score-correction-form] [name="scoreB"]', String(originalCorrectionB + 1));
+  submit('[data-score-correction-form]');
+  await waitUntil(() => !document.querySelector('[data-score-correction-dialog][open]'));
+  expect([...records.values()].some((item) => item.rounds?.[1]?.matches?.some((match) =>
+    match.status === '已完成' && (match.scoreA === originalCorrectionA + 1 || match.scoreB === originalCorrectionB + 1)
+  )), 'Level 0 修正會透過 UI 寫回賽事比分');
 
-  click('[data-replay-round="1"]');
+  click('[data-correct-round="1"]');
+  await waitFor('[data-score-correction-dialog][open]');
+  click('[data-score-correction-dialog] [data-replay-round]');
   await waitFor('.match-card.is-ready');
   expect(!document.querySelector('.champion-banner'), '重新比賽會清除冠軍完成狀態');
   expect(document.querySelector('.leaderboard'), '進行中的賽事仍保留可查看歷史對戰的排行榜');
@@ -309,6 +324,7 @@ function applyAction(tournament, type, payload) {
     update_opening_pairings: () => updateOpeningPairings(source, payload.pairs),
     confirm_tournament_schedule: () => confirmTournamentSchedule(source),
     record_match: () => recordMatchResult(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB),
+    correct_match_score: () => correctMatchScore(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB),
     forfeit_match: () => forfeitMatch(source, payload.roundIndex, payload.matchIndex, payload.player),
     replay_match: () => resetCompletedMatch(source, payload.roundIndex, payload.matchIndex),
     withdraw_player: () => withdrawPlayer(source, payload.player, payload.status),

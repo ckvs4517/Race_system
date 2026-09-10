@@ -40,7 +40,7 @@ assert.equal(ended.rounds[0].matches[pendingMatchIndex].status, '可開始', '�
 const endedView = scheduleView([ended], ended.id, true);
 assert.match(endedView, /未進行（賽事已結束）/, '已提前結束的未賽場次明確標示為未進行');
 assert.ok(!endedView.includes('class="match-card is-ready"'), '已提前結束的未賽場次不再產生可點擊記分按鈕');
-assert.match(endedView, /data-replay-round="0"/, '已完成的既有對戰仍保留重新比賽入口');
+assert.match(endedView, /data-correct-round="0"/, '已完成的既有對戰仍保留單一修正比分入口');
 assert.throws(
   () => recordMatchResult(ended, 0, pendingMatchIndex, 4, 0),
   /賽事尚未開始或已經完成/,

@@ -14,6 +14,7 @@ const expected = [
   './features/tournament-management.css',
   './features/schedule-list.css',
   './features/schedule.css',
+  './features/score-correction.css',
   './features/schedule-leaderboard.css',
   './base/footer.css',
   './responsive/global.css',

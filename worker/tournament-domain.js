@@ -4,6 +4,7 @@ export {
   addConfirmedParticipant,
   addDraftPlayer,
   confirmTournamentSchedule,
+  correctMatchScore,
   drawRandomSeeds,
   forfeitMatch,
   prepareTournamentSchedule,

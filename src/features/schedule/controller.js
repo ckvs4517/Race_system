@@ -21,6 +21,7 @@ import { bindScoreboard } from '../../views/scoreboard.js';
 import { registrationUrl } from '../registration/url.js';
 import { bindCheckInControls } from './check-in.js';
 import { bindQuickScoreControls } from './quick-score.js';
+import { bindScoreCorrectionControls } from './score-correction.js';
 import { bindStage2RoundsVisibility } from './stage2-controls.js';
 
 let rosterUiState = { tournamentId: null, filter: 'all', query: '', removing: false, selected: new Set() };
@@ -170,6 +171,7 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
   });
 
   bindRosterEvents(root, state, requestRender);
+  bindScoreCorrectionControls(root, state);
   bindMatchAdministration(root, state, requestRender);
   bindTournamentLifecycle(root, state, requestRender);
   applyRosterUi(root);
