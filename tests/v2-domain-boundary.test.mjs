@@ -18,7 +18,7 @@ const expected = [
   'normalizeTournament', 'toPublicTournament', 'buildRounds', 'getTournamentStandings', 'getSwissPhaseStandings', 'startSwissQualifier',
   'startSwissFinal', 'completeSwissByStandings', 'startRoundRobinTieBreak', 'completeTournamentEarly',
   'updateRegistrationSettings', 'resetCompletedMatch', 'recordMatchResult', 'forfeitMatch', 'withdrawPlayer',
-  'analyzeMatchScoreCorrection', 'correctMatchScore',
+  'analyzeMatchScoreCorrection', 'correctMatchScore', 'repairMatchScore',
 ].sort();
 const facade = await import('../src/domain/tournament.js');
 const index = await import('../src/domain/tournament/index.js');
