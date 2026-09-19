@@ -10,6 +10,7 @@ import {
   randomizeDraftTournament,
   randomizeTournamentSchedule,
   recordMatchResult,
+  repairMatchScore,
   removeDraftPlayer,
   resetCompletedMatch,
   completeSwissByStandings,
@@ -47,6 +48,7 @@ export function applyTournamentAction(tournament, type, payload) {
     case 'confirm_tournament_schedule': return confirmTournamentSchedule(tournament);
     case 'record_match': return recordMatchResult(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
     case 'correct_match_score': return correctMatchScore(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
+    case 'repair_match_score': return repairMatchScore(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB), String(payload.reason || ''));
     case 'forfeit_match': return forfeitMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex), String(payload.player || ''));
     case 'replay_match': return resetCompletedMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex));
     case 'withdraw_player': return withdrawPlayer(tournament, String(payload.player || ''), payload.status === 'no_show' ? 'no_show' : 'withdrawn');

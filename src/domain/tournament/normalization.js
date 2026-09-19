@@ -21,6 +21,7 @@ export function normalizeTournament(tournament) {
         ? format.totalRounds(tournament.players || [])
         : tournament.totalRounds || format.totalRounds?.(tournament.players || []) || null,
       rounds: tournament.status === '準備中' ? [] : (Array.isArray(tournament.rounds) ? tournament.rounds : []),
+      repairHistory: Array.isArray(tournament.repairHistory) ? tournament.repairHistory : [],
       participantStates: normalizeParticipantStates(tournament.players || [], tournament.participantStates),
       participantDetails: normalizeParticipantDetails(tournament.players || [], tournament.participantDetails),
       checkInVersion: 1,
@@ -44,6 +45,7 @@ export function normalizeTournament(tournament) {
       arenaCount: 1,
       eventInfo: normalizeEventInfo(tournament.eventInfo),
       bracketVersion: 1,
+      repairHistory: [],
       participantStates: normalizeParticipantStates(players, tournament.participantStates, true),
       participantDetails: normalizeParticipantDetails(players, tournament.participantDetails),
       drinkSettings: normalizeDrinkSettings(tournament.drinkSettings, createEmptyDrinkSettings()),

@@ -18,7 +18,7 @@ const expected = [
   'normalizeTournament', 'toPublicTournament', 'buildRounds', 'getTournamentStandings', 'getSwissPhaseStandings', 'startSwissQualifier',
   'startSwissFinal', 'completeSwissByStandings', 'startRoundRobinTieBreak', 'completeTournamentEarly',
   'updateRegistrationSettings', 'resetCompletedMatch', 'recordMatchResult', 'forfeitMatch', 'withdrawPlayer',
-  'analyzeMatchScoreCorrection', 'correctMatchScore',
+  'analyzeMatchScoreCorrection', 'correctMatchScore', 'repairMatchScore',
 ].sort();
 const facade = await import('../src/domain/tournament.js');
 const index = await import('../src/domain/tournament/index.js');
@@ -29,10 +29,12 @@ const privateTournament = {
   id: 1,
   name: 'Privacy projection',
   participantDetails: { A: { phone: '0900000000', notes: 'private', answers: { team: 'secret' } } },
+  repairHistory: [{ reason: 'admin-only audit' }],
   registrationSettings: { enabled: true, token: 'private-registration-token', capacity: 8 },
 };
 const publicTournament = facade.toPublicTournament(privateTournament);
 assert.equal('participantDetails' in publicTournament, false, 'public tournament projection removes participant personal details');
+assert.equal('repairHistory' in publicTournament, false, 'public tournament projection removes admin repair audit history');
 assert.equal('token' in publicTournament.registrationSettings, false, 'public tournament projection removes registration token');
 assert.equal(publicTournament.registrationSettings.capacity, 8, 'public registration configuration needed by public views is preserved');
 assert.equal(privateTournament.participantDetails.A.phone, '0900000000', 'privacy projection must not mutate the stored/admin tournament');

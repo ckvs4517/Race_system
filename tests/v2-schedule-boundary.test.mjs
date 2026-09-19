@@ -16,7 +16,7 @@ const modules = [
   'tournament-list.js', 'tournament-detail.js', 'participant-panels.js',
   'decision-panels.js', 'swiss-decision-panel.js', 'stage2-decision-panel.js',
   'round-robin-decision-panel.js', 'swiss-panel-elements.js',
-  'leaderboard.js', 'rounds.js', 'score-correction-dialog.js', 'event-date.js', 'html-escape.js',
+  'leaderboard.js', 'rounds.js', 'score-correction-dialog.js', 'repair-history.js', 'event-date.js', 'html-escape.js',
 ];
 for (const name of modules) {
   const info = await stat(new URL(`../src/views/schedule/${name}`, import.meta.url));
