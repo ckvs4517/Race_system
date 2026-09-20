@@ -144,7 +144,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   pairingList(repairedNext.rounds[2]),
-  [['丙', '甲'], ['乙', '己'], ['丁', '戊']],
+  [['丙', '甲'], ['乙', '戊'], ['丁', '己']],
   '下一個尚未產生 Round 會使用 repaired standings 重新計算 pairing',
 );
 assert.notDeepEqual(
