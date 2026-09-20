@@ -2,10 +2,13 @@
 import assert from 'node:assert/strict';
 import {
   analyzeMatchScoreCorrection,
+  confirmTournamentSchedule,
   correctMatchScore,
   createTournament,
   getSwissPhaseStandings,
   normalizeTournament,
+  prepareTournamentSchedule,
+  randomizeTournamentSchedule,
   recordMatchResult,
   repairMatchScore,
   setDraftPlayerCheckedIn,
@@ -91,10 +94,22 @@ assert.throws(
   'Level 1 Repair 必須留下原因',
 );
 
-// 真實 Swiss：Round 2 已開始後修正 Round 1 winner，Round 2 必須完整保留。
-let swiss = startTournament(checkInAll(createTournament('Swiss Repair', ['甲', '乙', '丙', '丁'], 'swiss')));
-swiss = completeRound(swiss, 0, [[4, 1], [4, 0]]);
+// 真實 Swiss：固定 6 人 fixture，Round 2 已開始後修正 Round 1 winner，Round 2 必須完整保留。
+let swiss = prepareTournamentSchedule(checkInAll(createTournament('Swiss Repair', ['甲', '乙', '丙', '丁', '戊', '己'], 'swiss')));
+swiss = randomizeTournamentSchedule(swiss, () => 0);
+swiss = confirmTournamentSchedule(swiss);
+assert.deepEqual(
+  pairingList(swiss.rounds[0]),
+  [['乙', '丙'], ['丁', '戊'], ['己', '甲']],
+  'Swiss Repair fixture 使用固定 shuffle，避免測試受 Math.random 影響',
+);
+swiss = completeRound(swiss, 0, [[4, 1], [4, 0], [4, 2]]);
 assert.equal(swiss.rounds.length, 2, '完成 Swiss Round 1 後已產生 Round 2');
+assert.deepEqual(
+  pairingList(swiss.rounds[1]),
+  [['乙', '丁'], ['己', '丙'], ['甲', '戊']],
+  '固定 fixture 的 Round 2 pairing 可重現',
+);
 swiss = recordMatchResult(swiss, 1, 0, 4, 1, () => 0);
 const swissBeforeRepair = structuredClone(swiss);
 const targetSwiss = swiss.rounds[0].matches[0];
@@ -117,16 +132,25 @@ const repairedTargetWinner = repairedSwiss.rounds[0].matches[0].winner;
 assert.ok(repairedStandings.find((row) => row.player === repairedTargetWinner)?.wins >= 1, 'Repair 後 Swiss standings 使用新 winner 重算');
 
 // Round 2 結束後，尚未產生的 Round 3 必須由 repaired state 產生，而不是回頭重排 Round 2。
-const remainingRound2Index = repairedSwiss.rounds[1].matches.findIndex((match) => match.status === '可開始');
-assert.notEqual(remainingRound2Index, -1);
-const unrepairedNext = recordMatchResult(swissBeforeRepair, 1, remainingRound2Index, 4, 0, () => 0);
-const repairedNext = recordMatchResult(repairedSwiss, 1, remainingRound2Index, 4, 0, () => 0);
+// 使用固定 6 人 fixture，確保 repaired / unrepaired standings 真的會導向不同的合法 pairing。
+const unrepairedNext = completeRound(swissBeforeRepair, 1, [null, [0, 4], [4, 0]]);
+const repairedNext = completeRound(repairedSwiss, 1, [null, [0, 4], [4, 0]]);
 assert.equal(repairedNext.rounds.length, 3, '修復後完成目前輪次仍正常產生下一輪');
 assert.deepEqual(pairingList(repairedNext.rounds[1]), pairingList(repairedSwiss.rounds[1]), '完成目前輪次不會回頭改寫已保留的 Round 2 pairing');
+assert.deepEqual(
+  pairingList(unrepairedNext.rounds[2]),
+  [['乙', '甲'], ['丙', '丁'], ['己', '戊']],
+  '未修復 control fixture 的 Round 3 pairing 固定可重現',
+);
+assert.deepEqual(
+  pairingList(repairedNext.rounds[2]),
+  [['丙', '甲'], ['乙', '己'], ['丁', '戊']],
+  '下一個尚未產生 Round 會使用 repaired standings 重新計算 pairing',
+);
 assert.notDeepEqual(
   pairingList(repairedNext.rounds[2]),
   pairingList(unrepairedNext.rounds[2]),
-  '下一個尚未產生 Round 會使用 repaired standings 重新計算 pairing',
+  'Repair 後新 Round 不得沿用未修復 standings 的 pairing',
 );
 
 // 真實 Round Robin：修正歷史 winner 後保留已產生下一輪。
