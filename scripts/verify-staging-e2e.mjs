@@ -343,8 +343,8 @@ async function browserFlow(pin, e2eName, temporaryPlayer) {
       if (!ready) return false;
       ready.click();
       await waitFor('[data-scoreboard].match-mode');
-      for (let index = 0; index < scoreB; index += 1) click('[data-target="b"][data-value="1"]');
-      for (let index = 0; index < scoreA; index += 1) click('[data-target="a"][data-value="1"]');
+      scoreFormalSide('b', scoreB);
+      scoreFormalSide('a', scoreA);
       click('[data-action="complete-match"]');
       await waitUntil(() => query('.match-card.is-ready') || query('.champion-banner') || textIncludes('已完成'), 'save match result');
       return true;

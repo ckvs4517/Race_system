@@ -10,6 +10,7 @@ import {
   writeQuickScoreMode,
 } from '../../core/quick-score.js';
 import { executeTournamentAction, getState, selectMatch } from '../../data/store.js';
+import { createAdjustmentScoringEvents } from '../../domain/scoring.js';
 import { showToast } from '../../ui/toast.js';
 
 let quickScoreDraft = null;
@@ -204,6 +205,7 @@ function bindQuickScoreInlineForm(root, inline, { requestRender, rememberScroll 
         matchIndex: draft.matchIndex,
         scoreA: score.scoreA,
         scoreB: score.scoreB,
+        scoringEvents: createAdjustmentScoringEvents(match.playerA, match.playerB, score.scoreA, score.scoreB),
       }, { retryOnConflict: false });
       quickScoreDraft = null;
       rememberScroll?.(scrollPosition);

@@ -38,13 +38,14 @@ function formalScoreDraftFor(tournamentId, roundIndex, matchIndex) {
     : null;
 }
 
-function rememberFormalScoreDraft(tournamentId, roundIndex, matchIndex, scoreA, scoreB, error = '') {
+function rememberFormalScoreDraft(tournamentId, roundIndex, matchIndex, scoreA, scoreB, scoringEvents = [], error = '') {
   formalScoreDraft = {
     tournamentId: Number(tournamentId),
     roundIndex: Number(roundIndex),
     matchIndex: Number(matchIndex),
     scoreA: Number(scoreA) || 0,
     scoreB: Number(scoreB) || 0,
+    scoringEvents: Array.isArray(scoringEvents) ? structuredClone(scoringEvents) : [],
     error,
   };
 }
@@ -68,18 +69,20 @@ export function bindScheduleController(root, state, { requestRender, openRegistr
     }
     const draft = formalScoreDraftFor(tournament.id, roundIndex, matchIndex);
     bindScoreboard(root, {
+      mode: 'match',
       playerA: match.playerA,
       playerB: match.playerB,
       scoreA: draft?.scoreA ?? 0,
       scoreB: draft?.scoreB ?? 0,
+      scoringEvents: draft?.scoringEvents || [],
       syncError: draft?.error || '',
-      onScoreChange: (scoreA, scoreB) => rememberFormalScoreDraft(tournament.id, roundIndex, matchIndex, scoreA, scoreB),
+      onScoreChange: (scoreA, scoreB, scoringEvents) => rememberFormalScoreDraft(tournament.id, roundIndex, matchIndex, scoreA, scoreB, scoringEvents),
       onBack: () => {
         clearFormalScoreDraft(tournament.id, roundIndex, matchIndex);
         selectMatch(null, null);
         requestRender();
       },
-      onComplete: (scoreA, scoreB) => completeMatch(tournament.id, roundIndex, matchIndex, scoreA, scoreB, requestRender),
+      onComplete: (scoreA, scoreB, scoringEvents) => completeMatch(tournament.id, roundIndex, matchIndex, scoreA, scoreB, scoringEvents, requestRender),
       onForfeit: (player) => completeForfeit(tournament.id, roundIndex, matchIndex, player, requestRender),
     });
     return;
@@ -575,13 +578,13 @@ async function replayMatch(tournamentId, roundIndex, matchIndex, requestRender) 
   }
 }
 
-async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB, requestRender) {
-  rememberFormalScoreDraft(tournamentId, roundIndex, matchIndex, scoreA, scoreB);
+async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, scoreB, scoringEvents, requestRender) {
+  rememberFormalScoreDraft(tournamentId, roundIndex, matchIndex, scoreA, scoreB, scoringEvents);
   try {
     await executeTournamentAction(
       tournamentId,
       'record_match',
-      { roundIndex, matchIndex, scoreA, scoreB },
+      { roundIndex, matchIndex, scoreA, scoreB, scoringEvents },
       { retryOnConflict: false },
     );
     clearFormalScoreDraft(tournamentId, roundIndex, matchIndex);
@@ -604,6 +607,7 @@ async function completeMatch(tournamentId, roundIndex, matchIndex, scoreA, score
       matchIndex,
       scoreA,
       scoreB,
+      scoringEvents,
       `同步失敗：${error.message || '請確認網路後重新送出。'}`,
     );
     requestRender();

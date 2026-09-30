@@ -23,8 +23,8 @@ expect(completeMatchSource.includes('`同步失敗：${error.message'), '同步�
 
 const matchMarkup = scoreboardView({ mode: 'match', tournamentName: '測試賽', roundName: 'Round 1', playerA: 'A', playerB: 'B' });
 expect(matchMarkup.includes('data-match-sync-error') && matchMarkup.includes('role="alert"'), '正式記分板提供同步失敗提示區');
-expect(scoreboardSource.includes('options.onScoreChange?.(current.scoreA, current.scoreB)'), '比分每次調整都回存 owning controller draft');
+expect(scoreboardSource.includes('options.onScoreChange?.(current.scoreA, current.scoreB, structuredClone(scoringEvents))'), '比分與逐局得分事件每次調整都回存 owning controller draft');
 expect(scoreboardSource.includes("button.textContent = '重新送出比分'"), '同步失敗後提供明確的重新送出按鈕文案');
-expect(scoreboardSource.includes('const canonicalScore = () => sidePlayers.a === options.playerA'), '交換邊後仍以原選手身分保存 canonical 比分');
+expect(scoreboardSource.includes('if (isMatch) return calculateScore(scoringEvents, options.playerA, options.playerB)'), '正式比賽交換畫面左右後仍依原選手身分由 scoring events 計算 canonical 比分');
 
 console.log(`PASS ${assertions} formal score sync assertions`);

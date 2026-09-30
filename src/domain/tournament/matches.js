@@ -1,5 +1,6 @@
 /** Formal match result, replay, forfeit, and withdrawal operations. */
 import { getTournamentFormat } from '../../formats/registry.js';
+import { SCORING_VERSION, validateScoringEvents } from '../scoring.js';
 import { recordLegacyResult } from './legacy-bracket.js';
 import { normalizeTournament } from './normalization.js';
 import { validateFinalScore } from './score-validation.js';
@@ -22,6 +23,9 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   delete match.outcome;
   delete match.forfeitPlayer;
   delete match.resolutionReason;
+  delete match.scoringVersion;
+  delete match.scoringEvents;
+  delete match.scoringHistoryInvalidated;
   const format = getTournamentFormat(normalized.format);
   const resetPhase = resetRound?.phase || 'preliminary';
   const swissStage = normalized.format === 'swiss'
@@ -43,14 +47,28 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   };
 }
 
-export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB, random = Math.random) {
+export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, scoreB, randomOrOptions = Math.random) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '進行中') throw new Error('賽事尚未開始或已經完成。');
   validateFinalScore(scoreA, scoreB);
+
+  const { random, hasScoringEvents, scoringEvents } = normalizeRecordOptions(randomOrOptions);
+  const sourceMatch = normalized.rounds?.[roundIndex]?.matches?.[matchIndex];
+  if (hasScoringEvents) {
+    if (!sourceMatch) throw new Error('找不到要記分的比賽。');
+    validateScoringEvents(scoringEvents, sourceMatch.playerA, sourceMatch.playerB, scoreA, scoreB);
+  }
   if (normalized.bracketVersion === 1) return recordLegacyResult(normalized, roundIndex, matchIndex, scoreA, scoreB);
 
   const format = getTournamentFormat(normalized.format);
   const result = format.recordResult(normalized, roundIndex, matchIndex, scoreA, scoreB, random);
+  if (hasScoringEvents) {
+    const completed = result.rounds?.[roundIndex]?.matches?.[matchIndex];
+    if (!completed || completed.status !== '已完成') throw new Error('正式賽果未正確完成，無法保存逐局得分事件。');
+    completed.scoringVersion = SCORING_VERSION;
+    completed.scoringEvents = structuredClone(scoringEvents);
+    delete completed.scoringHistoryInvalidated;
+  }
   return {
     ...normalized,
     ...result,
@@ -105,4 +123,15 @@ function findPendingMatch(tournament, player) {
     if (matchIndex >= 0) return { roundIndex, matchIndex };
   }
   return null;
+}
+
+
+function normalizeRecordOptions(value) {
+  if (typeof value === 'function') return { random: value, hasScoringEvents: false, scoringEvents: null };
+  if (!value || typeof value !== 'object') return { random: Math.random, hasScoringEvents: false, scoringEvents: null };
+  return {
+    random: typeof value.random === 'function' ? value.random : Math.random,
+    hasScoringEvents: Object.prototype.hasOwnProperty.call(value, 'scoringEvents'),
+    scoringEvents: value.scoringEvents,
+  };
 }

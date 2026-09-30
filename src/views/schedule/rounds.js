@@ -1,4 +1,5 @@
 /** 輪次、戰鬥台分組與對戰卡片畫面。 */
+import { scoringEventLabel } from '../../domain/scoring.js';
 import { escapeText } from './html-escape.js';
 
 export function visibleRoundEntries(tournament, projectedRounds) {
@@ -81,7 +82,7 @@ function matchCard(match, roundIndex, matchIndex, scoringEnabled, correctionEnab
     ? '預定輪空'
     : match.status === '可開始' && tournamentStatus === '已完成' ? '未進行（賽事已結束）'
     : !scoringEnabled && match.status === '可開始' ? '等待賽事開始' : match.status;
-  const content = `<div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''} ${match.forfeitPlayer === match.playerA ? 'administrative-loser' : ''}"><span>${escapeText(match.playerA)}${seedNames.has(match.playerA) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerA ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''} ${match.forfeitPlayer === match.playerB ? 'administrative-loser' : ''}"><span>${escapeText(match.playerB)}${seedNames.has(match.playerB) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerB ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreB}</b></div>`;
+  const content = `<div class="match-meta"><span>MATCH ${String(matchIndex + 1).padStart(2, '0')}</span><i>${displayStatus}</i></div><div class="competitor ${match.playerA === '輪空' || match.playerA === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerA ? 'winner' : ''} ${match.forfeitPlayer === match.playerA ? 'administrative-loser' : ''}"><span>${escapeText(match.playerA)}${seedNames.has(match.playerA) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerA ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreA}</b></div><div class="competitor ${match.playerB === '輪空' || match.playerB === '待定' ? 'muted' : ''} ${scoringEnabled && match.winner === match.playerB ? 'winner' : ''} ${match.forfeitPlayer === match.playerB ? 'administrative-loser' : ''}"><span>${escapeText(match.playerB)}${seedNames.has(match.playerB) ? '<small>SEED</small>' : ''}${match.forfeitPlayer === match.playerB ? `<small>${match.outcome === 'withdrawal' ? '退賽' : '棄賽'}</small>` : ''}</span><b>${scoreB}</b></div>${matchScoringHistory(match)}`;
   if (interactive) return `<button class="match-card is-ready" data-round-index="${roundIndex}" data-match-index="${matchIndex}">${content}</button>`;
   const canCorrect = correctionEnabled && match.status === '已完成' && !match.outcome;
   if (scoringEnabled && match.status === '已完成') return `<article class="match-card is-complete">${content}${canCorrect ? `<button class="match-replay" data-correct-round="${roundIndex}" data-correct-match="${matchIndex}">修正比分</button>` : ''}</article>`;
@@ -91,4 +92,20 @@ function matchCard(match, roundIndex, matchIndex, scoringEnabled, correctionEnab
 export function swissRoundArenaCount(tournament, round, arenaCount) {
   if (tournament.swissStage2Config && ['final', 'placement'].includes(round.phase)) return arenaCount;
   return round.phase === 'final' ? 1 : arenaCount;
+}
+
+
+function matchScoringHistory(match) {
+  if (match.status !== '已完成' || match.outcome) return '';
+  if (match.scoringVersion === 2 && Array.isArray(match.scoringEvents) && match.scoringEvents.length) {
+    const rows = match.scoringEvents.map((event, index) => {
+      const sign = Number(event.points) > 0 ? '+' : '';
+      return `<li><span>${String(index + 1).padStart(2, '0')}</span><b>${escapeText(event.player)}</b><i>${escapeText(scoringEventLabel(event))} ${sign}${Number(event.points)}</i></li>`;
+    }).join('');
+    return `<details class="match-scoring-history"><summary>逐局得分 · ${match.scoringEvents.length} 筆</summary><ol>${rows}</ol></details>`;
+  }
+  const reason = match.scoringHistoryInvalidated
+    ? '比分曾人工修正，原逐局紀錄已清除'
+    : '舊賽事或手動比分，無逐局得分資料';
+  return `<div class="match-scoring-history-empty">${reason}</div>`;
 }
