@@ -355,11 +355,20 @@ async function browserFlow(pin, e2eName, tempPlayer) {
       if (!ready) return false;
       ready.click();
       await waitFor('[data-scoreboard].match-mode');
-      for (let i = 0; i < scoreB; i += 1) click('[data-target="b"][data-value="1"]');
-      for (let i = 0; i < 4; i += 1) click('[data-target="a"][data-value="1"]');
+      scoreFormalSide('b', scoreB);
+      scoreFormalSide('a', 4);
       click('[data-action="complete-match"]');
       await waitUntil(() => q('.match-card.is-ready') || q('.champion-banner') || textIncludes('已完成'), 'save match');
       return true;
+    };
+
+    const scoreFormalSide = (side, total) => {
+      const methods = {
+        0: [], 1: ['spin'], 2: ['over'], 3: ['extreme'],
+        4: ['extreme', 'spin'], 5: ['extreme', 'over'], 6: ['extreme', 'extreme'],
+      }[Number(total)];
+      if (!methods) throw new Error('E2E 不支援 Scoring V2 總分：' + total);
+      methods.forEach((type) => click('[data-scoring-player="' + side + '"][data-scoring-type="' + type + '"]'));
     };
 
     for (let i = 0; i < 6 && !q('.champion-banner'); i += 1) {
