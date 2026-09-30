@@ -116,7 +116,13 @@ try {
   submit('[data-quick-score-form]');
   await waitFor('.match-card.is-ready');
   expect(document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'true', '成功登分後仍維持快速登分模式');
-  expect([...records.values()].some((item) => item.rounds?.some((round) => round.matches.some((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 3))), '單欄快速登分可送出 6:3 合法比分');
+  const quickSavedMatch = [...records.values()]
+    .flatMap((item) => item.rounds || [])
+    .flatMap((round) => round.matches || [])
+    .find((match) => match.status === '已完成' && match.scoreA === 6 && match.scoreB === 3);
+  expect(quickSavedMatch, '單欄快速登分可送出 6:3 合法比分');
+  expect(quickSavedMatch.scoringSource === 'quick_score', '快速登分保存明確來源標記');
+  expect(!quickSavedMatch.scoringEvents && !quickSavedMatch.scoringVersion, '快速登分不偽造逐局 scoring events');
   click('[data-action="toggle-quick-score"]');
   await waitUntil(() => document.querySelector('[data-action="toggle-quick-score"]')?.getAttribute('aria-pressed') === 'false');
   await forfeitReadyMatch();
@@ -338,7 +344,7 @@ function applyAction(tournament, type, payload) {
     randomize_schedule: () => randomizeTournamentSchedule(source),
     update_opening_pairings: () => updateOpeningPairings(source, payload.pairs),
     confirm_tournament_schedule: () => confirmTournamentSchedule(source),
-    record_match: () => recordMatchResult(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB),
+    record_match: () => recordMatchResult(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB, recordMatchOptions(payload)),
     correct_match_score: () => correctMatchScore(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB),
     repair_match_score: () => repairMatchScore(source, payload.roundIndex, payload.matchIndex, payload.scoreA, payload.scoreB, payload.reason),
     forfeit_match: () => forfeitMatch(source, payload.roundIndex, payload.matchIndex, payload.player),
@@ -350,6 +356,13 @@ function applyAction(tournament, type, payload) {
   };
   if (!actions[type]) throw new Error(`未模擬的賽事操作：${type}`);
   return actions[type]();
+}
+
+function recordMatchOptions(payload) {
+  const options = {};
+  if (Object.prototype.hasOwnProperty.call(payload, 'scoringEvents')) options.scoringEvents = payload.scoringEvents;
+  if (Object.prototype.hasOwnProperty.call(payload, 'scoringSource')) options.scoringSource = payload.scoringSource;
+  return Object.keys(options).length ? options : Math.random;
 }
 
 function json(body, status = 200) {
