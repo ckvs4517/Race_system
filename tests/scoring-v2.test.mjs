@@ -4,6 +4,8 @@ import {
   addScoringEvent,
   calculateScore,
   createAdjustmentScoringEvents,
+  removeScoringEvent,
+  replaceScoringEvent,
   scoringEventLabel,
   undoScoringEvent,
   validateScoringEvents,
@@ -36,6 +38,14 @@ assert.deepEqual(calculateScore(undone, 'A', 'B'), { scoreA: 1, scoreB: 2 }, 'un
 const adjusted = addScoringEvent(undone, 'A', 'adjustment', 3);
 assert.deepEqual(calculateScore(adjusted, 'A', 'B'), { scoreA: 4, scoreB: 2 }, 'manual adjustment remains an explicit event');
 assert.equal(scoringEventLabel(adjusted.at(-1)), '手動調整');
+
+const changedEvent = replaceScoringEvent(events, 0, 'B', 'over');
+assert.deepEqual(calculateScore(changedEvent, 'A', 'B'), { scoreA: 3, scoreB: 4 }, '任一得分紀錄可變更得分方與勝利方式');
+assert.equal(changedEvent[0].type, 'over');
+
+const removedEvent = removeScoringEvent(events, 1);
+assert.deepEqual(calculateScore(removedEvent, 'A', 'B'), { scoreA: 4, scoreB: 0 }, '任一指定得分紀錄可撤銷，不限最後一局');
+assert.equal(removedEvent.length, 2);
 
 assert.deepEqual(validateScoringEvents(events, 'A', 'B', 4, 2), { scoreA: 4, scoreB: 2 });
 assert.throws(
