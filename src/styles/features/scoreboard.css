@@ -52,3 +52,20 @@
 .scoring-manual-adjustment > div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; }
 .scoring-manual-adjustment button { min-width: 52px; min-height: 42px; background: #ffffff0d; color: #fff; border: 1px solid #ffffff38; border-radius: 7px; cursor: pointer; }
 .scoring-manual-adjustment button:disabled { opacity: .35; cursor: not-allowed; }
+
+
+@media (max-width: 900px) {
+  .scoreboard.scoring-v2 .score-side { min-height: 430px; }
+  .scoring-methods { width: min(320px, calc(100% - 28px)); }
+}
+
+@media (max-width: 620px) {
+  .scoreboard.scoring-v2 .score-side { min-height: 340px; }
+  .scoreboard.scoring-v2 .score-value { margin-block: 10px 14px; font-size: 78px; }
+  .scoring-methods { width: calc(100% - 28px); gap: 8px; }
+  .scoring-method { min-height: 58px; padding: 10px 12px; }
+  .scoring-method b { font-size: 14px; }.scoring-method span { font-size: 15px; }
+  .scoring-event-log > div { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .scoring-event-log ol { grid-template-columns: 1fr; }
+  .scoring-manual-adjustment > div { grid-template-columns: minmax(0, 1fr) auto auto; }
+}
