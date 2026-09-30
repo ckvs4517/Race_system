@@ -67,6 +67,8 @@ expect(pickerSource.includes('data-quick-score-value='), '快速登分 UI 使用
 expect(pickerSource.includes('type="hidden" name="score"'), '舊文字 parser 僅保留隱藏相容入口供底層能力使用');
 expect(!pickerSource.includes('type="text" inputmode="numeric"'), '快速登分不再顯示文字比分輸入欄');
 expect(pickerSource.includes('submit.disabled = Boolean(quickScoreDraft.submitting) || !status.valid'), '不完整或不合法比分無法按確認送出');
+expect(pickerSource.includes("scoringSource: 'quick_score'"), '快速登分送出明確 quick_score 來源標記');
+expect(!pickerSource.includes('createAdjustmentScoringEvents'), '快速登分不再把最終比分偽造成 adjustment scoringEvents');
 
 const pickerCss = readFileSync(new URL('../src/styles/quick-score-inline.css', import.meta.url), 'utf8');
 expect(pickerCss.includes('repeat(auto-fit, minmax(42px') && pickerCss.includes('min-height: 48px'), '0～6 分按鈕依可用寬度自動換列且保持觸控尺寸');
