@@ -46,7 +46,7 @@ export function applyTournamentAction(tournament, type, payload) {
     case 'randomize_schedule': return randomizeTournamentSchedule(tournament);
     case 'update_opening_pairings': return updateOpeningPairings(tournament, Array.isArray(payload.pairs) ? payload.pairs : []);
     case 'confirm_tournament_schedule': return confirmTournamentSchedule(tournament);
-    case 'record_match': return recordMatchResult(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
+    case 'record_match': return recordMatchResult(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB), Object.prototype.hasOwnProperty.call(payload, 'scoringEvents') ? { scoringEvents: payload.scoringEvents } : Math.random);
     case 'correct_match_score': return correctMatchScore(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB));
     case 'repair_match_score': return repairMatchScore(tournament, Number(payload.roundIndex), Number(payload.matchIndex), Number(payload.scoreA), Number(payload.scoreB), String(payload.reason || ''));
     case 'forfeit_match': return forfeitMatch(tournament, Number(payload.roundIndex), Number(payload.matchIndex), String(payload.player || ''));
