@@ -3,8 +3,9 @@ import {
   SCORING_METHODS,
   addScoringEvent,
   calculateScore,
+  removeScoringEvent,
+  replaceScoringEvent,
   scoringEventLabel,
-  undoScoringEvent,
 } from '../domain/scoring.js';
 import { pageHeader } from '../ui/shell.js';
 
@@ -25,8 +26,8 @@ export function scoreboardView(options = {}) {
       <div class="versus"><span>VS</span><i></i></div>
       ${scoreSide('b', 'RED SIDE', options.playerB || '選手 B', 'red', isMatch)}
     </div>
-    ${isMatch ? scoringEventLogView() : ''}
-    <div class="score-toolbar"><button data-action="undo-score">↶ ${isMatch ? '撤銷上一局' : '復原上一步'}</button><span>${isMatch ? '達到 4 分後仍需人工確認完成比賽' : '點擊按鈕記分，最低為 0 分'}</span><button data-action="swap-sides">⇄ ${isMatch ? '交換邊' : '交換選手'}</button></div>
+    ${isMatch ? scoringHistoryView(options.playerA || '選手 A', options.playerB || '選手 B') : ''}
+    <div class="score-toolbar">${isMatch ? '' : '<button data-action="undo-score">↶ 復原上一步</button>'}<span>${isMatch ? '達到 4 分後仍需人工確認完成比賽' : '點擊按鈕記分，最低為 0 分'}</span><button data-action="swap-sides">⇄ ${isMatch ? '交換邊' : '交換選手'}</button></div>
     ${isMatch ? `${manualAdjustmentView(options.playerA || '選手 A', options.playerB || '選手 B')}
     <div class="match-confirm"><p>勝方必須至少取得 4 分；Server 會重新驗證逐局事件加總與正式比分。</p><p class="match-sync-error" data-match-sync-error role="alert" hidden></p><button class="button button-primary" data-action="complete-match">確認結果並完成比賽</button></div>
     <div class="match-administrative"><div><b>棄賽判定</b><span>裁判判定後，對手將以 4：0 獲勝。</span></div><div><button class="button button-secondary" data-forfeit-player="${escapeAttribute(options.playerA || '')}">${escapeText(options.playerA || '選手 A')} 棄賽</button><button class="button button-secondary" data-forfeit-player="${escapeAttribute(options.playerB || '')}">${escapeText(options.playerB || '選手 B')} 棄賽</button></div></div>` : ''}
@@ -40,8 +41,39 @@ function scoreSide(id, label, name, color, isMatch) {
   return `<article class="score-side ${color}"><div class="side-label">${label}</div><input data-name="${id}" value="${escapeAttribute(name)}" aria-label="${escapeAttribute(name)}名稱" ${isMatch ? 'readonly' : ''}><div class="score-value" data-score="${id}">0</div>${controls}</article>`;
 }
 
-function scoringEventLogView() {
-  return `<section class="scoring-event-log" aria-live="polite"><div><b>最近得分</b><span>顯示最近 3 筆；完整紀錄會保存到歷史 Round</span></div><ol data-scoring-event-log><li class="is-empty">尚未記分</li></ol></section>`;
+function scoringHistoryView(playerA, playerB) {
+  const methodButtons = SCORING_METHODS.map((method) => `<button type="button" data-edit-scoring-type="${method.type}" data-edit-adjustment=""><b>${escapeText(method.label)}</b><span>+${method.points}</span></button>`).join('');
+  return `<div class="scoring-history-trigger">
+    <button type="button" class="button button-secondary" data-action="open-scoring-history"><span>得分紀錄</span><b><i data-scoring-event-count>0</i> 筆</b></button>
+    <span>可查看完整紀錄、變更判定或撤銷指定一局</span>
+  </div>
+  <dialog class="scoring-history-dialog" data-scoring-history-dialog>
+    <div class="scoring-history-card">
+      <div class="scoring-history-heading"><div><p class="kicker">SCORING HISTORY</p><h2>得分紀錄</h2></div><button type="button" data-close-scoring-history aria-label="關閉">×</button></div>
+      <div class="scoring-history-score">
+        <span><b data-history-player="a">${escapeText(playerA)}</b><strong data-history-score="a">0</strong></span>
+        <i>:</i>
+        <span><strong data-history-score="b">0</strong><b data-history-player="b">${escapeText(playerB)}</b></span>
+      </div>
+      <ol class="scoring-history-list" data-scoring-history-list><li class="is-empty">尚未記分</li></ol>
+      <section class="scoring-event-editor" data-scoring-event-editor hidden>
+        <div><p class="kicker">EDIT EVENT</p><h3>變更這筆得分</h3></div>
+        <label>得分方</label>
+        <div class="scoring-event-player-choice">
+          <button type="button" data-edit-scoring-player="a">${escapeText(playerA)}</button>
+          <button type="button" data-edit-scoring-player="b">${escapeText(playerB)}</button>
+        </div>
+        <label>得分方式</label>
+        <div class="scoring-event-method-choice">
+          ${methodButtons}
+          <button type="button" data-edit-scoring-type="adjustment" data-edit-adjustment="1"><b>手動調整</b><span>+1</span></button>
+          <button type="button" data-edit-scoring-type="adjustment" data-edit-adjustment="-1"><b>手動調整</b><span>−1</span></button>
+        </div>
+        <p class="scoring-event-editor-error" data-scoring-event-editor-error hidden></p>
+        <div class="scoring-event-editor-actions"><button type="button" class="button button-secondary" data-cancel-scoring-event-edit>取消</button><button type="button" class="button button-primary" data-save-scoring-event-edit>儲存變更</button></div>
+      </section>
+    </div>
+  </dialog>`;
 }
 
 function manualAdjustmentView(playerA, playerB) {
@@ -67,6 +99,9 @@ export function bindScoreboard(root, options = {}) {
   let scoringEvents = Array.isArray(options.scoringEvents) ? structuredClone(options.scoringEvents) : [];
   const syncErrorNode = root.querySelector('[data-match-sync-error]');
   const completeButton = root.querySelector('[data-action="complete-match"]');
+  const historyDialog = root.querySelector('[data-scoring-history-dialog]');
+  const historyEditor = root.querySelector('[data-scoring-event-editor]');
+  let editingEventIndex = null;
 
   const canonicalScore = () => {
     if (isMatch) return calculateScore(scoringEvents, options.playerA, options.playerB);
@@ -80,7 +115,7 @@ export function bindScoreboard(root, options = {}) {
     if (isMatch) {
       root.querySelector('[data-score="a"]').textContent = sideScore('a', canonical);
       root.querySelector('[data-score="b"]').textContent = sideScore('b', canonical);
-      renderScoringEvents(root, scoringEvents);
+      renderScoringHistory(root, scoringEvents, sidePlayers, options.playerA, options.playerB);
       const finished = Math.max(canonical.scoreA, canonical.scoreB) >= 4;
       root.querySelectorAll('[data-scoring-type]').forEach((button) => { button.disabled = finished; });
       root.querySelectorAll('[data-adjustment="1"]').forEach((button) => { button.disabled = finished; });
@@ -145,15 +180,80 @@ export function bindScoreboard(root, options = {}) {
   });
 
   root.querySelector('[data-action="undo-score"]')?.addEventListener('click', () => {
-    if (isMatch) {
-      if (!scoringEvents.length) return;
-      scoringEvents = undoScoringEvent(scoringEvents);
-    } else {
-      const previous = history.pop(); if (!previous) return;
-      score.a = previous.a; score.b = previous.b;
-    }
+    const previous = history.pop(); if (!previous) return;
+    score.a = previous.a; score.b = previous.b;
     render();
     notifyScoreChange();
+  });
+
+  root.querySelector('[data-action="open-scoring-history"]')?.addEventListener('click', () => {
+    closeScoringEventEditor(historyEditor);
+    historyDialog?.showModal();
+  });
+  root.querySelector('[data-close-scoring-history]')?.addEventListener('click', () => historyDialog?.close());
+  root.querySelector('[data-cancel-scoring-event-edit]')?.addEventListener('click', () => {
+    editingEventIndex = null;
+    closeScoringEventEditor(historyEditor);
+  });
+
+  historyDialog?.addEventListener('click', (event) => {
+    const editButton = event.target.closest('[data-edit-scoring-event]');
+    if (editButton) {
+      editingEventIndex = Number(editButton.dataset.editScoringEvent);
+      openScoringEventEditor(historyEditor, scoringEvents[editingEventIndex], sidePlayers, options.playerA, options.playerB);
+      return;
+    }
+    const removeButton = event.target.closest('[data-remove-scoring-event]');
+    if (removeButton) {
+      const index = Number(removeButton.dataset.removeScoringEvent);
+      if (!confirm(`確定撤銷第 ${index + 1} 局的得分紀錄嗎？`)) return;
+      try {
+        const nextEvents = removeScoringEvent(scoringEvents, index);
+        calculateScore(nextEvents, options.playerA, options.playerB);
+        scoringEvents = nextEvents;
+        editingEventIndex = null;
+        closeScoringEventEditor(historyEditor);
+        render();
+        notifyScoreChange();
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+    const playerButton = event.target.closest('[data-edit-scoring-player]');
+    if (playerButton && historyEditor) {
+      historyEditor.dataset.player = playerButton.dataset.editScoringPlayer;
+      updateScoringEventEditorSelection(historyEditor);
+      return;
+    }
+    const methodButton = event.target.closest('[data-edit-scoring-type]');
+    if (methodButton && historyEditor) {
+      historyEditor.dataset.type = methodButton.dataset.editScoringType;
+      historyEditor.dataset.adjustment = methodButton.dataset.editAdjustment || '';
+      updateScoringEventEditorSelection(historyEditor);
+    }
+  });
+
+  root.querySelector('[data-save-scoring-event-edit]')?.addEventListener('click', () => {
+    if (!historyEditor || editingEventIndex === null) return;
+    const player = historyEditor.dataset.player === 'b' ? sidePlayers.b : sidePlayers.a;
+    const type = historyEditor.dataset.type || '';
+    const adjustment = type === 'adjustment' ? Number(historyEditor.dataset.adjustment) : null;
+    const errorNode = historyEditor.querySelector('[data-scoring-event-editor-error]');
+    try {
+      const nextEvents = replaceScoringEvent(scoringEvents, editingEventIndex, player, type, adjustment);
+      calculateScore(nextEvents, options.playerA, options.playerB);
+      scoringEvents = nextEvents;
+      editingEventIndex = null;
+      closeScoringEventEditor(historyEditor);
+      render();
+      notifyScoreChange();
+    } catch (error) {
+      if (errorNode) {
+        errorNode.textContent = error.message;
+        errorNode.hidden = false;
+      }
+    }
   });
 
   root.querySelector('[data-action="swap-sides"]')?.addEventListener('click', () => {
@@ -211,28 +311,110 @@ export function bindScoreboard(root, options = {}) {
   }));
 }
 
-function renderScoringEvents(root, events) {
-  const list = root.querySelector('[data-scoring-event-log]');
+function renderScoringHistory(root, events, sidePlayers, playerA, playerB) {
+  const count = root.querySelector('[data-scoring-event-count]');
+  if (count) count.textContent = String(events.length);
+  const list = root.querySelector('[data-scoring-history-list]');
   if (!list) return;
+
+  const score = calculateScore(events, playerA, playerB);
+  const scoreA = sidePlayers.a === playerA ? score.scoreA : score.scoreB;
+  const scoreB = sidePlayers.b === playerB ? score.scoreB : score.scoreA;
+  const playerANode = root.querySelector('[data-history-player="a"]');
+  const playerBNode = root.querySelector('[data-history-player="b"]');
+  const scoreANode = root.querySelector('[data-history-score="a"]');
+  const scoreBNode = root.querySelector('[data-history-score="b"]');
+  if (playerANode) playerANode.textContent = sidePlayers.a;
+  if (playerBNode) playerBNode.textContent = sidePlayers.b;
+  if (scoreANode) scoreANode.textContent = String(scoreA);
+  if (scoreBNode) scoreBNode.textContent = String(scoreB);
+
   list.replaceChildren();
-  const recent = events.slice(-3).reverse();
-  if (!recent.length) {
+  if (!events.length) {
     const empty = document.createElement('li');
     empty.className = 'is-empty';
     empty.textContent = '尚未記分';
     list.append(empty);
     return;
   }
-  recent.forEach((event) => {
+
+  events.forEach((scoringEvent, index) => {
     const item = document.createElement('li');
+    item.className = 'scoring-history-item';
+
+    const sequence = document.createElement('span');
+    sequence.className = 'scoring-history-sequence';
+    sequence.textContent = String(index + 1).padStart(2, '0');
+
+    const detail = document.createElement('div');
     const player = document.createElement('b');
     const method = document.createElement('span');
-    const points = document.createElement('i');
-    player.textContent = event.player;
-    method.textContent = scoringEventLabel(event);
-    points.textContent = event.points > 0 ? `+${event.points}` : String(event.points);
-    item.append(player, method, points);
+    player.textContent = scoringEvent.player;
+    method.textContent = scoringEventLabel(scoringEvent);
+    detail.append(player, method);
+
+    const points = document.createElement('strong');
+    points.textContent = scoringEvent.points > 0 ? `+${scoringEvent.points}` : String(scoringEvent.points);
+
+    const actions = document.createElement('div');
+    actions.className = 'scoring-history-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.dataset.editScoringEvent = String(index);
+    edit.textContent = '變更';
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.dataset.removeScoringEvent = String(index);
+    remove.textContent = '撤銷';
+    actions.append(edit, remove);
+
+    item.append(sequence, detail, points, actions);
     list.append(item);
+  });
+}
+
+function openScoringEventEditor(editor, scoringEvent, sidePlayers, playerA, playerB) {
+  if (!editor || !scoringEvent) return;
+  const side = scoringEvent.player === sidePlayers.b ? 'b' : 'a';
+  editor.dataset.player = side;
+  editor.dataset.type = scoringEvent.type || '';
+  editor.dataset.adjustment = scoringEvent.type === 'adjustment' ? String(scoringEvent.points) : '';
+  editor.querySelector('[data-edit-scoring-player="a"]').textContent = sidePlayers.a || playerA;
+  editor.querySelector('[data-edit-scoring-player="b"]').textContent = sidePlayers.b || playerB;
+  const error = editor.querySelector('[data-scoring-event-editor-error]');
+  if (error) {
+    error.textContent = '';
+    error.hidden = true;
+  }
+  updateScoringEventEditorSelection(editor);
+  editor.hidden = false;
+  editor.scrollIntoView({ block: 'nearest' });
+}
+
+function closeScoringEventEditor(editor) {
+  if (!editor) return;
+  editor.hidden = true;
+  delete editor.dataset.player;
+  delete editor.dataset.type;
+  delete editor.dataset.adjustment;
+  const error = editor.querySelector('[data-scoring-event-editor-error]');
+  if (error) {
+    error.textContent = '';
+    error.hidden = true;
+  }
+}
+
+function updateScoringEventEditorSelection(editor) {
+  editor.querySelectorAll('[data-edit-scoring-player]').forEach((button) => {
+    const selected = button.dataset.editScoringPlayer === editor.dataset.player;
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  editor.querySelectorAll('[data-edit-scoring-type]').forEach((button) => {
+    const selected = button.dataset.editScoringType === editor.dataset.type
+      && (button.dataset.editScoringType !== 'adjustment' || button.dataset.editAdjustment === editor.dataset.adjustment);
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
 }
 
