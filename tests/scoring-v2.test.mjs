@@ -18,6 +18,7 @@ import {
   startTournament,
 } from '../src/domain/tournament.js';
 import { applyTournamentAction } from '../worker/services/tournament-actions.js';
+import { scheduleView } from '../src/views/schedule.js';
 
 assert.deepEqual(
   SCORING_METHODS.map(({ type, points }) => [type, points]),
@@ -114,6 +115,11 @@ assert.equal(quickSaved.scoreB, 2);
 assert.equal(quickSaved.scoringSource, 'quick_score', 'Worker/domain persist explicit Quick Score source');
 assert.equal('scoringVersion' in quickSaved, false, 'Quick Score does not claim Scoring V2 event history');
 assert.equal('scoringEvents' in quickSaved, false, 'Quick Score does not fabricate scoring events');
+assert.match(
+  scheduleView([quickCompleted], quickCompleted.id, true),
+  /快速登分 · 無逐局得分資料/,
+  'historical Round identifies Quick Score as having no per-round event detail',
+);
 assert.throws(
   () => applyTournamentAction(quickTournament, 'record_match', {
     roundIndex: 0,
