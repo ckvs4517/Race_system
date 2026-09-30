@@ -68,7 +68,9 @@ try {
   expect(completedView.includes('賽事排行榜'), '賽事結束頁顯示排行榜');
   expect(completedView.includes('data-replay-round'), '已完成的對戰節點提供重新比賽按鈕');
   expect(!scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' }).includes('data-action="restart-match"'), '尚未送出結果的記分板不顯示重新比賽按鈕');
-  expect(scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' }).includes('data-forfeit-player="A"'), '正式記分板提供選手棄賽判定入口');
+  const scoringV2Markup = scoreboardView({ mode: 'match', tournamentName: '測試', roundName: '第一輪', playerA: 'A', playerB: 'B' });
+  expect(scoringV2Markup.includes('data-forfeit-player="A"'), '正式記分板提供選手棄賽判定入口');
+  expect(scoringV2Markup.includes('data-action="open-scoring-history"') && !scoringV2Markup.includes('撤銷上一局'), '正式記分板改用得分紀錄視窗管理事件，不再提供撤銷上一局');
 
   const openingMatchIndex = tournament.rounds[0].matches.findIndex((match) => match.id === openingPlayable[0].id);
   const replayedTournament = resetCompletedMatch(tournament, 0, openingMatchIndex);
@@ -168,6 +170,19 @@ try {
   const completeButton = scoreboardFixture.querySelector('[data-action="complete-match"]');
   scoreboardFixture.querySelector('[data-scoring-player="a"][data-scoring-type="extreme"]').click();
   scoreboardFixture.querySelector('[data-scoring-player="a"][data-scoring-type="spin"]').click();
+  scoreboardFixture.querySelector('[data-action="open-scoring-history"]').click();
+  const historyDialog = scoreboardFixture.querySelector('[data-scoring-history-dialog]');
+  expect(historyDialog.open, '得分紀錄按鈕會開啟完整紀錄視窗');
+  expect(scoreboardFixture.querySelectorAll('[data-edit-scoring-event]').length === 2, '得分紀錄視窗列出完整事件');
+  scoreboardFixture.querySelector('[data-edit-scoring-event="0"]').click();
+  scoreboardFixture.querySelector('[data-edit-scoring-type="over"]').click();
+  scoreboardFixture.querySelector('[data-save-scoring-event-edit]').click();
+  expect(scoreboardFixture.querySelector('[data-score="a"]').textContent === '3', '可從得分紀錄變更既有勝利方式並立即重算比分');
+  scoreboardFixture.querySelector('[data-remove-scoring-event="1"]').click();
+  expect(scoreboardFixture.querySelector('[data-score="a"]').textContent === '2', '可撤銷指定得分紀錄而不限最後一局');
+  expect(scoreboardFixture.querySelector('[data-scoring-event-count]').textContent === '1', '得分紀錄筆數會即時更新');
+  scoreboardFixture.querySelector('[data-close-scoring-history]').click();
+  scoreboardFixture.querySelector('[data-scoring-player="a"][data-scoring-type="over"]').click();
   completeButton.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(!completeButton.disabled && completeButton.textContent === '重新送出比分', '賽果同步失敗後保留重新送出按鈕');
