@@ -34,6 +34,27 @@ export function undoScoringEvent(events) {
   return Array.isArray(events) && events.length ? events.slice(0, -1) : [];
 }
 
+export function replaceScoringEvent(events, index, player, type, adjustmentPoints = null) {
+  const source = Array.isArray(events) ? events : [];
+  const targetIndex = Number(index);
+  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= source.length) {
+    throw new Error('找不到要變更的得分紀錄。');
+  }
+  const [replacement] = addScoringEvent([], player, type, adjustmentPoints);
+  const next = [...source];
+  next[targetIndex] = replacement;
+  return next;
+}
+
+export function removeScoringEvent(events, index) {
+  const source = Array.isArray(events) ? events : [];
+  const targetIndex = Number(index);
+  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= source.length) {
+    throw new Error('找不到要撤銷的得分紀錄。');
+  }
+  return source.filter((_, eventIndex) => eventIndex !== targetIndex);
+}
+
 export function calculateScore(events, playerA, playerB) {
   const score = { scoreA: 0, scoreB: 0 };
   const players = new Set([String(playerA || ''), String(playerB || '')]);
