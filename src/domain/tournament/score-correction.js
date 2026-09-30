@@ -25,6 +25,11 @@ export function analyzeMatchScoreCorrection(tournament, roundIndex, matchIndex, 
   correctedMatch.scoreA = scoreA;
   correctedMatch.scoreB = scoreB;
   correctedMatch.winner = correctedWinner;
+  if (correctedMatch.scoringVersion || correctedMatch.scoringEvents) {
+    delete correctedMatch.scoringVersion;
+    delete correctedMatch.scoringEvents;
+    correctedMatch.scoringHistoryInvalidated = true;
+  }
   const candidate = {
     ...normalized,
     rounds,
