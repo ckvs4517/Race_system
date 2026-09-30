@@ -348,13 +348,13 @@ function renderScoringHistory(root, events, sidePlayers, playerA, playerB) {
 
     const detail = document.createElement('div');
     const player = document.createElement('b');
-    const method = document.createElement('span');
     player.textContent = scoringEvent.player;
-    method.textContent = scoringEventLabel(scoringEvent);
-    detail.append(player, method);
+    detail.append(player);
 
     const points = document.createElement('strong');
-    points.textContent = scoringEvent.points > 0 ? `+${scoringEvent.points}` : String(scoringEvent.points);
+    points.className = 'scoring-history-result';
+    const pointText = scoringEvent.points > 0 ? `+${scoringEvent.points}` : String(scoringEvent.points);
+    points.textContent = `${scoringEventLabel(scoringEvent)} ${pointText}`;
 
     const actions = document.createElement('div');
     actions.className = 'scoring-history-actions';
