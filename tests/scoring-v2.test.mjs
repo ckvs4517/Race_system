@@ -13,6 +13,7 @@ import {
 import {
   createTournament,
   recordMatchResult,
+  resetCompletedMatch,
   setDraftPlayerCheckedIn,
   startTournament,
 } from '../src/domain/tournament.js';
@@ -59,8 +60,8 @@ assert.throws(
   'current input cannot lie about a victory method point value',
 );
 
-const quickEvents = createAdjustmentScoringEvents('A', 'B', 4, 2);
-assert.deepEqual(calculateScore(quickEvents, 'A', 'B'), { scoreA: 4, scoreB: 2 }, 'numeric Quick Score can still persist Scoring V2 adjustment events');
+const aggregateAdjustmentEvents = createAdjustmentScoringEvents('A', 'B', 4, 2);
+assert.deepEqual(calculateScore(aggregateAdjustmentEvents, 'A', 'B'), { scoreA: 4, scoreB: 2 }, 'aggregate adjustment helper remains valid for explicit manual adjustment use cases');
 
 let tournament = createTournament('Scoring V2', ['A', 'B'], 'single_elimination');
 tournament = setDraftPlayerCheckedIn(tournament, 'A', true);
@@ -94,5 +95,49 @@ const workerCompleted = applyTournamentAction(tournament, 'record_match', {
   scoringEvents: canonicalEvents,
 });
 assert.equal(workerCompleted.rounds[0].matches[0].scoringVersion, 2, 'Worker action revalidates and saves Scoring V2 events');
+
+
+let quickTournament = createTournament('Quick Score source', ['Q1', 'Q2'], 'single_elimination');
+quickTournament = setDraftPlayerCheckedIn(quickTournament, 'Q1', true);
+quickTournament = setDraftPlayerCheckedIn(quickTournament, 'Q2', true);
+quickTournament = startTournament(quickTournament);
+const quickCompleted = applyTournamentAction(quickTournament, 'record_match', {
+  roundIndex: 0,
+  matchIndex: 0,
+  scoreA: 4,
+  scoreB: 2,
+  scoringSource: 'quick_score',
+});
+const quickSaved = quickCompleted.rounds[0].matches[0];
+assert.equal(quickSaved.scoreA, 4);
+assert.equal(quickSaved.scoreB, 2);
+assert.equal(quickSaved.scoringSource, 'quick_score', 'Worker/domain persist explicit Quick Score source');
+assert.equal('scoringVersion' in quickSaved, false, 'Quick Score does not claim Scoring V2 event history');
+assert.equal('scoringEvents' in quickSaved, false, 'Quick Score does not fabricate scoring events');
+assert.throws(
+  () => applyTournamentAction(quickTournament, 'record_match', {
+    roundIndex: 0,
+    matchIndex: 0,
+    scoreA: 4,
+    scoreB: 2,
+    scoringSource: 'made_up_source',
+  }),
+  /不支援的記分來源/,
+  'Worker/domain reject unknown scoring source',
+);
+assert.throws(
+  () => applyTournamentAction(quickTournament, 'record_match', {
+    roundIndex: 0,
+    matchIndex: 0,
+    scoreA: 4,
+    scoreB: 2,
+    scoringSource: 'quick_score',
+    scoringEvents: createAdjustmentScoringEvents('Q1', 'Q2', 4, 2),
+  }),
+  /快速登分不能同時偽造逐局得分事件/,
+  'Quick Score source cannot be combined with fake scoring events',
+);
+const replayedQuick = resetCompletedMatch(quickCompleted, 0, 0);
+assert.equal('scoringSource' in replayedQuick.rounds[0].matches[0], false, 'Replay clears Quick Score source metadata');
 
 console.log('PASS Scoring V2 domain and Worker validation');
