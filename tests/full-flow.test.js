@@ -194,10 +194,24 @@ try {
 async function completeReadyMatch(scoreA, scoreB) {
   click('.match-card.is-ready');
   await waitFor('[data-action="complete-match"]');
-  for (let index = 0; index < scoreA; index += 1) click('[data-target="a"][data-value="1"]');
-  for (let index = 0; index < scoreB; index += 1) click('[data-target="b"][data-value="1"]');
+  scoreFormalSide('b', scoreB);
+  scoreFormalSide('a', scoreA);
   click('[data-action="complete-match"]');
   await waitFor('.match-card.is-ready, .leaderboard');
+}
+
+function scoreFormalSide(side, total) {
+  const methods = {
+    0: [],
+    1: ['spin'],
+    2: ['over'],
+    3: ['extreme'],
+    4: ['extreme', 'spin'],
+    5: ['extreme', 'over'],
+    6: ['extreme', 'extreme'],
+  }[Number(total)];
+  if (!methods) throw new Error(`測試不支援 Scoring V2 總分：${total}`);
+  methods.forEach((type) => click(`[data-scoring-player="${side}"][data-scoring-type="${type}"]`));
 }
 
 async function forfeitReadyMatch() {
