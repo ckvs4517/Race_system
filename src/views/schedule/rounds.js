@@ -106,6 +106,8 @@ function matchScoringHistory(match) {
   }
   const reason = match.scoringHistoryInvalidated
     ? '比分曾人工修正，原逐局紀錄已清除'
-    : '舊賽事或手動比分，無逐局得分資料';
+    : match.scoringSource === 'quick_score'
+      ? '快速登分 · 無逐局得分資料'
+      : '舊賽事或手動比分，無逐局得分資料';
   return `<div class="match-scoring-history-empty">${reason}</div>`;
 }
