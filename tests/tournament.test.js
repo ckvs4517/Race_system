@@ -159,13 +159,15 @@ try {
   scoreboardFixture.innerHTML = scoreboardView({ mode: 'match', tournamentName: '連線失敗測試', roundName: '第一輪', playerA: 'A', playerB: 'B' });
   document.body.append(scoreboardFixture);
   bindScoreboard(scoreboardFixture, {
+    mode: 'match',
     playerA: 'A',
     playerB: 'B',
     onComplete: async () => { throw new Error('送出賽果失敗'); },
     onForfeit: async () => { throw new Error('棄賽判定失敗'); },
   });
   const completeButton = scoreboardFixture.querySelector('[data-action="complete-match"]');
-  for (let index = 0; index < 4; index += 1) scoreboardFixture.querySelector('[data-target="a"][data-value="1"]').click();
+  scoreboardFixture.querySelector('[data-scoring-player="a"][data-scoring-type="extreme"]').click();
+  scoreboardFixture.querySelector('[data-scoring-player="a"][data-scoring-type="spin"]').click();
   completeButton.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(!completeButton.disabled && completeButton.textContent === '重新送出比分', '賽果同步失敗後保留重新送出按鈕');
