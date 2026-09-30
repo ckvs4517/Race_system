@@ -26,6 +26,7 @@ export function resetCompletedMatch(tournament, roundIndex, matchIndex) {
   delete match.scoringVersion;
   delete match.scoringEvents;
   delete match.scoringHistoryInvalidated;
+  delete match.scoringSource;
   const format = getTournamentFormat(normalized.format);
   const resetPhase = resetRound?.phase || 'preliminary';
   const swissStage = normalized.format === 'swiss'
@@ -52,7 +53,7 @@ export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, sc
   if (normalized.status !== '進行中') throw new Error('賽事尚未開始或已經完成。');
   validateFinalScore(scoreA, scoreB);
 
-  const { random, hasScoringEvents, scoringEvents } = normalizeRecordOptions(randomOrOptions);
+  const { random, hasScoringEvents, scoringEvents, scoringSource } = normalizeRecordOptions(randomOrOptions);
   const sourceMatch = normalized.rounds?.[roundIndex]?.matches?.[matchIndex];
   if (hasScoringEvents) {
     if (!sourceMatch) throw new Error('找不到要記分的比賽。');
@@ -62,13 +63,16 @@ export function recordMatchResult(tournament, roundIndex, matchIndex, scoreA, sc
 
   const format = getTournamentFormat(normalized.format);
   const result = format.recordResult(normalized, roundIndex, matchIndex, scoreA, scoreB, random);
+  const completed = result.rounds?.[roundIndex]?.matches?.[matchIndex];
+  if ((hasScoringEvents || scoringSource) && (!completed || completed.status !== '已完成')) {
+    throw new Error('正式賽果未正確完成，無法保存記分來源資料。');
+  }
   if (hasScoringEvents) {
-    const completed = result.rounds?.[roundIndex]?.matches?.[matchIndex];
-    if (!completed || completed.status !== '已完成') throw new Error('正式賽果未正確完成，無法保存逐局得分事件。');
     completed.scoringVersion = SCORING_VERSION;
     completed.scoringEvents = structuredClone(scoringEvents);
     delete completed.scoringHistoryInvalidated;
   }
+  if (scoringSource) completed.scoringSource = scoringSource;
   return {
     ...normalized,
     ...result,
@@ -127,11 +131,23 @@ function findPendingMatch(tournament, player) {
 
 
 function normalizeRecordOptions(value) {
-  if (typeof value === 'function') return { random: value, hasScoringEvents: false, scoringEvents: null };
-  if (!value || typeof value !== 'object') return { random: Math.random, hasScoringEvents: false, scoringEvents: null };
+  if (typeof value === 'function') return { random: value, hasScoringEvents: false, scoringEvents: null, scoringSource: null };
+  if (!value || typeof value !== 'object') return { random: Math.random, hasScoringEvents: false, scoringEvents: null, scoringSource: null };
+  const hasScoringEvents = Object.prototype.hasOwnProperty.call(value, 'scoringEvents');
+  const scoringSource = normalizeScoringSource(value.scoringSource);
+  if (hasScoringEvents && scoringSource === 'quick_score') {
+    throw new Error('快速登分不能同時偽造逐局得分事件。');
+  }
   return {
     random: typeof value.random === 'function' ? value.random : Math.random,
-    hasScoringEvents: Object.prototype.hasOwnProperty.call(value, 'scoringEvents'),
+    hasScoringEvents,
     scoringEvents: value.scoringEvents,
+    scoringSource,
   };
+}
+
+function normalizeScoringSource(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (value === 'quick_score') return 'quick_score';
+  throw new Error('不支援的記分來源。');
 }
