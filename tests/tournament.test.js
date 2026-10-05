@@ -32,6 +32,28 @@ try {
   expect(tournament.rounds.length === 0, '修改名單後仍保持無賽程狀態');
   let scheduling = prepareTournamentSchedule(tournament);
   expect(scheduling.status === '排程中' && scheduling.rounds.length === 0, '確認報到後進入獨立排程階段');
+
+  const manualScheduling = updateOpeningPairings(scheduling, [['A', 'B'], ['C', 'D'], ['E', '輪空']]);
+  expect(manualScheduling.status === '排程中' && manualScheduling.rounds.length === 1, '現場抽籤可在未隨機分組前直接建立首輪');
+  expect(manualScheduling.rounds[0].matches[0].playerA === 'A' && manualScheduling.rounds[0].matches[2].winner === 'E', '現場抽籤保留指定配對並正確處理輪空');
+  expect(confirmTournamentSchedule(manualScheduling).status === '進行中', '現場抽籤建立的首輪可沿用既有確認賽程流程');
+
+  const rejectsOpeningPairs = (source, pairs) => {
+    try { updateOpeningPairings(source, pairs); return false; } catch { return true; }
+  };
+  expect(rejectsOpeningPairs(scheduling, [['A', 'B'], ['A', 'C'], ['D', '輪空']]), '現場抽籤拒絕重複或遺漏選手');
+  expect(rejectsOpeningPairs(scheduling, [['A', 'A'], ['B', 'C'], ['D', '輪空']]), '現場抽籤拒絕選手與自己對戰');
+  expect(rejectsOpeningPairs(scheduling, [['A', 'B'], ['C', 'D'], ['E', 'A']]), '奇數人現場抽籤缺少輪空時會拒絕');
+
+  let swissManual = prepareTournamentSchedule(checkInAll(createTournament('瑞士現場抽籤', ['S1', 'S2', 'S3', 'S4'], 'swiss')));
+  swissManual = updateOpeningPairings(swissManual, [['S1', 'S4'], ['S2', 'S3']]);
+  expect(swissManual.rounds[0].matches[0].playerB === 'S4', '瑞士制第一輪支援直接輸入現場抽籤結果');
+
+  const roundRobinScheduling = prepareTournamentSchedule(checkInAll(createTournament('循環賽手動阻擋', ['R1', 'R2', 'R3', 'R4'], 'round_robin')));
+  expect(rejectsOpeningPairs(roundRobinScheduling, [['R1', 'R2'], ['R3', 'R4']]), '循環賽不允許以手動首輪破壞完整 series ordering');
+  const winStreakScheduling = prepareTournamentSchedule(checkInAll(createTournament('守擂手動阻擋', ['W1', 'W2', 'W3'], 'win_streak')));
+  expect(rejectsOpeningPairs(winStreakScheduling, [['W1', 'W2'], ['W3', '輪空']]), '守擂賽不允許以手動首輪破壞 queue ordering');
+
   scheduling = randomizeTournamentSchedule(scheduling, () => 0);
   expect(scheduling.rounds[0].matches.filter((match) => match.status === '輪空晉級').length === 1, '奇數人隨機分組會安排一位輪空');
   expect(scheduling.rounds[0].matches.filter((match) => match.status === '可開始').length === 2, '其餘四位選手完成兩組配對');

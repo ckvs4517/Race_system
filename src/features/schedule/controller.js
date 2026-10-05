@@ -322,13 +322,28 @@ function bindMatchAdministration(root, state, requestRender) {
 }
 
 function bindTournamentLifecycle(root, state, requestRender) {
+  root.querySelector('[data-action="show-manual-pairing"]')?.addEventListener('click', () => {
+    const panel = root.querySelector('[data-manual-pairing-panel]');
+    if (!panel) return;
+    panel.hidden = false;
+    root.querySelector('[data-action="show-manual-pairing"]')?.setAttribute('aria-pressed', 'true');
+    panel.querySelector('select')?.focus();
+  });
   root.querySelectorAll('[data-opening-pairings-form] select').forEach((select) => select.addEventListener('change', () => {
     const form = select.form;
     const selected = [...form.querySelectorAll('select')];
-    const duplicate = selected.find((other) => other !== select && other.value === select.value);
-    if (!duplicate) return;
+    if (!select.value) {
+      selected.forEach((item) => { item.dataset.previousValue = item.value; });
+      return;
+    }
+    const duplicate = selected.find((other) => other !== select && other.value && other.value === select.value);
+    if (!duplicate) {
+      selected.forEach((item) => { item.dataset.previousValue = item.value; });
+      return;
+    }
     const previous = select.dataset.previousValue || duplicate.dataset.previousValue || '';
     if (previous && previous !== select.value) duplicate.value = previous;
+    else select.value = '';
     selected.forEach((item) => { item.dataset.previousValue = item.value; });
   }));
   root.querySelectorAll('[data-opening-pairings-form] select').forEach((select) => { select.dataset.previousValue = select.value; });
@@ -352,7 +367,7 @@ function bindTournamentLifecycle(root, state, requestRender) {
     if (!confirm(`確定以 ${checkedInCount} 位已報到選手進入排程階段嗎？\n${absentCount} 位未報到者會標記為未出席；公開報名網址也會立即撤銷。`)) return;
     try {
       await executeTournamentAction(tournament.id, 'prepare_tournament_schedule');
-      showToast('報到名單已鎖定，請進行隨機分組。');
+      showToast('報到名單已鎖定，請選擇系統隨機或現場抽籤建立首輪。');
     } catch (error) {
       showToast(error.message, 'error');
     }

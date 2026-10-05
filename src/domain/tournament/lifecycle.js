@@ -176,10 +176,10 @@ export function randomizeTournamentSchedule(tournament, random = Math.random) {
 export function updateOpeningPairings(tournament, pairs) {
   const normalized = normalizeTournament(tournament);
   if (normalized.status !== '排程中') throw new Error('只有排程階段可以調整對戰。');
-  if (!normalized.rounds.length) throw new Error('請先隨機分組。');
+  const format = getTournamentFormat(normalized.format);
+  if (format.supportsOpeningPairingEdit === false) throw new Error('此賽制不支援手動調整首輪對戰。');
   const activePlayers = normalized.players.filter((player) => normalized.participantStates?.[player]?.status === 'active');
   const cleanPairs = validateOpeningPairs(pairs, activePlayers);
-  const format = getTournamentFormat(normalized.format);
   const byePlayer = cleanPairs.find(([, playerB]) => playerB === BYE)?.[0] || null;
   const seedIndexes = format.id === 'single_elimination' && byePlayer ? [activePlayers.indexOf(byePlayer)] : [];
   const template = format.createOpeningRound(activePlayers, seedIndexes);
