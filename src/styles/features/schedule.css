@@ -77,6 +77,12 @@
 .pairing-editor { margin: 18px 0; padding: 22px; background: linear-gradient(135deg, #111821, #0b1016); border: 1px solid #367df466; border-radius: 12px; }
 .pairing-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
 .pairing-editor-heading h2 { margin: 5px 0 6px; font-size: 24px; }.pairing-editor-heading p:not(.kicker) { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.pairing-method-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.pairing-method-actions .button { min-width: 150px; }
+.manual-pairing-panel { padding-top: 16px; border-top: 1px solid var(--line); }
+.manual-pairing-panel[hidden] { display: none; }
+.manual-pairing-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.manual-pairing-heading b { display: block; font-size: 15px; }.manual-pairing-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .pairing-editor form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: 9px; }
 .pairing-editor-row { min-height: 64px; display: grid; grid-template-columns: 54px minmax(0, 1fr) 32px minmax(0, 1fr); align-items: center; gap: 8px; padding: 9px 10px; background: #090d13; border-bottom: 1px solid var(--line); }
 .pairing-editor-row:nth-child(odd) { border-right: 1px solid var(--line); }
