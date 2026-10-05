@@ -1,68 +1,70 @@
-# Change Spec: <title>
+# Change Spec：<標題>
 
 Related issue: #<number>
 Status: proposed | accepted | implemented | archived
 
-## Goal
+## 目標
 
-Describe the user/system outcome in a few sentences.
+用幾句話描述這次修改希望達成的使用者／系統結果。
 
-## Non-goals
+## 不在本次範圍
 
-- Explicitly list adjacent behavior that is not part of this change.
+- 明確列出與本功能相鄰、但這次不處理的行為。
 
-## Current behavior
+## 目前行為
 
-Describe only the existing behavior needed to understand the change. Link to the relevant `spec/current/*.md` files.
+只描述理解這次修改所需要的現況。
+
+請連結相關的 `spec/current/*.md`。
 
 ## Requirements
 
-Use stable IDs.
+使用穩定 Requirement ID。
 
 ### CHG-001
 
-WHEN <condition>
-THEN the system SHALL <observable behavior>.
+當 <條件> 發生時，
+系統必須 <可觀察、可驗證的行為>。
 
 ### CHG-002
 
-IF <condition>
-THEN the system SHALL <observable behavior>.
+如果 <條件>，
+系統必須 <可觀察、可驗證的行為>。
 
-## Design constraints
+## 設計限制
 
-Only record constraints that matter to safe implementation, for example:
+只記錄會影響安全實作的 constraint，例如：
 
-- owning domain/feature layer;
-- server-authoritative action requirement;
-- public/admin privacy boundary;
-- revision/ETag behavior;
-- backwards compatibility;
-- no production data migration.
+- owning domain / feature layer；
+- server-authoritative action requirement；
+- public/admin privacy boundary；
+- revision / ETag behavior；
+- backwards compatibility；
+- 不允許 production data migration。
 
-Do not turn this section into a line-by-line coding plan.
+不要把這一節寫成逐行 coding plan。
 
-## Data / compatibility impact
+## 資料／相容性影響
 
-- Existing tournament JSON:
-- D1/schema migration:
-- Old backups:
-- Public API:
-- Admin API:
+- Existing tournament JSON：
+- D1 / schema migration：
+- Old backups：
+- Public API：
+- Admin API：
 
-## Acceptance criteria
+## 驗收條件
 
-- [ ] CHG-001 is covered by an automated regression test.
-- [ ] CHG-002 is covered by an automated regression test.
-- [ ] Relevant architecture checks pass.
-- [ ] Relevant focused tests pass.
-- [ ] Full/browser/staging gates are completed when required.
-- [ ] No production deployment occurs without explicit approval.
+- [ ] CHG-001 已有 automated regression test。
+- [ ] CHG-002 已有 automated regression test。
+- [ ] 相關 architecture checks 通過。
+- [ ] 相關 focused tests 通過。
+- [ ] 需要時已完成 full / browser / staging gates。
+- [ ] 未取得明確 approval 前沒有 production deployment。
 
-## Current-spec update
+## Current Spec 更新
 
-After acceptance, list which `spec/current/*.md` requirements must be added, changed, or retired.
+功能驗收完成後，列出哪些 `spec/current/*.md` Requirement 需要新增、修改或退役。
 
-## Remaining risks
+## 剩餘風險
 
-Record known behavior not covered by this change.
+記錄本次修改後仍未涵蓋的已知行為或風險。
