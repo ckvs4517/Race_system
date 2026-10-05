@@ -79,11 +79,19 @@ try {
   expectText('已報到 4／報名 4 人', '可以逐一勾選選手完成報到');
 
   click('[data-action="prepare-tournament-schedule"]');
-  await waitFor('[data-action="randomize-schedule"]');
+  await waitFor('[data-action="show-manual-pairing"]');
   expectText('排程中', '確認報到後進入排程階段');
-  click('[data-action="randomize-schedule"]');
-  await waitFor('[data-opening-pairings-form]');
-  expect(document.querySelector('[data-opening-pairings-form]'), '隨機分組後可以手動調整首輪對戰');
+  expect(document.querySelector('[data-action="randomize-schedule"]'), '排程階段仍提供系統隨機');
+  click('[data-action="show-manual-pairing"]');
+  await waitUntil(() => !document.querySelector('[data-manual-pairing-panel]')?.hidden);
+  const pairingSelects = [...document.querySelectorAll('[data-opening-pairings-form] select')];
+  ['旋風', '烈焰', '銀河', '雷霆'].forEach((player, index) => {
+    pairingSelects[index].value = player;
+    pairingSelects[index].dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  submit('[data-opening-pairings-form]');
+  await waitFor('[data-action="confirm-tournament-schedule"]');
+  expect(document.querySelector('[data-opening-pairings-form]'), '現場抽籤可直接建立並預覽首輪對戰');
   click('[data-action="confirm-tournament-schedule"]');
   await waitFor('.match-card.is-ready');
   expect(!document.querySelector('[data-action="edit-tournament"]'), '賽事開始後鎖定編輯功能');
