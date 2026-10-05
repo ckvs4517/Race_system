@@ -1,131 +1,148 @@
-# Current Spec: Tournament Formats and Ranking
+# Current Spec：賽制與排名
 
-Status: current behavior baseline.
+狀態：目前正式行為基準。
 
-Primary implementation anchors: `src/formats/`, `src/domain/ranking/`, `src/domain/tournament/standings.js`, and related tests.
+主要實作位置：`src/formats/`、`src/domain/ranking/`、`src/domain/tournament/standings.js` 與相關 tests。
 
-## Cross-format requirements
+## 跨賽制 Requirements
 
-### RANK-001 — Attendance priority
+### RANK-001 — 報到者優先於 No-show
 
-Every checked-in participant SHALL rank above every participant marked `no_show`, even when the checked-in participant has zero wins.
+所有已報到參賽者都必須排在標記為 `no_show` 的參賽者之前，即使該已報到參賽者為 0 勝。
 
-A real loss SHALL NOT cause a checked-in participant to rank below someone who never checked in.
+實際參賽後的敗場，不得使該參賽者排名低於從未報到的人。
 
-### RANK-002 — Historical results remain attributable
+### RANK-002 — 歷史賽果必須保留歸屬
 
-Withdrawal after participation SHALL preserve historical match results.
+參賽者在出賽後 withdrawal，不得刪除或改寫其歷史 match results。
 
-Ranking/stat derivation SHALL use the applicable historical rounds for that format/stage rather than rewriting old results.
+排名與統計必須使用該賽制／階段所對應的歷史 rounds 衍生，而不是重寫舊結果。
 
-## Single elimination
+## Single Elimination
 
 ### FMT-SE-001
 
-Only active winners SHALL advance.
+只有 active winner 可以晉級。
 
-A bye SHALL not be treated as a played match, although the format MAY count the bye in its advancement/stat model.
+Bye 不得視為實際進行的一場比賽，但該賽制可以在晉級／統計模型中計入 bye。
 
 ### FMT-SE-002
 
-When a round is completed and more than one active winner remains,
-THEN the next round SHALL be generated from those winners.
+當一輪完成後仍有多於一位 active winner 時，下一輪必須由這些 winners 產生。
 
-WHEN one active winner remains,
-THEN that player SHALL become champion.
+當只剩一位 active winner 時，該選手必須成為 champion。
 
 ### FMT-SE-003
 
-Single-elimination standings SHALL prioritize attendance group, champion status, wins, total points, score difference, then deterministic name order.
+單淘汰 standings 必須依序優先考慮：
 
-Historical winner-changing score repair SHALL be blocked unless a dedicated bracket repair flow is introduced.
+1. attendance group；
+2. champion status；
+3. wins；
+4. total points；
+5. score difference；
+6. deterministic name order。
 
-## Round robin
+歷史比分修正若會改變 winner，不得直接套用，除非未來已有專用 bracket Repair Flow。
+
+## Round Robin
 
 ### FMT-RR-001
 
-Round Robin SHALL support 3–8 active players and schedule each pair once in the standard series.
+Round Robin 必須支援 3–8 位 active players，並在標準系列中讓每一組選手互打一次。
 
-Odd-player rounds SHALL represent rest/bye without inventing a scored match against a fake player.
+奇數人輪次應以休息／bye 表示，不得建立假的「選手 vs 輪空」計分比賽。
 
 ### FMT-RR-002
 
-Standard Round Robin ranking SHALL prioritize:
+標準 Round Robin ranking 必須依序優先考慮：
 
-1. attendance group;
-2. champion status where applicable;
-3. wins;
-4. total points scored;
-5. deterministic player-name order.
+1. attendance group；
+2. champion status（適用時）；
+3. wins；
+4. total points scored；
+5. deterministic player-name order。
 
-Rows with the same attendance group, wins, and total points SHALL share the same rank.
+attendance group、wins 與 total points 完全相同的 rows 必須共用相同 rank。
 
 ### FMT-RR-003
 
-WHEN the standard series finishes with multiple players sharing first place,
-THEN the tournament SHALL remain unresolved and MAY start a dedicated tie-break series containing only eligible tied first-place players.
+當標準循環賽結束後有多位選手並列第一：
 
-Tie-break results SHALL decide that tie group without rewriting the standard series history.
+- tournament 必須維持未決狀態；
+- 系統可以建立只包含符合資格之並列第一名選手的專用 tie-break series。
+
+Tie-break 只能決定該 tie group，不得改寫標準系列歷史。
 
 ## Swiss
 
-### FMT-SW-001 — Preliminary phase
+### FMT-SW-001 — 預賽階段
 
-Swiss V2 SHALL use four preliminary rounds.
+Swiss V2 必須使用四輪 preliminary rounds。
 
-Completion of the fourth preliminary round SHALL transition to qualification rather than silently creating a fifth preliminary round.
+第四輪 preliminary 完成後，必須進入 qualification，不得默默建立第五輪 preliminary。
 
-### FMT-SW-002 — Phase-isolated statistics
+### FMT-SW-002 — 各階段統計隔離
 
-Preliminary, qualifier, and final/Stage 2 statistics SHALL be derived from their own applicable rounds.
+Preliminary、qualifier 與 final / Stage 2 統計，必須由各自適用的 rounds 獨立衍生。
 
-Historical preliminary rounds SHALL remain stored when the tournament enters qualification or Stage 2.
+進入 qualification 或 Stage 2 後，歷史 preliminary rounds 必須繼續保留。
 
-### FMT-SW-003 — Ranking rule compatibility
+### FMT-SW-003 — Ranking Rule 相容性
 
-New tournaments currently default to `legacy_v1`.
+新 tournament 目前預設使用 `legacy_v1`。
 
-`legacy_v1` ranking SHALL prioritize attendance group, wins, fewer losses, total points, then original order.
+`legacy_v1` ranking 必須依序考慮：
 
-Existing tournaments that use `buchholz_v1` SHALL remain compatible. Buchholz ranking uses attendance group, wins, opponent wins, total points, and supported head-to-head resolution for a two-player unresolved tie.
+1. attendance group；
+2. wins；
+3. 較少 losses；
+4. total points；
+5. 原始順序。
+
+既有使用 `buchholz_v1` 的 tournament 必須維持相容。
+
+Buchholz ranking 使用 attendance group、wins、opponent wins、total points，並在支援的兩人同分情境下使用 head-to-head resolution。
 
 ### FMT-SW-004 — Qualification
 
-WHEN the preliminary cut cannot uniquely determine the configured advancing players,
-THEN the system MAY create an explicit qualifier series.
+當 preliminary cut 無法唯一決定設定的晉級者時，系統可以建立明確的 qualifier series。
 
-Qualifier statistics SHALL use the active qualifier series, not unrelated preliminary/final matches.
+Qualifier 統計必須只使用目前 active qualifier series，不得混入無關的 preliminary / final matches。
 
 ### FMT-SW-005 — Stage 2
 
-The configured Stage 2 MAY use supported round-robin, single-elimination, Swiss, or standings-completion behavior according to current tournament configuration.
+Stage 2 可以依目前 tournament configuration 使用支援的：
 
-Already-generated preliminary/qualifier history SHALL remain intact.
+- Round Robin；
+- Single Elimination；
+- Swiss；
+- standings completion。
 
-### FMT-SW-006 — Final tie resolution
+已產生的 preliminary / qualifier history 必須維持完整。
 
-WHEN the configured final stage cannot uniquely resolve required top placement,
-THEN the system MAY create explicit tie-break/placement series.
+### FMT-SW-006 — Final Tie Resolution
 
-Those series SHALL be represented as separate historical phases.
+當設定的 final stage 無法唯一決定必要名次時，系統可以建立明確的 tie-break / placement series。
 
-## Win streak
+這些 series 必須以獨立的歷史 phase 表示。
+
+## Win Streak
 
 ### FMT-WS-001
 
-Win Streak SHALL support 3–8 active players.
+Win Streak 必須支援 3–8 位 active players。
 
-The winner SHALL remain active in the arena, the loser SHALL return to the queue, and the next challenger SHALL be drawn from the queue.
+勝者必須留在場上，敗者回到 queue 尾端，下一位 challenger 從 queue 中產生。
 
 ### FMT-WS-002
 
-WHEN a player reaches the configured consecutive-win target,
-THEN that player SHALL become champion.
+當一位選手達成設定的 consecutive-win target 時，該選手必須成為 champion。
 
-Historical winner-changing repair is currently unsupported and SHALL be blocked.
+目前不支援會改變歷史 winner 的 Repair；此類操作必須阻擋。
 
-## Compatibility constraints
+## 相容性限制
 
-- Format modules SHALL remain browser/network independent.
-- Ranking behavior changes require a change spec and regression tests.
-- Generated rounds SHALL not be silently regenerated after deployment of a new algorithm.
+- Format modules 必須保持 browser / network independent。
+- 修改 ranking 行為時必須先建立 Change Spec 並補 regression tests。
+- 新演算法部署後，不得默默重新產生既有 generated rounds。
