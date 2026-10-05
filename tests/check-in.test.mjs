@@ -13,6 +13,7 @@ import {
   startTournament,
   updateRegistrationSettings,
   updateDraftParticipant,
+  updateOpeningPairings,
 } from '../src/domain/tournament.js';
 import { createDefaultDrinkSettings } from '../src/domain/drinks.js';
 import { scheduleView } from '../src/views/schedule.js';
@@ -76,9 +77,21 @@ assert.doesNotMatch(view.match(/data-action="prepare-tournament-schedule"[^>]*>/
 
 let scheduling = prepareTournamentSchedule(tournament);
 assert.equal(scheduling.status, '排程中');
-assert.equal(scheduling.rounds.length, 0, '確認報到後仍等待主辦方按下隨機分組');
+assert.equal(scheduling.rounds.length, 0, '確認報到後仍等待主辦方選擇首輪配對方式');
 view = scheduleView([scheduling], scheduling.id, true);
-assert.match(view, /data-action="randomize-schedule"/);
+assert.match(view, /data-action="randomize-schedule"/, '排程階段提供系統隨機');
+assert.match(view, /data-action="show-manual-pairing"/, '排程階段提供現場抽籤');
+assert.match(view, /data-manual-pairing-panel hidden/, '現場抽籤輸入預設收合');
+const manualScheduling = updateOpeningPairings(scheduling, [['甲', '乙'], ['丙', '丁']]);
+assert.equal(manualScheduling.rounds.length, 1, '現場抽籤可不經 randomize 直接建立 opening round');
+assert.equal(confirmTournamentSchedule(manualScheduling).status, '進行中', '現場抽籤結果可直接進入既有確認賽程流程');
+
+const roundRobinDraft = setAllDraftPlayersCheckedIn(createTournament('循環賽排程入口', ['R1', 'R2', 'R3', 'R4'], 'round_robin'));
+const roundRobinScheduling = prepareTournamentSchedule(roundRobinDraft);
+const roundRobinView = scheduleView([roundRobinScheduling], roundRobinScheduling.id, true);
+assert.match(roundRobinView, /data-action="randomize-schedule"/, '循環賽仍提供既有系統排程');
+assert.doesNotMatch(roundRobinView, /data-action="show-manual-pairing"/, '循環賽不顯示現場抽籤入口');
+
 scheduling = randomizeTournamentSchedule(scheduling, () => 0);
 assert.equal(scheduling.rounds.length, 1);
 assert.match(scheduleView([scheduling], scheduling.id, true), /data-opening-pairings-form/);
