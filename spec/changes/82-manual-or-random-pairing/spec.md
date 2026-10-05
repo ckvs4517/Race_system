@@ -1,7 +1,7 @@
 # Change Spec：首輪配對方式支援「系統隨機」與「現場抽籤」
 
 Related issue: #82  
-Status: proposed
+Status: implemented
 
 ## 目標
 
@@ -228,3 +228,10 @@ V1 不應以只修改第一場／第一輪的方式破壞後續賽制狀態。
 - Round Robin 若未來要支援現場抽籤，應設計「抽選手順序／座號」而不是只輸入第一輪 pairs。
 - Win Streak 若未來要支援現場抽籤，應設計「抽出場 queue」。
 - 螢幕抽籤與更強的儀式感流程留待獨立 Change Spec。
+
+
+## 實作結果
+
+已於 PR #83 完成實作並通過 GitHub Actions `Test and build`。
+
+目前狀態：待合併至 `main`，尚未部署 Staging / Production。
