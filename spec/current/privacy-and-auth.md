@@ -1,63 +1,78 @@
-# Current Spec: Privacy and Administrative Authorization
+# Current Spec：隱私與管理權限
 
-Status: current behavior baseline.
+狀態：目前正式行為基準。
 
-Primary implementation anchors: `src/domain/tournament/visibility.js`, `src/data/store.js`, Worker auth/routes/services, API/privacy tests, and deployment smoke tests.
+主要實作位置：`src/domain/tournament/visibility.js`、`src/data/store.js`、Worker auth/routes/services、API/privacy tests 與 deployment smoke tests。
 
 ## Requirements
 
-### PRIV-001 — Public tournament projection
+### PRIV-001 — Public Tournament Projection
 
-Unauthenticated tournament responses SHALL use a public-safe representation.
+未登入的 tournament response 必須使用 public-safe representation。
 
-The public representation SHALL NOT expose:
+Public representation 不得暴露：
 
-- `participantDetails`;
-- `registrationSettings.token`;
-- `repairHistory`.
+- `participantDetails`；
+- `registrationSettings.token`；
+- `repairHistory`。
 
-Public schedule, roster names, scores, standings, event information, and safe registration settings MAY remain visible.
+公開賽程、選手名稱、比分、standings、活動資訊，以及安全的 registration settings 可以維持公開。
 
-### PRIV-002 — Admin representation
+### PRIV-002 — Admin Representation
 
-A valid administrative session MAY receive the complete tournament representation required for tournament management.
+有效的 admin session 可以取得 tournament 管理所需的完整 representation。
 
-Administrative mutation endpoints SHALL require valid authorization.
+所有 administrative mutation endpoint 必須要求有效 authorization。
 
-### PRIV-003 — Login transition
+### PRIV-003 — Login Transition
 
-WHEN admin login succeeds,
-THEN the client SHALL clear incompatible public tournament cache validators and reload full tournament data.
+當 admin login 成功後：
 
-A cached public response SHALL NOT prevent the authenticated client from receiving private admin fields.
+- client 必須清除不相容的 public tournament cache validators；
+- 必須重新載入完整 tournament data。
 
-### PRIV-004 — Logout transition
+先前快取的 public response 不得阻止 authenticated client 取得 private admin fields。
 
-WHEN the administrator logs out,
-THEN private participant data and private registration tokens SHALL be removed from in-memory browser state immediately.
+### PRIV-004 — Logout Transition
 
-The client SHALL NOT keep private tournament objects accessible merely because they were fetched earlier in the session.
+當 administrator 登出時：
 
-### PRIV-005 — ETag separation
+- private participant data；
+- private registration token；
 
-Public and authenticated/admin tournament representations SHALL NOT share ETag behavior in a way that can return a public `304 Not Modified` for an authenticated request expecting private data.
+必須立即從 browser in-memory state 移除。
 
-### PRIV-006 — Public pages are read-only
+不能因為這些 private tournament objects 曾經被抓取過，就在登出後繼續留在可存取 state 中。
 
-Public tournament pages SHALL NOT perform formal tournament mutations.
+### PRIV-005 — ETag Separation
 
-The standalone scoreboard SHALL NOT mutate formal tournament data.
+Public 與 authenticated/admin tournament representation 的 ETag 行為不得共用到可能造成以下情況：
+
+authenticated request 需要 private data，卻因 public cache validator 收到 `304 Not Modified`。
+
+### PRIV-006 — Public 頁面唯讀
+
+Public tournament page 不得執行正式 tournament mutation。
+
+Standalone scoreboard 不得修改正式 tournament data。
 
 ### PRIV-007 — User-controlled HTML
 
-User-controlled tournament/participant/registration text inserted into HTML string templates SHALL be escaped for the appropriate context.
+任何 user-controlled tournament / participant / registration text 若要插入 HTML string template，都必須依正確 context 做 escaping。
 
-### PRIV-008 — Secrets and personal data
+### PRIV-008 — Secrets 與個資
 
-Real admin PINs, session tokens, registration tokens, participant phone numbers, private notes/answers, or production backups SHALL NOT be committed to the repository.
+以下內容不得 commit 進 repository：
 
-## Known limitations
+- 真實 admin PIN；
+- session token；
+- registration token；
+- participant phone number；
+- private notes / answers；
+- production backup。
 
-The current system still uses a shared organizer/admin PIN and does not yet provide individual judge accounts/audit identity or platform-level rate limiting for all relevant endpoints.
+## 已知限制
 
-These are explicit risks, not permission to weaken the existing privacy boundary.
+目前系統仍使用共用 organizer/admin PIN，尚未提供 individual judge account / audit identity，也不是所有相關 endpoint 都有 platform-level rate limiting。
+
+這些是已知風險，不代表可以降低既有 privacy boundary。
