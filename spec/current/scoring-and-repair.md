@@ -1,114 +1,109 @@
-# Current Spec: Scoring and Historical Repair
+# Current Spec：記分與歷史比分修正
 
-Status: current behavior baseline.
+狀態：目前正式行為基準。
 
-Primary implementation anchors: `src/domain/tournament/matches.js`, `score-validation.js`, `score-correction.js`, format modules, and `worker/services/tournament-actions.js`.
+主要實作位置：`src/domain/tournament/matches.js`、`score-validation.js`、`score-correction.js`、各 format module，以及 `worker/services/tournament-actions.js`。
 
-## Formal scoring requirements
+## 正式記分 Requirements
 
-### SCORE-001 — Server-authoritative result mutation
+### SCORE-001 — 正式賽果由 Server Authoritative Action 執行
 
-WHEN an administrator records, forfeits, replays, corrects, or repairs a formal match,
-THEN the mutation SHALL be executed through a server-authoritative tournament action.
+當管理員記錄比分、判定棄賽、重賽、修正或 Repair 正式比賽時，該 mutation 必須透過 server-authoritative tournament action 執行。
 
-The client SHALL NOT be trusted to submit a precomputed replacement bracket or champion for a started tournament.
+已開始的 tournament 不得信任 client 提交預先算好的替代 bracket 或 champion。
 
-### SCORE-002 — Valid final score
+### SCORE-002 — 有效最終比分
 
-A completed played match SHALL have non-negative integer scores.
+已完成的正式比賽比分必須為非負整數。
 
-A tied score SHALL NOT be confirmable.
+平手不得確認。
 
-The winning score SHALL be at least 4 points.
+勝方最終分數必須至少為 4 分。
 
-### SCORE-003 — Winner consistency
+### SCORE-003 — 勝者一致性
 
-WHEN a match is completed,
-THEN `winner` SHALL match the player with the greater score,
-AND a completion timestamp SHALL be retained.
+當一場比賽完成時：
 
-### SCORE-004 — Current-round restrictions
+- `winner` 必須與比分較高的選手一致；
+- 必須保留完成時間戳記。
 
-Normal score entry SHALL only be accepted for a match that the active format considers currently playable.
+### SCORE-004 — 只允許目前可記分的比賽
 
-The system SHALL reject attempts to use normal score entry to rewrite historical completed rounds.
+一般比分輸入只能套用在目前賽制判定為可進行的 match。
 
-### SCORE-005 — Administrative outcomes
+系統必須拒絕使用一般比分輸入去改寫已完成的歷史 rounds。
 
-Forfeit or withdrawal outcomes SHALL retain explicit outcome/reason metadata.
+### SCORE-005 — 行政判定結果
 
-A normal score-correction operation SHALL NOT silently replace an administrative outcome.
+Forfeit 或 withdrawal 結果必須保留明確的 outcome / reason metadata。
 
-### SCORE-006 — Scoring event detail
+一般比分修正不得默默取代既有行政判定。
 
-WHEN structured scoring events/source metadata are supplied by a supported scoring workflow,
-THEN the official result MAY retain that detail.
+### SCORE-006 — Scoring Event 明細
 
-IF a historical score correction makes the stored scoring-event history inconsistent,
-THEN the stale event history SHALL be removed or marked invalid rather than presented as authoritative.
+當支援的記分流程提供 structured scoring events / scoring source 時，正式賽果可以保留該明細。
 
-## Historical correction requirements
+如果後續歷史比分修正使既有 scoring-event history 不再一致，舊事件資料必須被移除或標記為 invalid，不得繼續當作正式依據顯示。
 
-### REPAIR-001 — Analyze before applying
+## 歷史比分修正 Requirements
 
-A completed-match score correction SHALL first be classified by impact.
+### REPAIR-001 — 套用前先分析影響
 
-The current model uses:
+已完成比賽的比分修正必須先做 impact classification。
 
-- Level 0: safe correction;
-- Level 1: repairable correction that changes protected standings/state;
-- blocked impact: unsupported because the correction can invalidate a bracket/stage that the current repair flow cannot safely reconcile.
+目前模型分為：
 
-### REPAIR-002 — Level 0 correction
+- Level 0：可安全直接修正；
+- Level 1：會改變受保護排名／狀態，但可透過 Repair Flow 處理；
+- Blocked：會影響目前 Repair Flow 無法安全重建的 bracket / stage，因此不支援。
 
-WHEN only the score can be changed without altering protected bracket/ranking state,
-THEN the system MAY apply the correction directly.
+### REPAIR-002 — Level 0 修正
 
-Single-elimination score-number changes are Level 0 only when the winner/bracket path remains unchanged.
+當比分可以修改，且不會改變受保護的 bracket / ranking state 時，系統可以直接套用修正。
 
-### REPAIR-003 — Level 1 repair
+單淘汰只有在 winner 與 bracket path 都不改變時，單純比分數字修改才屬於 Level 0。
 
-WHEN a supported Round Robin or Swiss historical correction changes winner/ranking/state,
-THEN the system MAY use the explicit Repair Flow.
+### REPAIR-003 — Level 1 Repair
 
-A Level 1 repair SHALL require a non-empty reason and SHALL append an auditable repair-history entry.
+當支援的 Round Robin 或 Swiss 歷史比分修正會改變 winner / ranking / tournament state 時，系統可以使用明確的 Repair Flow。
 
-### REPAIR-004 — Preserve unaffected generated history
+Level 1 Repair 必須要求非空白的修正原因，並追加可稽核的 repair-history entry。
 
-A repair SHALL preserve already-generated downstream rounds where the supported repair model explicitly considers those rounds structurally safe.
+### REPAIR-004 — 保留未受影響的已產生賽程
 
-It SHALL identify downstream completed rounds as locked/preserved context rather than silently regenerating them.
+當支援的 repair model 判定後續 rounds 結構仍安全時，Repair 必須保留已產生的 downstream rounds。
 
-### REPAIR-005 — Unsupported repair cases
+已完成的後續 rounds 應被標示為 locked / preserved context，而不是默默重新產生。
 
-The system SHALL block historical corrections that the current repair model cannot reconcile safely.
+### REPAIR-005 — 不支援的 Repair 必須阻擋
 
-Current examples include:
+系統必須阻擋目前 repair model 無法安全 reconcile 的歷史比分修正。
 
-- single-elimination corrections that change the advancing winner;
-- win-streak corrections that change winner/streak state;
-- unsupported Swiss Stage 2 / placement corrections;
-- round-robin tie-break winner-changing correction when not supported by the repair flow.
+目前包含：
 
-### REPAIR-006 — Repair audit privacy
+- 單淘汰中會改變晉級 winner 的修正；
+- Win Streak 中會改變 winner / streak state 的修正；
+- 尚未支援的 Swiss Stage 2 / placement 修正；
+- 尚未由 Repair Flow 支援的 Round Robin tie-break winner-changing 修正。
 
-Repair history is administrative data.
+### REPAIR-006 — Repair History 屬於管理資料
 
-Unauthenticated public tournament representations SHALL NOT expose `repairHistory`.
+`repairHistory` 屬於行政／管理端資料。
 
-### REPAIR-007 — Replay is distinct from correction
+未登入的 public tournament representation 不得暴露 `repairHistory`。
 
-Replay/reset and score correction are separate operations.
+### REPAIR-007 — Replay 與 Score Correction 是不同操作
 
-WHEN replaying an earlier completed result can invalidate dependent rounds,
-THEN downstream state SHALL be invalidated according to the format rules rather than treated as a harmless score edit.
+Replay/reset 與 score correction 必須視為不同操作。
 
-## Compatibility constraints
+當 replay 較早的已完成比賽可能使 downstream rounds 失效時，後續狀態必須依賽制規則明確失效，而不能把它當作單純比分編輯。
 
-- Historical repair SHALL not mutate production data outside an explicit admin action.
-- Old tournament versions that do not support score correction SHALL fail safely rather than guessing.
-- Formal scoring actions SHALL remain revision-safe under concurrent judges.
+## 相容性限制
 
-## Verification anchors
+- 歷史比分修正不得在沒有明確 admin action 的情況下修改 production data。
+- 不支援 score correction 的舊 tournament version 必須安全失敗，不得猜測修正方式。
+- 多裁判並行操作時，正式記分 action 必須維持 revision-safe。
 
-Relevant coverage includes score validation, replay/correction/repair tests, format tests, action synchronization tests, API tests, and staging E2E.
+## 驗證依據
+
+相關 coverage 包含 score validation、replay / correction / repair tests、format tests、action synchronization tests、API tests 與 staging E2E。
