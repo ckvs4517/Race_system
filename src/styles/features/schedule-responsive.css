@@ -37,6 +37,10 @@
   .pairing-editor { padding: 17px 14px; }
   .pairing-editor-heading { align-items: stretch; flex-direction: column; }
   .pairing-editor-heading .button { width: 100%; }
+  .pairing-method-actions { display: grid; grid-template-columns: 1fr; }
+  .pairing-method-actions .button { width: 100%; min-width: 0; }
+  .manual-pairing-heading { align-items: stretch; flex-direction: column; }
+  .manual-pairing-heading .button { width: 100%; }
   .pairing-editor-row { grid-template-columns: 42px minmax(0, 1fr) 24px minmax(0, 1fr); padding-inline: 8px; }
 }
  .leaderboard-stage-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
