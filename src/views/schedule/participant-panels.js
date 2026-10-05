@@ -44,19 +44,42 @@ export function registrationQuickView(tournament, canManage) {
 }
 
 export function pairingEditorView(tournament, canManage) {
-  if (!canManage || tournament.status !== '排程中' || !tournament.rounds?.[0]?.matches?.length) return '';
+  if (!canManage || tournament.status !== '排程中') return '';
   const activePlayers = tournament.players.filter((player) => tournament.participantStates?.[player]?.status === 'active');
+  const existingMatches = tournament.rounds?.[0]?.matches || [];
+  const isSetup = existingMatches.length === 0;
   const allowBye = activePlayers.length % 2 === 1;
+  const matches = isSetup
+    ? Array.from({ length: Math.ceil(activePlayers.length / 2) }, () => ({ playerA: '', playerB: '' }))
+    : existingMatches;
   const optionList = (selected, includeBye = false) => [
+    ...(isSetup ? [''] : []),
     ...activePlayers,
     ...(includeBye ? ['輪空'] : []),
-  ].map((player) => `<option value="${escapeAttribute(player)}" ${player === selected ? 'selected' : ''}>${escapeText(player)}</option>`).join('');
-  const rows = tournament.rounds[0].matches.map((match, index) => `<div class="pairing-editor-row" data-pairing-row>
+  ].map((player) => player
+    ? `<option value="${escapeAttribute(player)}" ${player === selected ? 'selected' : ''}>${escapeText(player)}</option>`
+    : '<option value="" selected disabled>選擇選手</option>').join('');
+  const rows = matches.map((match, index) => `<div class="pairing-editor-row" data-pairing-row>
     <span>第 ${index + 1} 場</span>
-    <select name="playerA" aria-label="第 ${index + 1} 場選手 A">${optionList(match.playerA)}</select>
+    <select name="playerA" aria-label="第 ${index + 1} 場選手 A" required>${optionList(match.playerA)}</select>
     <i>VS</i>
-    <select name="playerB" aria-label="第 ${index + 1} 場選手 B">${optionList(match.playerB, allowBye)}</select>
+    <select name="playerB" aria-label="第 ${index + 1} 場選手 B" required>${optionList(match.playerB, allowBye)}</select>
   </div>`).join('');
+
+  if (isSetup) {
+    return `<section class="pairing-editor pairing-setup">
+      <div class="pairing-editor-heading"><div><p class="kicker">OPENING PAIRING</p><h2>建立首輪配對</h2><p>可由 Spin League 隨機產生，或先在現場完成實體抽籤後輸入結果。</p></div></div>
+      <div class="pairing-method-actions">
+        <button class="button button-primary" type="button" data-action="randomize-schedule">系統隨機</button>
+        <button class="button button-secondary" type="button" data-action="show-manual-pairing">現場抽籤</button>
+      </div>
+      <div class="manual-pairing-panel" data-manual-pairing-panel hidden>
+        <div class="manual-pairing-heading"><div><b>輸入現場抽籤結果</b><p>每位選手必須剛好出現一次；奇數人需安排一位輪空。</p></div><button class="button button-secondary" type="submit" form="opening-pairings-form">儲存配對</button></div>
+        <form id="opening-pairings-form" data-opening-pairings-form>${rows}</form>
+      </div>
+    </section>`;
+  }
+
   return `<section class="pairing-editor">
     <div class="pairing-editor-heading"><div><p class="kicker">MANUAL PAIRING</p><h2>調整首輪對戰</h2><p>可直接更換每場誰對誰；每位選手必須剛好出現一次，奇數人需保留一位輪空。</p></div><button class="button button-secondary" type="submit" form="opening-pairings-form">儲存調整</button></div>
     <form id="opening-pairings-form" data-opening-pairings-form>${rows}</form>
