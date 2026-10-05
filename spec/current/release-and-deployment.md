@@ -1,36 +1,36 @@
-# Current Spec: Release and Deployment Safety
+# Current Spec：Release 與 Deployment 安全
 
-Status: current behavior baseline.
+狀態：目前正式行為基準。
 
-Normative operational source: `RELEASE_CONTRACT.md`.
+正式操作規範來源：`RELEASE_CONTRACT.md`。
 
-This spec summarizes release behavior for feature/change specifications. If this summary conflicts with `RELEASE_CONTRACT.md`, the release contract SHALL take precedence until the documents are reconciled.
+本文件提供 feature/change spec 使用的 release 行為摘要。如果本文件與 `RELEASE_CONTRACT.md` 衝突，在完成文件同步前，應以 `RELEASE_CONTRACT.md` 為準。
 
 ## Targets
 
-- Local: isolated local preview/test environment.
-- Staging: existing `spin-league-test` Site with separate Test D1.
-- Production: existing `spin-league-tournament` Site with Production D1.
+- Local：隔離的本機 preview / test environment。
+- Staging：既有 `spin-league-test` Site，使用獨立 Test D1。
+- Production：既有 `spin-league-tournament` Site，使用 Production D1。
 
 ## Requirements
 
-### REL-001 — Environment identity
+### REL-001 — Environment Identity
 
-Staging and Production SHALL remain separate Sites with separate D1 databases.
+Staging 與 Production 必須維持不同 Site 與不同 D1 database。
 
-A release SHALL NOT substitute the staging database for production or the production database for staging.
+Release 不得以 staging database 取代 production，也不得反向混用。
 
 ### REL-002 — Exact SHA
 
-A release candidate SHALL lock an exact Git SHA.
+Release candidate 必須鎖定一個明確 Git SHA。
 
-Local verification, staging deployment/verification, staging E2E, and any approved production deployment SHALL refer to that same source revision.
+Local verification、staging deployment / verification、staging E2E，以及獲准的 production deployment，都必須對應同一個 source revision。
 
-A source-SHA mismatch SHALL fail the release gate.
+任何 source SHA mismatch 都必須使 release gate 失敗。
 
-### REL-003 — Required release order
+### REL-003 — 必須遵守的 Release 順序
 
-The release sequence SHALL be:
+Release sequence 必須為：
 
 ```text
 Local tests/E2E
@@ -43,45 +43,52 @@ Local tests/E2E
 -> Read-only Production verification
 ```
 
-A failed earlier gate SHALL block later gates.
+任何較早階段失敗，都必須阻擋後續階段。
 
-### REL-004 — Staging destructive test boundary
+### REL-004 — Staging Destructive Test 邊界
 
-Destructive browser E2E SHALL only target `spin-league-test` and Test D1.
+Destructive browser E2E 只能針對 `spin-league-test` 與 Test D1。
 
-The workflow SHALL be hard-locked against production targets and SHALL preserve unrelated pre-existing staging data.
+Workflow 必須 hard-lock，禁止 production target，並保留與 E2E 無關的既有 staging data。
 
-### REL-005 — Production write approval
+### REL-005 — Production Write Approval
 
-Production publication SHALL require explicit operator approval according to the active release mode.
+Production publication 必須依目前 release mode 取得明確 operator approval。
 
-Passing CI or staging tests alone SHALL NOT authorize an unapproved production write.
+CI 或 staging tests 通過本身，不代表取得 production write 權限。
 
-### REL-006 — Production preservation
+### REL-006 — Production Preservation
 
-Normal production deployment SHALL:
+一般 production deployment 必須：
 
-- update only the existing production Site/version for the approved SHA;
-- preserve the existing production Site identity;
-- preserve production D1 and tournament data;
-- preserve the repository's configured hosting identity;
-- never create a replacement production Site or D1;
-- never run destructive production E2E;
-- never automatically rollback through another unapproved production write.
+- 只更新既有 production Site/version 到獲准 SHA；
+- 保留既有 production Site identity；
+- 保留 production D1 與 tournament data；
+- 保留 repository 既有 hosting identity；
+- 不建立 replacement production Site 或 D1；
+- 不執行 destructive production E2E；
+- 不透過另一個未核准 production write 自動 rollback。
 
-### REL-007 — Production baseline and verification
+### REL-007 — Production Baseline 與 Verification
 
-Immediately before a production deployment, the release flow SHALL capture a read-only baseline including live source identity and tournament identity/count information.
+Production deployment 前，release flow 必須先取得 read-only baseline，至少包含：
 
-After deployment, production verification SHALL be read-only and SHALL confirm site/API readability, source SHA, data preservation, and smoke/privacy checks.
+- live source identity；
+- tournament IDs / count 等資料完整性資訊。
 
-### REL-008 — Failure handling
+Deployment 後的 production verification 必須保持 read-only，並確認：
 
-A failed gate SHALL stop subsequent release stages.
+- Site / API 可讀；
+- source SHA 正確；
+- tournament data 保留；
+- smoke / privacy checks 通過。
 
-IF a production write may already have started,
-THEN the system SHALL fail safely and require operator inspection rather than automatically retrying or rolling back.
+### REL-008 — Failure Handling
 
-## Development implication
+任一 gate 失敗後，後續 release stage 必須停止。
 
-A feature spec MAY require local/full tests and staging E2E as acceptance gates, but SHALL NOT itself grant permission to deploy production.
+如果 production write 可能已經開始，系統必須安全失敗並要求 operator inspection，不得自動 retry 或 rollback。
+
+## 對開發流程的意義
+
+Feature spec 可以把 local/full tests 與 staging E2E 列為 acceptance gate，但 feature spec 本身不得授權 production deployment。
