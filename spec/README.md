@@ -1,30 +1,30 @@
-# Spin League Specification Guide
+# Spin League 規格文件指南
 
-This directory is the specification layer for Spin League's lightweight, spec-anchored development workflow.
+此目錄是 Spin League 輕量、以規格為基準（spec-anchored）的開發流程所使用的規格層。
 
-## Structure
+## 目錄結構
 
 ```text
 spec/
-├─ current/                 # What the system is expected to do today
-├─ changes/<issue-or-name>/ # Proposed non-trivial behavior changes
-├─ templates/               # Templates for future change specs
-└─ *.md                     # Older feature specs kept as historical design input
+├─ current/                 # 系統目前應有的正式行為
+├─ changes/<issue-or-name>/ # 尚未實作的非小型行為變更
+├─ templates/               # 未來 Change Spec 範本
+└─ *.md                     # 舊版功能規格，保留作為歷史設計參考
 ```
 
-## Source-of-truth model
+## Source of Truth 模型
 
-- `spec/current/` describes current product/domain behavior.
-- `ARCHITECTURE.md` describes architecture boundaries.
-- `AGENTS.md` describes contributor/AI operational constraints.
-- Tests verify behavior and invariants.
-- Code implements the behavior.
+- `spec/current/`：描述目前產品與 domain 的正式行為。
+- `ARCHITECTURE.md`：描述架構邊界。
+- `AGENTS.md`：描述開發者與 AI 的操作規則與安全限制。
+- Tests：驗證行為與 invariants。
+- Code：實作規格所定義的行為。
 
-If a current spec, tests, and implementation disagree, do not silently choose one. Identify the mismatch, decide which behavior is intended, then update the spec and regression tests with the implementation.
+若 current spec、測試與實際實作互相衝突，不可自行默認其中一份為正確。應先找出差異、確認預期行為，再同步更新規格、回歸測試與實作。
 
-The older feature specs currently stored directly under `spec/` predate this convention. They are useful historical design input, but are not automatically normative when they conflict with `spec/current/`, tests, or the implemented system.
+目前直接放在 `spec/` 根目錄的舊版 feature spec 早於這套規則建立。這些文件仍可作為歷史設計參考，但若與 `spec/current/`、測試或目前實作衝突，不應自動視為正式規格。
 
-## Current specs
+## Current Specs
 
 - `current/tournament-lifecycle.md`
 - `current/scoring-and-repair.md`
@@ -34,54 +34,59 @@ The older feature specs currently stored directly under `spec/` predate this con
 - `current/sync-and-persistence.md`
 - `current/release-and-deployment.md`
 
-These specs intentionally describe behavior at domain/workflow granularity rather than one document per function or source file.
+這些規格刻意以「domain / workflow 行為」為粒度，而不是每個 function 或 source file 各寫一份 Spec。
 
-## When a change spec is required
+## 什麼情況需要 Change Spec
 
-Create `spec/changes/<issue-or-name>/spec.md` before implementation when a change affects one or more of:
+當修改涉及以下任一項目時，應在實作前建立 `spec/changes/<issue-or-name>/spec.md`：
 
-- scoring, ranking, pairing, tournament lifecycle, or format behavior;
-- API behavior or server-authoritative actions;
-- tournament data semantics or persistence;
-- privacy, authentication, or public/admin boundaries;
-- multi-device synchronization or conflict handling;
-- non-trivial registration/roster workflows;
-- release/deployment safety;
-- a user workflow whose acceptance criteria are not obvious from the issue alone.
+- 記分、排名、配對、賽事生命週期或賽制行為；
+- API 行為或 server-authoritative action；
+- tournament 資料語意或 persistence；
+- 隱私、驗證、public/admin 邊界；
+- 多裝置同步或衝突處理；
+- 非單純的報名／名單流程；
+- release / deployment 安全；
+- GitHub Issue 本身不足以清楚定義驗收條件的使用者流程。
 
-A separate change spec is normally unnecessary for wording-only edits, isolated styling adjustments, obvious typo fixes, or small regressions whose intended behavior is already unambiguously covered by a current spec.
+通常以下修改不需要額外建立 Change Spec：
 
-## Lightweight SDD flow
+- 純文字修正；
+- 單純樣式微調；
+- 明確 typo；
+- 已由 current spec 清楚定義預期行為的小型 regression fix。
+
+## Lightweight SDD 流程
 
 ```text
 GitHub Issue
   -> Change Spec
   -> Implementation + Regression Tests
-  -> CI / Staging verification as applicable
-  -> Merge accepted behavior into spec/current
-  -> Archive or retain the change spec for history
+  -> CI / Staging verification（需要時）
+  -> 將確認後的新行為合併回 spec/current
+  -> 保留或封存 Change Spec 作為歷史紀錄
 ```
 
-## Requirement style
+## Requirement 寫法
 
-Prefer observable requirements with stable IDs.
+優先使用可觀察、可驗證，並具有穩定 ID 的需求。
 
-Example:
+例如：
 
 ```text
 SCORE-003
 
-WHEN an administrator confirms a formal match
-THEN the server SHALL reject a tied final score
-AND the winner SHALL have at least 4 points.
+當管理員確認正式比賽結果時，
+系統必須拒絕平手比分，
+且勝方最終分數必須至少為 4 分。
 ```
 
-Requirement IDs should remain stable when wording is clarified. Replace or retire an ID only when the underlying behavior changes.
+Requirement ID 在單純文字澄清時應保持不變。只有底層行為本身被取代或移除時，才應更換或退役該 ID。
 
-## Writing rules
+## 撰寫原則
 
-1. Specify expected behavior, not line-by-line implementation.
-2. Name architectural ownership only when it constrains a safe implementation.
-3. Record compatibility and data-safety requirements explicitly.
-4. Include acceptance criteria that can map to regression tests.
-5. Keep speculative future behavior out of `current/`; place it in a change spec or GitHub issue.
+1. 描述預期行為，不描述逐行實作方式。
+2. 只有在架構 ownership 會影響安全實作時，才寫入對應 layer/module。
+3. 明確記錄相容性與資料安全需求。
+4. 驗收條件應能對應到 regression test。
+5. 尚未實作或仍屬構想的行為不要放進 `current/`；應放在 Change Spec 或 GitHub Issue。
